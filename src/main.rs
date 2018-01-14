@@ -6,7 +6,15 @@ use wu::parser::*;
 use wu::visitor::*;
 
 fn main() {
-    let source = r#"bar: int = .1234"#;
+    let source = r#"
+foo :: 1234
+bar := "hey world"
+baz: float = .1234
+
+foo
+bar
+baz
+    "#;
 
     let path = "test.wu";
 

@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 use std::fmt;
 
+// a simple symbol table for keeping track of scopes
+// 
 #[derive(Clone)]
 pub struct SymTab {
     pub parent: Option<Rc<SymTab>>,
@@ -24,7 +26,7 @@ impl SymTab {
         }
     }
 
-    pub fn new_global() -> SymTab {
+    pub fn global() -> SymTab {
         SymTab {
             parent:  None,
             names:   RefCell::new(HashMap::new()),

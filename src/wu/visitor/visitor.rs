@@ -39,7 +39,7 @@ impl<'v> Visitor<'v> {
     pub fn new(ast: &'v Vec<Statement>, lines: &'v Vec<String>, path: &'v str) -> Self {
         Visitor {
             ast,
-            symtab: SymTab::new_global(),
+            symtab: SymTab::global(),
             lines,
             path
         }

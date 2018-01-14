@@ -168,7 +168,7 @@ impl<'p> Parser<'p> {
             TokenType::Bool       => Bool(self.consume_type(TokenType::Bool)? == "true"),
             TokenType::Identifier => Identifier(self.consume_type(TokenType::Identifier)?),
             
-            TokenType::Whitespace => {
+            TokenType::Whitespace | TokenType::EOL => {
                 self.next()?;
                 return Ok(self.atom()?)
             }
