@@ -3,12 +3,12 @@ extern crate colored;
 mod wu;
 use wu::lexer::*;
 use wu::parser::*;
+use wu::visitor::*;
 
 fn main() {
     let source = r#"
-foo = .1234
-bar = 100
-    "#;
+      foo
+          "#;
 
     let path = "test.wu";
     
@@ -18,7 +18,17 @@ bar = 100
     let mut parser = Parser::new(lexer.collect(), &lines, &path);
 
     match parser.parse() {
-        Ok(ast)       => println!("{:#?}", ast),
+        Ok(ast)       => {
+            println!("{:#?}", ast);
+
+            let visitor = Visitor::new(&ast, &lines, &path);
+            
+            match visitor.validate() {
+                Ok(_)         => (),
+                Err(response) => response.display(&lines, &path),
+            }
+        },
+
         Err(response) => response.display(&lines, &path),
     }
 }

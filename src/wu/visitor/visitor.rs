@@ -13,13 +13,18 @@ pub enum Type {
 pub struct Visitor<'v> {
     pub ast:    &'v Vec<Statement>,
     pub symtab: SymTab,
+
+    pub lines: &'v Vec<String>,
+    pub path:  &'v str,
 }
 
 impl<'v> Visitor<'v> {
-    pub fn new(ast: &'v Vec<Statement>) -> Self {
+    pub fn new(ast: &'v Vec<Statement>, lines: &'v Vec<String>, path: &'v str) -> Self {
         Visitor {
             ast,
             symtab: SymTab::new_global(),
+            lines,
+            path
         }
     }
 
@@ -36,7 +41,6 @@ impl<'v> Visitor<'v> {
 
         match (&statement.0, statement.1) {
             (&Expression(ref expr), _)                       => self.visit_expression(expr),
-            (&Definition {ref kind, ref left, ref right}, _) => self.visit_definition(kind, left, right),
             _                                                => Ok(()),
         }
     }

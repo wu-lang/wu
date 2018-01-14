@@ -30,12 +30,12 @@ impl ResponseNode {
         if let Some(ref position) = self.position {
             let line_number = position.line;
 
-            let prefix = format!("{:5} |  ", line_number).blue().bold();
+            let prefix = format!("{:5} |  ", line_number + 1).blue().bold();
             let line   = format!("{:5} {}\n{}{}", " ", "|".blue().bold(), prefix, lines.get(line_number).unwrap());
 
             let indicator = format!(
                                 "{:6}{}{:offset$}{:^<count$}", " ", "|".bold().blue(), " ", " ".color(color).bold(),
-                                offset = position.col - 1,
+                                offset = if position.col > 0 { position.col - 1 } else { position.col },
                                 count  = 2,
                             );
 

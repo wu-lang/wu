@@ -38,8 +38,9 @@ impl<'p> Parser<'p> {
 
         let node = match self.current_type() {
             Identifier => {
+                let position        = self.position();
                 let identifier      = ExpressionNode::Identifier(self.consume_type(Identifier)?);
-                let identifier_node = Expression(identifier, self.position());
+                let identifier_node = Expression(identifier, position);
                 
                 let backup = self.top;
 
@@ -101,7 +102,7 @@ impl<'p> Parser<'p> {
         if self.remaining() == 0 {
             return Ok(Expression::new(EOF, self.position()))
         }
-
+        
         let node = match self.current_type() {
             TokenType::Int        => Int(self.consume_type(TokenType::Int)?.parse().unwrap()),
             TokenType::Float      => Float(self.consume_type(TokenType::Float)?.parse().unwrap()),
@@ -263,6 +264,7 @@ impl<'p> Parser<'p> {
     }
 
     pub fn position(&self) -> TokenPosition {
+        println!("{:#?}", self.current().position);
         self.current().position.clone()
     }
 
