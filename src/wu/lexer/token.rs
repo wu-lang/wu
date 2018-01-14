@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
-    Number,
+    Int,
+    Float,
     Str,
     Bool,
     Symbol,
