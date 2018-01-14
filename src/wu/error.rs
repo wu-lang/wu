@@ -31,7 +31,7 @@ impl ResponseNode {
             let line_number = position.line;
 
             let prefix = format!("{:5} |  ", line_number).blue().bold();
-            let line   = format!("{:5} {}\n{}{}", " ", "|".blue().bold(), prefix, lines.get(line_number - 1).unwrap());
+            let line   = format!("{:5} {}\n{}{}", " ", "|".blue().bold(), prefix, lines.get(line_number).unwrap());
 
             let indicator = format!(
                                 "{:6}{}{:offset$}{:^<count$}", " ", "|".bold().blue(), " ", " ".color(color).bold(),

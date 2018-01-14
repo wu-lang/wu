@@ -13,6 +13,8 @@ bar: int = 100
     
     let lines = source.lines().map(|x| x.to_string()).collect();
     let lexer = make_lexer(source.clone().chars().collect(), &lines, &path);
-    
-    println!("{:#?}", lexer.collect::<Vec<Token>>());
+        
+    for token in lexer {
+        println!("{:#?}", token);
+    }
 }

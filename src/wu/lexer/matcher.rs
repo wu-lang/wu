@@ -50,11 +50,12 @@ impl Matcher for FloatLiteralMatcher {
         } else {
             return Ok(None)
         }
+
         while !tokenizer.end() {
             let current = *tokenizer.peek().unwrap();
             if !current.is_whitespace() && current.is_digit(10) || current == '.' {
-                if current == '.' && accum.contains('.') {
-                    return Err(make_error(Some(tokenizer.pos.clone()), "weird extra decimal point".to_owned()))
+                if current == '.' && accum.contains('.') {                    
+                    return Err(make_error(Some(TokenPosition::new(tokenizer.pos.line, tokenizer.pos.col - 1)), "extra decimal point".to_owned()))
                 }
                 accum.push(tokenizer.next().unwrap())
             } else {
@@ -68,14 +69,14 @@ impl Matcher for FloatLiteralMatcher {
 
             let literal: String = match accum.parse::<f64>() {
                 Ok(result) => result.to_string(),
-                Err(error) => panic!("unable to parse float-literal: {}", error)
+                Err(error) => panic!("unable to parse float: {}", error)
             };
 
             Ok(Some(token!(tokenizer, Float, literal)))
         } else {
             let literal: String = match u64::from_str_radix(accum.as_str(), 10) {
                 Ok(result) => result.to_string(),
-                Err(error) => panic!("unable to parse int-literal: {}", error)
+                Err(error) => panic!("unable to parse int: {}", error)
             };
 
             Ok(Some(token!(tokenizer, Float, literal)))
