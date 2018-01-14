@@ -6,7 +6,6 @@ pub fn make_lexer<'l>(data: Vec<char>, lines: &'l Vec<String>, path: &'l str) ->
     let tokenizer = Tokenizer::new(data);
     let mut lexer = Lexer::new(tokenizer, lines, path);
 
-    lexer.matchers_mut().push(Rc::new(IntLiteralMatcher));
     lexer.matchers_mut().push(Rc::new(FloatLiteralMatcher));
     lexer.matchers_mut().push(Rc::new(StringLiteralMatcher));
 

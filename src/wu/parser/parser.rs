@@ -1,5 +1,5 @@
 use super::lexer::*;
-use super::visitor::{Type, TypeNode, TypeMode};
+use super::visitor::TypeNode;
 use super::*;
 
 use std::rc::Rc;
@@ -11,6 +11,8 @@ pub struct Parser<'p> {
     // for displaying pretty warnings without returning Err
     pub lines:  &'p Vec<String>,
     pub path:   &'p str,
+    
+    pub inside: String,
 }
 
 impl<'p> Parser<'p> {
@@ -20,6 +22,7 @@ impl<'p> Parser<'p> {
             top: 0,
             lines,
             path,
+            inside: String::new(),
         }
     }
 
@@ -89,7 +92,7 @@ impl<'p> Parser<'p> {
                             }
                         }
                     },
-                    
+
                     "=" => {
                         self.next()?;
 
@@ -163,11 +166,26 @@ impl<'p> Parser<'p> {
             TokenType::Str        => Str(self.consume_type(TokenType::Str)?),
             TokenType::Bool       => Bool(self.consume_type(TokenType::Bool)? == "true"),
             TokenType::Identifier => Identifier(self.consume_type(TokenType::Identifier)?),
-            
+
+            TokenType::Symbol => match self.current_content().as_str() {
+                "(" => {
+                    let content = self.block_of(&Self::expression_, ("(", ")"))?;
+                    self.skip_types(vec![TokenType::Whitespace])?;
+                    
+                    if content.len() > 1 {
+                        return Err(make_error(Some(content.get(0).unwrap().1), format!("claused expression can only contain one item")))
+                    }
+
+                    return Ok(content.get(0).unwrap().clone())
+                },
+
+                ref t => return Err(make_error(Some(self.position()), format!("unexpected symbol: {}", t)))
+            },
+
             TokenType::Whitespace => {
                 self.next()?;
                 return Ok(self.atom()?)
-            }
+            },
 
             t => return Err(make_error(Some(self.position()), format!("token type '{:?}' currently unimplemented", t)))
         };
@@ -175,15 +193,67 @@ impl<'p> Parser<'p> {
         Ok(Expression::new(node, self.position()))
     }
 
+    fn expression_(self: &mut Self) -> Response<Option<Expression>> {
+        let expression = self.expression()?;
+
+        match expression.0 {
+            ExpressionNode::EOF => Ok(None),
+            _                   => Ok(Some(expression)),
+        }
+    }
+
+    fn block_of<B>(&mut self, match_with: &Fn(&mut Self) -> Response<Option<B>>, delimeters: (&str, &str)) -> Response<Vec<B>> {
+        let backup_inside = self.inside.clone();
+        self.inside       = delimeters.0.to_owned();
+
+        if self.current_content() == delimeters.0 {
+            self.next()?
+        }
+
+        let mut stack  = Vec::new();
+        let mut nested = 1;
+
+        while nested != 0 {
+            if self.current_content() == delimeters.1 {
+                nested -= 1
+            } else if self.current_content() == delimeters.0 {
+                nested += 1
+            }
+
+            if nested == 0 {
+                break
+            }
+
+            stack.push(self.current().clone());
+            
+            self.next()?
+        }
+
+        self.next()?;
+
+        let mut parser  = Parser::new(stack, self.lines, self.path);
+        parser.inside   = self.inside.clone();
+
+        let mut stack_b = Vec::new();
+        
+        while let Some(n) = match_with(&mut parser)? {
+            stack_b.push(n)
+        }
+
+        self.inside = backup_inside;
+
+        Ok(stack_b)
+    }
+
     // parsing operations using the Dijkstra shunting yard algorithm
     fn binary(&mut self, expression: Expression) -> Response<Expression> {
         let mut ex_stack = vec![expression];
         let mut op_stack: Vec<(Operator, u8)> = Vec::new();
-        
+
         let position = self.position();
         op_stack.push(Operator::from(&self.current_content()).unwrap());
         self.next()?;
-        
+
         let atom = self.atom()?;
 
         if atom.0 != ExpressionNode::EOF {
@@ -202,11 +272,11 @@ impl<'p> Parser<'p> {
                     done = true;
                     continue
                 }
-                
+
                 if self.remaining() == 0 {
                     return Err(make_error(Some(self.position()), "missing right hand expression".to_owned()))
                 }
-                
+
                 let position         = self.position();
                 let (op, precedence) = Operator::from(&self.consume_type(TokenType::Operator)?).unwrap();
 

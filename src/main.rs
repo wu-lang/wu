@@ -7,11 +7,7 @@ use wu::visitor::*;
 
 fn main() {
     let source = r#"
-foo :: 1234
-bar := 10 + foo
-
-foo = 10
-bar = "hey"
+foo :: (1234)
     "#;
 
     let path = "test.wu";

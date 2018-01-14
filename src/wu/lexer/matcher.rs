@@ -15,27 +15,6 @@ pub trait Matcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>>;
 }
 
-pub struct IntLiteralMatcher;
-
-impl Matcher for IntLiteralMatcher {
-    fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
-        let mut accum = String::new();
-        while let Some(c) = tokenizer.next() {
-            if c.is_digit(10) {
-                accum.push(c.clone());
-            } else {
-                break
-            }
-        }
-
-        if accum.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(token!(tokenizer, Int, accum)))
-        }
-    }
-}
-
 pub struct FloatLiteralMatcher;
 
 impl Matcher for FloatLiteralMatcher {
@@ -79,7 +58,7 @@ impl Matcher for FloatLiteralMatcher {
                 Err(error) => panic!("unable to parse int: {}", error)
             };
 
-            Ok(Some(token!(tokenizer, Float, literal)))
+            Ok(Some(token!(tokenizer, Int, literal)))
         }
     }
 }
