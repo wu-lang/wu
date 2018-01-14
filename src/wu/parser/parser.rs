@@ -95,10 +95,6 @@ impl<'p> Parser<'p> {
 
                         let right = self.expression()?;
 
-                        if self.remaining() > 0 {
-                            self.expect_type(TokenType::EOL)?;
-                        }
-
                         StatementNode::Assignment {
                             left: identifier_node,
                             right,
@@ -155,12 +151,12 @@ impl<'p> Parser<'p> {
     fn atom(&mut self) -> Response<Expression> {
         use self::ExpressionNode::*;
 
-        self.skip_types(vec![TokenType::EOL, TokenType::Whitespace])?;
+        self.skip_types(vec![TokenType::Whitespace])?;
 
         if self.remaining() == 0 {
             return Ok(Expression::new(EOF, self.position()))
         }
-        
+
         let node = match self.current_type() {
             TokenType::Int        => Int(self.consume_type(TokenType::Int)?.parse().unwrap()),
             TokenType::Float      => Float(self.consume_type(TokenType::Float)?.parse().unwrap()),
@@ -168,7 +164,7 @@ impl<'p> Parser<'p> {
             TokenType::Bool       => Bool(self.consume_type(TokenType::Bool)? == "true"),
             TokenType::Identifier => Identifier(self.consume_type(TokenType::Identifier)?),
             
-            TokenType::Whitespace | TokenType::EOL => {
+            TokenType::Whitespace => {
                 self.next()?;
                 return Ok(self.atom()?)
             }

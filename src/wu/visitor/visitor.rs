@@ -12,6 +12,7 @@ pub enum TypeNode {
     Id(String),
 }
 
+// this is for typechecking
 impl PartialEq for TypeNode {
     fn eq(&self, other: &TypeNode) -> bool {
         use TypeNode::*;
@@ -29,6 +30,21 @@ impl PartialEq for TypeNode {
     }
 }
 
+impl Display for TypeNode {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        use TypeNode::*;
+
+        match *self {
+            Int   => write!(f, "int"),
+            Float => write!(f, "float"),
+            Bool  => write!(f, "boolean"),
+            Str   => write!(f, "string"),
+            Nil   => write!(f, "nil"),
+            Id(ref a) => write!(f, "{}", a),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TypeMode {
     Undeclared,
@@ -36,6 +52,21 @@ pub enum TypeMode {
     Just,
 }
 
+impl TypeMode {
+    // this is for actual, reliable checking
+    pub fn check(&self, other: &TypeMode) -> bool {
+        use TypeMode::*;
+
+        match (self, other) {
+            (&Just,       &Just)       => true,
+            (&Constant,   &Constant)   => true,
+            (&Undeclared, &Undeclared) => true,
+            _ => false,
+        }
+    }
+}
+
+// this is for typechecking
 impl PartialEq for TypeMode {
     fn eq(&self, other: &TypeMode) -> bool {
         use TypeMode::*;
@@ -82,16 +113,7 @@ impl Type {
 
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        use TypeNode::*;
-        
-        match self.0 {
-            Int   => write!(f, "int"),
-            Float => write!(f, "float"),
-            Bool  => write!(f, "boolean"),
-            Str   => write!(f, "string"),
-            Nil   => write!(f, "nil"),
-            Id(ref a) => write!(f, "{}", a),
-        }
+        write!(f, "{}", self.0)
     }
 }
 
@@ -130,6 +152,7 @@ impl<'v> Visitor<'v> {
             (&Expression(ref expr), _)                       => self.visit_expression(expr),
             (&Definition {ref kind, ref left, ref right}, _) => self.visit_definition(kind, left, right),
             (&ConstDefinition {ref left, ref right}, _)      => self.visit_constant(left, right),
+            (&Assignment {ref left, ref right}, _)           => self.visit_assignment(left, right),
             _                                                => Ok(()),
         }
     }
@@ -166,22 +189,22 @@ impl<'v> Visitor<'v> {
 
             (&Binary { ref left, ref op, ref right }, position) => {
                 use Operator::*;
-
+                
                 match (self.type_expression(&*left)?, op, self.type_expression(&*right)?) {
                     (a, &Add, b) => if a == b {
-                        a
+                        Type::new(a.0, TypeMode::Just)
                     } else {
                         return Err(make_error(Some(position), format!("can't add {} and {}", a, b)))
                     },
 
                     (a, &Sub, b) => if a == b {
-                        a
+                        Type::new(a.0, TypeMode::Just)
                     } else {
                         return Err(make_error(Some(position), format!("can't subtract {} and {}", a, b)))
                     },
 
                     (a, &Mul, b) => if a == b {
-                        a
+                        Type::new(a.0, TypeMode::Just)
                     } else {
                         return Err(make_error(Some(position), format!("can't multiply {} and {}", a, b)))
                     }
@@ -196,13 +219,16 @@ impl<'v> Visitor<'v> {
         Ok(t)
     }
 
-    fn visit_definition(&self, kind: &TypeNode, left: &Expression, right: &Option<Expression>) -> Response<()> {
+    fn visit_definition(&mut self, kind: &TypeNode, left: &Expression, right: &Option<Expression>) -> Response<()> {
         use ExpressionNode::*;
 
-        match left.0 {
-            Identifier(ref name) => { self.symtab.add_name(&name); },
+        let index = match left.0 {
+            Identifier(ref name) => {
+                self.typetab.grow();
+                self.symtab.add_name(&name)
+            },
             _                    => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
-        }
+        };
 
         if let Some(ref right) = *right {
             self.visit_expression(&right)?;
@@ -210,8 +236,12 @@ impl<'v> Visitor<'v> {
             if *kind != TypeNode::Nil {
                 let right_kind = self.type_expression(&right)?;
                 if *kind != right_kind.0 {
-                    return Err(make_error(Some(left.1), format!("mismatched types: expected '{:?}', found '{:?}'", kind, right_kind)))
+                    return Err(make_error(Some(left.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
+                } else {
+                    self.typetab.set_type(index, 0, self.type_expression(right)?)?;
                 }
+            } else {
+                self.typetab.set_type(index, 0, self.type_expression(right)?)?;
             }
         }
         Ok(())
@@ -225,11 +255,29 @@ impl<'v> Visitor<'v> {
                 self.typetab.grow();
                 self.symtab.add_name(&name)
             },
-            _                    => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
+            _ => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
 
         self.visit_expression(right)?;
 
         self.typetab.set_type(index, 0, Type::new(self.type_expression(right)?.0, TypeMode::Constant))
+    }
+
+    fn visit_assignment(&mut self, left: &Expression, right: &Expression) -> Response<()> {
+        self.visit_expression(left)?;
+        self.visit_expression(right)?;
+
+        let left_type  = self.type_expression(left)?;
+        let right_type = self.type_expression(right)?;
+
+        if left_type.1.check(&TypeMode::Constant) {
+            Err(make_error(Some(left.1), format!("can't reassign constant")))
+        } else {
+            if left_type != right_type {
+                Err(make_error(Some(left.1), format!("mismatched types: expected '{}', found '{}'", left_type, right_type)))
+            } else {
+                Ok(())
+            }
+        }
     }
 }
