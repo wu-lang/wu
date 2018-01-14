@@ -183,7 +183,8 @@ impl<'p> Parser<'p> {
     fn binary(&mut self, expression: Expression) -> Response<Expression> {
         let mut ex_stack = vec![expression];
         let mut op_stack: Vec<(Operator, u8)> = Vec::new();
-
+        
+        let position = self.position();
         op_stack.push(Operator::from(&self.current_content()).unwrap());
         self.next()?;
         
@@ -209,7 +210,8 @@ impl<'p> Parser<'p> {
                 if self.remaining() == 0 {
                     return Err(make_error(Some(self.position()), "missing right hand expression".to_owned()))
                 }
-
+                
+                let position         = self.position();
                 let (op, precedence) = Operator::from(&self.consume_type(TokenType::Operator)?).unwrap();
 
                 if precedence >= op_stack.last().unwrap().1 {
@@ -223,7 +225,7 @@ impl<'p> Parser<'p> {
                                 op:    op_stack.pop().unwrap().0,
                                 left:  Rc::new(right),
                             },
-                            self.position(),
+                            position,
                         )
                     );
 
@@ -257,7 +259,7 @@ impl<'p> Parser<'p> {
                         op:    op_stack.pop().unwrap().0,
                         left:  Rc::new(right),
                     },
-                    self.position(),
+                    position,
                 )
             );
         }

@@ -9,7 +9,7 @@ fn main() {
     let source = r#"
 foo :: 1234
 bar := "hey world"
-baz: float = .1234
+baz: float = .1234 + true
 
 foo
 bar
