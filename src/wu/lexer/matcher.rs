@@ -54,7 +54,7 @@ impl Matcher for FloatLiteralMatcher {
         while !tokenizer.end() {
             let current = *tokenizer.peek().unwrap();
             if !current.is_whitespace() && current.is_digit(10) || current == '.' {
-                if current == '.' && accum.contains('.') {                    
+                if current == '.' && accum.contains('.') {
                     return Err(make_error(Some(tokenizer.pos), "extra decimal point".to_owned()))
                 }
                 accum.push(tokenizer.next().unwrap())
@@ -159,7 +159,8 @@ pub struct IdentifierMatcher;
 
 impl Matcher for IdentifierMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
-        if !tokenizer.peek().unwrap().is_alphabetic() && !"_".contains(*tokenizer.peek().unwrap()) {
+        //Make sure the first character is alphabetic or '_' if not it's not an identifier
+        if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == &'_') {
             return Ok(None)
         }
 
