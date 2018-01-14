@@ -119,7 +119,7 @@ impl Matcher for StringLiteralMatcher {
             //Check if file ends before the string
             //Basically this means there's no end delimiter
             if tokenizer.end() {
-                return Err(make_error(Some(tokenizer.pos.clone()), format!("Expected delimeter `{}`, found EOF", delimeter)))
+                return Err(make_error(Some(tokenizer.pos.clone()), format!("Expected delimeter `{}` found EOF", delimeter)))
             }
 
             if raw_marker {
