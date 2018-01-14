@@ -1,5 +1,5 @@
 use super::lexer::*;
-use super::visitor::*;
+use super::visitor::{Type, TypeNode, TypeMode};
 use super::*;
 
 use std::rc::Rc;
@@ -66,14 +66,14 @@ impl<'p> Parser<'p> {
                                 let right = self.expression()?;
 
                                 StatementNode::Definition {
-                                    kind:  None,
+                                    kind:  TypeNode::Nil,
                                     left:  identifier_node,
                                     right: Some(right),
                                 }
                             } else {
                                 self.skip_types(vec![TokenType::Whitespace])?;
-                                
-                                let kind = self.typed()?;
+
+                                let kind = self.type_node()?;
 
                                 self.skip_types(vec![TokenType::Whitespace])?;
                                 
@@ -82,7 +82,7 @@ impl<'p> Parser<'p> {
                                 let right = self.expression()?;
 
                                 StatementNode::Definition {
-                                    kind:  Some(kind),
+                                    kind,
                                     left:  identifier_node,
                                     right: Some(right),
                                 }
@@ -117,8 +117,8 @@ impl<'p> Parser<'p> {
         Ok(Statement::new(node, self.position()))
     }
 
-    fn typed(&mut self) -> Response<Type> {
-        use Type::*;
+    fn type_node(&mut self) -> Response<TypeNode> {
+        use TypeNode::*;
         
         let t = match self.consume_type(TokenType::Identifier)?.as_str() {
             "int"     => Int,

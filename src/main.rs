@@ -8,12 +8,8 @@ use wu::visitor::*;
 fn main() {
     let source = r#"
 foo :: 1234
-bar := "hey world"
-baz: float = .1234 + true
 
-foo
-bar
-baz
+bar := foo + true
     "#;
 
     let path = "test.wu";
@@ -28,7 +24,7 @@ baz
         Ok(ast)       => {
             println!("{:#?}", ast);
 
-            let visitor = Visitor::new(&ast, &lines, &path);
+            let mut visitor = Visitor::new(&ast, &lines, &path);
             
             match visitor.validate() {
                 Ok(_)         => (),

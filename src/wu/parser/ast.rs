@@ -26,13 +26,13 @@ impl Expression {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatementNode {
     Expression(Expression),
-    
+
     Definition {
-        kind:  Option<Type>,
+        kind:  TypeNode,
         left:  Expression,
         right: Option<Expression>,
     },
-    
+
     ConstDefinition {
         left:  Expression,
         right: Expression,
