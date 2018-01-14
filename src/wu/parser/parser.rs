@@ -169,14 +169,49 @@ impl<'p> Parser<'p> {
 
             TokenType::Symbol => match self.current_content().as_str() {
                 "(" => {
-                    let content = self.block_of(&Self::expression_, ("(", ")"))?;
-                    self.skip_types(vec![TokenType::Whitespace])?;
+                    let backup_top = self.top;
                     
-                    if content.len() > 1 {
-                        return Err(make_error(Some(content.get(0).unwrap().1), format!("claused expression can only contain one item")))
+                    self.next()?;
+                    
+                    let mut nested = 1;
+
+                    while nested != 0 {
+                        if self.current_content() == ")" {
+                            nested -= 1
+                        } else if self.current_content() == "(" {
+                            nested += 1
+                        }
+                        
+                        if nested == 0 {
+                            break
+                        }
+
+                        self.next()?
                     }
 
-                    return Ok(content.get(0).unwrap().clone())
+                    self.next()?;
+                    
+                    self.skip_types(vec![TokenType::Whitespace])?;
+
+                    self.type_node();
+                    
+                    self.skip_types(vec![TokenType::Whitespace])?;
+                    
+                    if self.current_content() != "->" {
+                        self.top = backup_top;
+
+                        let content = self.block_of(&Self::expression_, ("(", ")"))?;
+                        
+                        if content.len() > 1 {
+                            return Err(make_error(Some(content.get(0).unwrap().1), format!("claused expression can only contain one item")))
+                        }
+
+                        return Ok(content.get(0).unwrap().clone())
+                    } else {
+                        self.top = backup_top
+                    }
+
+                    self.function()?
                 },
 
                 ref t => return Err(make_error(Some(self.position()), format!("unexpected symbol: {}", t)))
@@ -191,6 +226,34 @@ impl<'p> Parser<'p> {
         };
 
         Ok(Expression::new(node, self.position()))
+    }
+
+    fn function(&mut self) -> Response<ExpressionNode> {
+        let params      = self.block_of(&Self::param_, ("(", ")"))?;
+
+        self.skip_types(vec![TokenType::Whitespace])?;
+
+        let return_type = self.type_node()?;
+        
+        self.skip_types(vec![TokenType::Whitespace])?;
+        
+        self.consume_content("->")?;
+
+        let body = Rc::new(self.expression()?);
+
+        Ok(ExpressionNode::Function {params, return_type, body})
+    }
+
+    fn param_(self: &mut Self) -> Response<Option<(String, TypeNode)>> {
+        let name = self.consume_type(TokenType::Identifier)?;
+        self.skip_types(vec![TokenType::Whitespace])?;
+        let kind = self.type_node()?;
+
+        if self.remaining() == 0 {
+            Ok(None)
+        } else {
+            Ok(Some((name, kind)))
+        }
     }
 
     fn expression_(self: &mut Self) -> Response<Option<Expression>> {
@@ -339,6 +402,7 @@ impl<'p> Parser<'p> {
             self.top += 1;
             Ok(())
         } else {
+            panic!();
             Err(make_error(None, "nexting outside token stack".to_owned()))
         }
     }
