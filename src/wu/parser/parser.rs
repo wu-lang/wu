@@ -133,26 +133,34 @@ impl<'p> Parser<'p> {
 
                 while nested != 0 {
                     if self.current_content() == ")" {
-                        nested -= 1
+                        self.next()?;
+                        nested -= 1;
                     } else if self.current_content() == "(" {
                         nested += 1
                     }
-                    
+
                     if nested == 0 {
                         break
                     }
 
-                    params.push(Rc::new(Type::new(self.type_node()?, TypeMode::Just)))
-                }
-                
-                self.next()?; // closing delimeter
-                
-                self.skip_types(vec![TokenType::Whitespace])?;
-                
-                let retty = Rc::new(Type::new(self.type_node()?, TypeMode::Just));
+                    self.skip_types(vec![TokenType::Whitespace])?;
 
-                return Ok(Fun(params, retty))
+                    params.push(Rc::new(Type::new(self.type_node()?, TypeMode::Just)));
+                    
+                    self.skip_types(vec![TokenType::Whitespace])?;
+                    
+                    if self.current_content() == "," {
+                        self.next()?
+                    }
+                }
+
+                self.skip_types(vec![TokenType::Whitespace])?;
+
+                let retty = Type::new(self.type_node()?, TypeMode::Just);
+
+                return Ok(Fun(params, Rc::new(retty)))
             },
+
             _ => return Ok(Id(self.consume_type(TokenType::Identifier)?)), 
         };
 

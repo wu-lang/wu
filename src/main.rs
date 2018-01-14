@@ -7,7 +7,7 @@ use wu::visitor::*;
 
 fn main() {
     let source = r#"
-apply :: (a int, f(int) int) int -> a
+apply: (int, (int) int) bool = (a int, f(int) int) int -> a
     "#;
 
     let path = "test.wu";

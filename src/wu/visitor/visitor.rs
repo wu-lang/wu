@@ -28,8 +28,9 @@ impl PartialEq for TypeNode {
             (&Bool,      &Bool)      => true,
             (&Str,       &Str)       => true,
             (&Nil,       &Nil)       => true,
+            (ref a,     &Fun(_, ref b)) => **a == b.0,
+            (&Fun(_, ref a), ref b)  => a.0 == **b,
             (&Id(ref a), &Id(ref b)) => a == b,
-            (&Fun(ref params_a, ref retty_a), &Fun(ref params_b, ref retty_b)) => params_a == params_b && retty_a == retty_b,
             _                        => false,
         }
     }
@@ -52,7 +53,7 @@ impl Display for TypeNode {
                     write!(f, "{}", param)?
                 }
 
-                write!(f, ") -> {}", return_type)
+                write!(f, ") {}", return_type)
             },
             Id(ref a) => write!(f, "{}", a),
         }
@@ -290,7 +291,7 @@ impl<'v> Visitor<'v> {
             if *kind != TypeNode::Nil {
                 let right_kind = self.type_expression(&right)?;
                 if *kind != right_kind.0 {
-                    return Err(make_error(Some(left.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
+                    return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
                 } else {
                     self.typetab.set_type(index, 0, self.type_expression(right)?)?;
                 }
@@ -330,7 +331,7 @@ impl<'v> Visitor<'v> {
             Err(make_error(Some(left.1), format!("can't reassign constant")))
         } else {
             if left_type != right_type {
-                Err(make_error(Some(left.1), format!("mismatched types: expected '{}', found '{}'", left_type, right_type)))
+                Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", left_type, right_type)))
             } else {
                 Ok(())
             }
