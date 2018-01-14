@@ -5,8 +5,8 @@ macro_rules! token {
         token!($tokenizer , TokenType::$token_type, $accum)
     }};
     ($tokenizer:expr, $token_type:expr, $accum:expr) => {{
-        let tokenizer  = $tokenizer  as &$crate::pear::lexer::tokenizer::Tokenizer;
-        let token_type = $token_type as $crate::pear::lexer::token::TokenType;
+        let tokenizer  = $tokenizer  as &$crate::wu::lexer::tokenizer::Tokenizer;
+        let token_type = $token_type as $crate::wu::lexer::token::TokenType;
         Token::new(token_type, tokenizer.last_position(), $accum)
     }};
 }
@@ -65,7 +65,7 @@ impl Matcher for NumberLiteralMatcher {
 pub struct StringLiteralMatcher;
 
 impl Matcher for StringLiteralMatcher {
-    fn try_match(&self, tokenizer: &mut Tokenizer) -> ResResult<Option<Token>> {
+    fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         let mut raw_marker = false;
         let delimeter  = match *tokenizer.peek().unwrap() {
             '"'  => Some('"'),
@@ -128,7 +128,7 @@ impl Matcher for StringLiteralMatcher {
 pub struct IdentifierMatcher;
 
 impl Matcher for IdentifierMatcher {
-    fn try_match(&self, tokenizer: &mut Tokenizer) -> ResResult<Option<Token>> {
+    fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         if !tokenizer.peek().unwrap().is_alphabetic() && !"_".contains(*tokenizer.peek().unwrap()) {
             return Ok(None)
         }
@@ -146,7 +146,7 @@ impl Matcher for IdentifierMatcher {
 pub struct WhitespaceMatcher;
 
 impl Matcher for WhitespaceMatcher {
-    fn try_match(&self, tokenizer: &mut Tokenizer) -> ResResult<Option<Token>> {
+    fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         let string = tokenizer.collect_if(|c| c.is_whitespace() && c != &'\n');
 
         if string.len() > 0 {
@@ -172,7 +172,7 @@ impl ConstantCharMatcher {
 }
 
 impl Matcher for ConstantCharMatcher {
-    fn try_match(&self, tokenizer: &mut Tokenizer) -> ResResult<Option<Token>> {
+    fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         let c = tokenizer.peek().unwrap().clone();
         for constant in self.constants {
             if c == *constant {
@@ -199,7 +199,7 @@ impl ConstantStringMatcher {
 }
 
 impl Matcher for ConstantStringMatcher {
-    fn try_match(&self, tokenizer: &mut Tokenizer) -> ResResult<Option<Token>> {
+    fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         for constant in self.constants {
             let dat = tokenizer.clone().take(constant.len());
             if dat.size_hint().1.unwrap() != constant.len() {
@@ -229,7 +229,7 @@ impl KeyMatcher {
 }
 
 impl Matcher for KeyMatcher {
-    fn try_match(&self, tokenizer: &mut Tokenizer) -> ResResult<Option<Token>> {
+    fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         for constant in self.constants.clone() {
             let dat = tokenizer.clone().take(constant.len());
             if dat.size_hint().1.unwrap() != constant.len() {
