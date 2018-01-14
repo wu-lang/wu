@@ -28,11 +28,13 @@ impl ResponseNode {
         );
 
         if let Some(ref position) = self.position {
-            let line_number = if position.line > 0 {
+            let line_number = if position.line == 0 {
                 position.line
             } else {
-                position.line - 1
+                position.line
             };
+            
+            println!("{:?}\t{}", line_number, lines.len());
 
             let prefix = format!("{:5} |  ", line_number + 1).blue().bold();
             let line   = format!("{:5} {}\n{}{}", " ", "|".blue().bold(), prefix, lines.get(if line_number == 1 && lines.len() == 1 { 0 } else { line_number }).unwrap());

@@ -6,9 +6,7 @@ use wu::parser::*;
 use wu::visitor::*;
 
 fn main() {
-    let source = r#"
-bar :: (a + 10)
-    "#;
+    let source = r#"bar :: () -> 0"#;
 
     let path = "test.wu";
 

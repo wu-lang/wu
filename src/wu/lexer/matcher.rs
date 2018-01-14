@@ -99,7 +99,7 @@ impl Matcher for StringLiteralMatcher {
             // check if file ends before the string
             // basically this means there's no end delimiter
             if tokenizer.end() {
-                return Err(make_error(Some(tokenizer.last_position()), format!("expected closing delimeter '{}' found end", delimeter)))
+                return Err(make_error(Some(TokenPosition::new(tokenizer.last_position().line - 1, tokenizer.last_position().col)), format!("expected closing delimeter '{}' found end", delimeter)))
             }
 
             if raw_marker {

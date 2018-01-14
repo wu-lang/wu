@@ -159,6 +159,8 @@ impl<'p> Parser<'p> {
         if self.remaining() == 0 {
             return Ok(Expression::new(EOF, self.position()))
         }
+        
+        let position = self.position();
 
         let node = match self.current_type() {
             TokenType::Int        => Int(self.consume_type(TokenType::Int)?.parse().unwrap()),
@@ -193,9 +195,13 @@ impl<'p> Parser<'p> {
                     
                     self.skip_types(vec![TokenType::Whitespace])?;
 
-                    self.type_node();
-                    
-                    self.skip_types(vec![TokenType::Whitespace])?;
+                    if self.current_content() != "->" {
+                        match self.type_node() {
+                            _ => ()
+                        }
+                        
+                        self.skip_types(vec![TokenType::Whitespace])?;
+                    }
                     
                     if self.current_content() != "->" {
                         self.top = backup_top;
@@ -211,6 +217,8 @@ impl<'p> Parser<'p> {
                         self.top = backup_top
                     }
 
+                    println!("{:?}", self.lines.get(position.line));
+                    
                     self.function()?
                 },
 
@@ -225,7 +233,7 @@ impl<'p> Parser<'p> {
             t => return Err(make_error(Some(self.position()), format!("token type '{:?}' currently unimplemented", t)))
         };
 
-        Ok(Expression::new(node, self.position()))
+        Ok(Expression::new(node, position))
     }
 
     fn function(&mut self) -> Response<ExpressionNode> {
@@ -233,13 +241,19 @@ impl<'p> Parser<'p> {
 
         self.skip_types(vec![TokenType::Whitespace])?;
 
-        let return_type = self.type_node()?;
-        
-        self.skip_types(vec![TokenType::Whitespace])?;
-        
+        let mut return_type = TypeNode::Nil;
+
+        if self.current_content() != "->" {
+            return_type = self.type_node()?;
+            
+            self.skip_types(vec![TokenType::Whitespace])?;
+        }
+
         self.consume_content("->")?;
 
         let body = Rc::new(self.expression()?);
+
+        println!("{:?}", self.lines.get(body.1.line - 1));
 
         Ok(ExpressionNode::Function {params, return_type, body})
     }
@@ -269,9 +283,7 @@ impl<'p> Parser<'p> {
         let backup_inside = self.inside.clone();
         self.inside       = delimeters.0.to_owned();
 
-        if self.current_content() == delimeters.0 {
-            self.next()?
-        }
+        self.consume_content(delimeters.0)?;
 
         let mut stack  = Vec::new();
         let mut nested = 1;
@@ -294,18 +306,23 @@ impl<'p> Parser<'p> {
 
         self.next()?;
 
-        let mut parser  = Parser::new(stack, self.lines, self.path);
-        parser.inside   = self.inside.clone();
+        if stack.len() > 0 {
+            let mut parser  = Parser::new(stack, self.lines, self.path);
+            parser.inside   = self.inside.clone();
 
-        let mut stack_b = Vec::new();
-        
-        while let Some(n) = match_with(&mut parser)? {
-            stack_b.push(n)
+            let mut stack_b = Vec::new();
+            
+            while let Some(n) = match_with(&mut parser)? {
+                stack_b.push(n)
+            }
+
+            self.inside = backup_inside;
+
+            Ok(stack_b)
+        } else {
+            Ok(Vec::new())
         }
 
-        self.inside = backup_inside;
-
-        Ok(stack_b)
     }
 
     // parsing operations using the Dijkstra shunting yard algorithm
@@ -402,7 +419,6 @@ impl<'p> Parser<'p> {
             self.top += 1;
             Ok(())
         } else {
-            panic!();
             Err(make_error(None, "nexting outside token stack".to_owned()))
         }
     }

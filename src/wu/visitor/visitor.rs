@@ -1,6 +1,9 @@
+use super::lexer::*;
 use super::*;
 
 use std::fmt::*;
+use std::rc::Rc;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum TypeNode {
@@ -10,6 +13,7 @@ pub enum TypeNode {
     Str,
     Nil,
     Id(String),
+    Fun(Vec<Rc<Type>>, Rc<Type>),
 }
 
 // this is for typechecking
@@ -25,6 +29,7 @@ impl PartialEq for TypeNode {
             (&Str,       &Str)       => true,
             (&Nil,       &Nil)       => true,
             (&Id(ref a), &Id(ref b)) => a == b,
+            (&Fun(ref params_a, ref retty_a), &Fun(ref params_b, ref retty_b)) => params_a == params_b && retty_a == retty_b,
             _                        => false,
         }
     }
@@ -40,6 +45,15 @@ impl Display for TypeNode {
             Bool  => write!(f, "boolean"),
             Str   => write!(f, "string"),
             Nil   => write!(f, "nil"),
+            Fun(ref params, ref return_type) => {
+                write!(f, "(")?;
+
+                for param in params {
+                    write!(f, "{}", param)?
+                }
+
+                write!(f, ") {}", return_type)
+            },
             Id(ref a) => write!(f, "{}", a),
         }
     }
@@ -137,6 +151,16 @@ impl<'v> Visitor<'v> {
         }
     }
 
+    pub fn from(ast: &'v Vec<Statement>, symtab: SymTab, typetab: TypeTab, lines: &'v Vec<String>, path: &'v str) -> Self {
+        Visitor {
+            ast,
+            symtab,
+            typetab,
+            lines,
+            path,
+        }
+    }
+
     pub fn validate(&mut self) -> Response<()> {
         for statement in self.ast.iter() {
             self.visit_statement(statement)?
@@ -153,11 +177,10 @@ impl<'v> Visitor<'v> {
             (&Definition {ref kind, ref left, ref right}, _) => self.visit_definition(kind, left, right),
             (&ConstDefinition {ref left, ref right}, _)      => self.visit_constant(left, right),
             (&Assignment {ref left, ref right}, _)           => self.visit_assignment(left, right),
-            _                                                => Ok(()),
         }
     }
 
-    fn visit_expression(&self, expression: &Expression) -> Response<()> {
+    fn visit_expression(&mut self, expression: &Expression) -> Response<()> {
         use ExpressionNode::*;
 
         match (&expression.0, expression.1) {
@@ -170,7 +193,33 @@ impl<'v> Visitor<'v> {
                 Ok(_)    => Ok(()),
                 Err(err) => Err(err),
             }
+
+            (&Function {ref params, ref return_type, ref body}, position) => self.visit_function(&position, params, return_type, body),
+
             _ => Ok(())
+        }
+    }
+
+    fn visit_function(&mut self, position: &TokenPosition, params: &Vec<(String, TypeNode)>, return_type: &TypeNode, body: &Expression) -> Response<()> {
+        let mut param_names = Vec::new();
+        let mut param_types = Vec::new();
+
+        for &(ref name, ref t) in params.iter() {
+            param_names.push(name.clone());
+            param_types.push(Type::new(t.clone(), TypeMode::Just))
+        }
+
+        let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &param_names.as_slice());
+        let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &param_types, &HashMap::new());
+
+        let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
+
+        visitor.visit_expression(body)?;
+
+        if Type::new(return_type.clone(), TypeMode::Just) == visitor.type_expression(body)? {
+            Ok(())
+        } else {
+            Err(make_error(Some(body.1), format!("mismatched return type, expected '{}'", return_type)))
         }
     }
 
