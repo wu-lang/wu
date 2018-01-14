@@ -8,7 +8,7 @@ fn main() {
 foo: float = .1234
 bar: int = 100
     "#;
-    
+
     let path = "test.wu";
     
     let lines = source.lines().map(|x| x.to_string()).collect();
