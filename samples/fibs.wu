@@ -1,0 +1,5 @@
+fib :: (a number) number -> match a {
+  | 0 => 0
+  | 1 => 1
+  | _ => (fib a - 1) + (fib a - 2)
+}
