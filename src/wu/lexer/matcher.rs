@@ -160,7 +160,8 @@ pub struct IdentifierMatcher;
 
 impl Matcher for IdentifierMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
-        if !tokenizer.peek().unwrap().is_alphabetic() && !"_".contains(*tokenizer.peek().unwrap()) {
+        //Make sure the first character is alphabetic or '_' if not it's not an identifier
+        if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == &'_') {
             return Ok(None)
         }
 
