@@ -11,7 +11,7 @@ fn main() {
           "#;
 
     let path = "test.wu";
-    
+
     let lines = source.lines().map(|x| x.to_string()).collect();
     let lexer = make_lexer(source.clone().chars().collect(), &lines, &path);
 

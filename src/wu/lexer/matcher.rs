@@ -41,7 +41,7 @@ pub struct FloatLiteralMatcher;
 impl Matcher for FloatLiteralMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         let mut accum = String::new();
-        
+
         let curr = tokenizer.next().unwrap();
         if curr.is_digit(10) {
             accum.push(curr)
@@ -89,19 +89,25 @@ pub struct StringLiteralMatcher;
 impl Matcher for StringLiteralMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         let mut raw_marker = false;
+
+        //Check which delimeter this string is using
+        //If it's not using a delimeter, then it's not a string
         let delimeter  = match *tokenizer.peek().unwrap() {
-            '"'  => Some('"'),
-            '\'' => Some('\''),
+            '"'  => '"',
+            '\'' => '\'',
+            //Used for raw strings
             'r' => {
                 if tokenizer.peek_n(1) == Some(&'"') {
                     raw_marker = true;
                     tokenizer.advance();
 
-                    Some('"')
+                    '"'
                 } else {
-                    None
+                    //It's not actually a raw string, it's just something that starts with an r
+                    return Ok(None)
                 }
             },
+            //Not using a delimeter so it's not a string
             _ => return Ok(None),
         };
 
@@ -110,7 +116,13 @@ impl Matcher for StringLiteralMatcher {
         let mut string       = String::new();
         let mut found_escape = false;
 
-        while !tokenizer.end() {
+        loop {
+            //Check if file ends before the string
+            //Basically this means there's no end delimiter
+            if tokenizer.end() {
+                return Err(make_error(Some(tokenizer.pos.clone()), format!("Expected delimeter `{}` found EOF", delimeter)))
+            }
+
             if raw_marker {
                 if tokenizer.peek().unwrap() == &'"' {
                     break
@@ -133,17 +145,13 @@ impl Matcher for StringLiteralMatcher {
                         tokenizer.next();
                         found_escape = true
                     },
-                    c if delimeter.is_some() && c == delimeter.unwrap() => break,
+                    c if c == delimeter => break,
                     _ => string.push(tokenizer.next().unwrap()),
                 }
             }
         }
         tokenizer.advance();
-        if delimeter.is_some() {
-            Ok(Some(token!(tokenizer, Str, string)))
-        } else {
-            Ok(None)
-        }
+        Ok(Some(token!(tokenizer, Str, string)))
     }
 }
 
