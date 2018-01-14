@@ -1,4 +1,5 @@
 use super::lexer::*;
+use super::visitor::*;
 
 use std::rc::Rc;
 
@@ -25,6 +26,17 @@ impl Expression {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatementNode {
     Expression(Expression),
+    
+    Definition {
+        kind:  Option<Type>,
+        left:  Expression,
+        right: Option<Expression>,
+    },
+    
+    ConstDefinition {
+        left:  Expression,
+        right: Expression,
+    },
 
     Assignment {
         left:  Expression,

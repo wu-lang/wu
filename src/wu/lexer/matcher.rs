@@ -55,7 +55,7 @@ impl Matcher for FloatLiteralMatcher {
             let current = *tokenizer.peek().unwrap();
             if !current.is_whitespace() && current.is_digit(10) || current == '.' {
                 if current == '.' && accum.contains('.') {                    
-                    return Err(make_error(Some(tokenizer.pos), "extra decimal point".to_owned()))
+                    return Err(make_error(Some(tokenizer.last_position()), "extra decimal point".to_owned()))
                 }
                 accum.push(tokenizer.next().unwrap())
             } else {
@@ -117,16 +117,17 @@ impl Matcher for StringLiteralMatcher {
         let mut found_escape = false;
 
         loop {
-            //Check if file ends before the string
-            //Basically this means there's no end delimiter
+            // check if file ends before the string
+            // basically this means there's no end delimiter
             if tokenizer.end() {
-                return Err(make_error(Some(tokenizer.pos.clone()), format!("Expected delimeter `{}` found EOF", delimeter)))
+                return Err(make_error(Some(tokenizer.last_position()), format!("expected closing delimeter '{}' found end", delimeter)))
             }
 
             if raw_marker {
                 if tokenizer.peek().unwrap() == &'"' {
                     break
                 }
+
                 string.push(tokenizer.next().unwrap())
             } else if found_escape {
                 string.push(

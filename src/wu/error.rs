@@ -28,14 +28,18 @@ impl ResponseNode {
         );
 
         if let Some(ref position) = self.position {
-            let line_number = position.line;
+            let line_number = if position.line > 0 {
+                position.line
+            } else {
+                position.line - 1
+            };
 
             let prefix = format!("{:5} |  ", line_number + 1).blue().bold();
-            let line   = format!("{:5} {}\n{}{}", " ", "|".blue().bold(), prefix, lines.get(line_number).unwrap());
+            let line   = format!("{:5} {}\n{}{}", " ", "|".blue().bold(), prefix, lines.get(if line_number == 1 { 0 } else { line_number }).unwrap());
 
             let indicator = format!(
                                 "{:6}{}{:offset$}{:^<count$}", " ", "|".bold().blue(), " ", " ".color(color).bold(),
-                                offset = if position.col > 0 { position.col - 1 } else { position.col },
+                                offset = position.col,
                                 count  = 2,
                             );
 

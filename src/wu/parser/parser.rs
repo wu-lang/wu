@@ -1,4 +1,5 @@
 use super::lexer::*;
+use super::visitor::*;
 use super::*;
 
 use std::rc::Rc;
@@ -7,6 +8,7 @@ pub struct Parser<'p> {
     pub tokens: Vec<Token>,
     pub top:    usize,
 
+    // for displaying pretty warnings without returning Err
     pub lines:  &'p Vec<String>,
     pub path:   &'p str,
 }
@@ -38,20 +40,61 @@ impl<'p> Parser<'p> {
 
         let node = match self.current_type() {
             Identifier => {
-                let position        = self.position();
-                let identifier      = ExpressionNode::Identifier(self.consume_type(Identifier)?);
-                let identifier_node = Expression(identifier, position);
-                
+                let identifier_node = self.atom()?;
+
                 let backup = self.top;
 
                 self.skip_types(vec![TokenType::Whitespace])?;
 
                 match self.current_content().as_str() {
+                    ":" => {
+                        self.next()?;
+
+                        if self.current_content() == ":" {
+                            self.next()?;
+
+                            let right = self.expression()?;
+
+                            StatementNode::ConstDefinition {
+                                left:  identifier_node,
+                                right: right,
+                            }
+                        } else {
+                            if self.current_content() == "=" {
+                                self.consume_content("=")?;
+
+                                let right = self.expression()?;
+
+                                StatementNode::Definition {
+                                    kind:  None,
+                                    left:  identifier_node,
+                                    right: Some(right),
+                                }
+                            } else {
+                                self.skip_types(vec![TokenType::Whitespace])?;
+                                
+                                let kind = self.typed()?;
+
+                                self.skip_types(vec![TokenType::Whitespace])?;
+                                
+                                self.consume_content("=")?;
+
+                                let right = self.expression()?;
+
+                                StatementNode::Definition {
+                                    kind:  Some(kind),
+                                    left:  identifier_node,
+                                    right: Some(right),
+                                }
+                            }
+                        }
+                    },
+                    
                     "=" => {
                         self.next()?;
 
                         let right = self.expression()?;
-                        
+
                         if self.remaining() > 0 {
                             self.expect_type(TokenType::EOL)?;
                         }
@@ -74,14 +117,29 @@ impl<'p> Parser<'p> {
         Ok(Statement::new(node, self.position()))
     }
 
+    fn typed(&mut self) -> Response<Type> {
+        use Type::*;
+        
+        let t = match self.consume_type(TokenType::Identifier)?.as_str() {
+            "int"     => Int,
+            "float"   => Float,
+            "string"  => Str,
+            "boolean" => Bool,
+            other     => Id(other.to_owned()), 
+        };
+
+        Ok(t)
+    }
+
+    // grouping atoms into e.g. operations
     fn expression(&mut self) -> Response<Expression> {
         let expression = self.atom()?;
-        
+
         if expression.0 == ExpressionNode::EOF {
             Ok(expression)
         } else {
             let backup_top = self.top;
-            
+
             self.skip_types(vec![TokenType::Whitespace])?;
 
             if self.current_type() == TokenType::Operator {
@@ -121,6 +179,7 @@ impl<'p> Parser<'p> {
         Ok(Expression::new(node, self.position()))
     }
 
+    // parsing operations using the Dijkstra shunting yard algorithm
     fn binary(&mut self, expression: Expression) -> Response<Expression> {
         let mut ex_stack = vec![expression];
         let mut op_stack: Vec<(Operator, u8)> = Vec::new();
@@ -206,6 +265,7 @@ impl<'p> Parser<'p> {
         Ok(ex_stack.pop().unwrap())
     }
     
+    // skipping tokens
     fn next(&mut self) -> Response<()> {
         if self.top <= self.tokens.len() {
             self.top += 1;
@@ -215,6 +275,7 @@ impl<'p> Parser<'p> {
         }
     }
 
+    // going backwards
     fn back(&mut self) -> Response<()> {
         if self.top > 0 {
             self.top -= 1;
@@ -224,6 +285,7 @@ impl<'p> Parser<'p> {
         }
     }
 
+    // primarily for skipping whitespace
     fn skip_types(&mut self, tokens: Vec<TokenType>) -> Response<()> {
         loop {
             if self.remaining() > 1 {
@@ -248,6 +310,7 @@ impl<'p> Parser<'p> {
         }
     }
 
+    // getting the top of the token stack
     pub fn current(&self) -> &Token {
         if self.top > self.tokens.len() - 1 {
             return &self.tokens[self.tokens.len() - 1];
@@ -255,6 +318,7 @@ impl<'p> Parser<'p> {
         &self.tokens[self.top]
     }
 
+    // easy access
     pub fn current_content(&self) -> String {
         self.current().content.clone()
     }
@@ -264,8 +328,7 @@ impl<'p> Parser<'p> {
     }
 
     pub fn position(&self) -> TokenPosition {
-        println!("{:#?}", self.current().position);
-        self.current().position.clone()
+        self.current().position
     }
 
     pub fn expect_type(&self, token: TokenType) -> Response<()> {

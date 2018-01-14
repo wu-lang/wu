@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Int,
     Float,
@@ -8,6 +8,23 @@ pub enum Type {
     Str,
     Nil,
     Id(String),
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Type) -> bool {
+        use Type::*;
+
+        match (self, other) {
+            (&Float, &Int)           => true,
+            (&Float, &Float)         => true,
+            (&Int, &Int)             => true,
+            (&Bool, &Bool)           => true,
+            (&Str, &Str)             => true,
+            (&Nil, &Nil)             => true,
+            (&Id(ref a), &Id(ref b)) => a == b,
+            _                        => false,
+        }
+    }
 }
 
 pub struct Visitor<'v> {
@@ -41,6 +58,8 @@ impl<'v> Visitor<'v> {
 
         match (&statement.0, statement.1) {
             (&Expression(ref expr), _)                       => self.visit_expression(expr),
+            (&Definition {ref kind, ref left, ref right}, _) => self.visit_definition(kind, left, right),
+            (&ConstDefinition {ref left, ref right}, _)      => self.visit_definition(&None, left, &Some(right.clone())),
             _                                                => Ok(()),
         }
     }
@@ -111,14 +130,14 @@ impl<'v> Visitor<'v> {
             Identifier(ref name) => { self.symtab.add_name(&name); },
             _                    => return Err(make_error(Some(left.1), format!("can't assign anything but identifiers"))),
         }
-        
+    
         if let Some(ref right) = *right {
             self.visit_expression(&right)?;
 
             if let Some(ref kind) = *kind {
                 let right_kind = self.type_expression(&right)?;
-                if right_kind != *kind {
-                    return Err(make_error(Some(right.1), format!("mismatched types: expected '{:?}', found '{:?}'", kind, right_kind)))
+                if *kind != right_kind {
+                    return Err(make_error(Some(left.1), format!("mismatched types: expected '{:?}', found '{:?}'", kind, right_kind)))
                 }
             }
         }
