@@ -55,7 +55,7 @@ impl Matcher for FloatLiteralMatcher {
             let current = *tokenizer.peek().unwrap();
             if !current.is_whitespace() && current.is_digit(10) || current == '.' {
                 if current == '.' && accum.contains('.') {                    
-                    return Err(make_error(Some(TokenPosition::new(tokenizer.pos.line, tokenizer.pos.col - 1)), "extra decimal point".to_owned()))
+                    return Err(make_error(Some(tokenizer.pos), "extra decimal point".to_owned()))
                 }
                 accum.push(tokenizer.next().unwrap())
             } else {

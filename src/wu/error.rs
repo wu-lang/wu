@@ -35,7 +35,7 @@ impl ResponseNode {
 
             let indicator = format!(
                                 "{:6}{}{:offset$}{:^<count$}", " ", "|".bold().blue(), " ", " ".color(color).bold(),
-                                offset = position.col,
+                                offset = position.col - 1,
                                 count  = 2,
                             );
 
