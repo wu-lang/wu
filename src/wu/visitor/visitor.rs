@@ -52,7 +52,7 @@ impl Display for TypeNode {
                     write!(f, "{}", param)?
                 }
 
-                write!(f, ") {}", return_type)
+                write!(f, ") -> {}", return_type)
             },
             Id(ref a) => write!(f, "{}", a),
         }
@@ -235,6 +235,13 @@ impl<'v> Visitor<'v> {
                 Some((i, env_index)) => self.typetab.get_type(i, env_index)?,
                 None                 => return Err(make_error(Some(position), format!("undefined: {}", name)))
             },
+            
+            (&Function {ref params, ref return_type, ..}, _) => {
+                Type::new(TypeNode::Fun(
+                    params.iter().map(|x| Rc::new(Type::new(x.1.clone(), TypeMode::Just))).collect::<Vec<Rc<Type>>>(),
+                    Rc::new(Type::new(return_type.clone(), TypeMode::Just)),
+                ), TypeMode::Just)
+            },
 
             (&Binary { ref left, ref op, ref right }, position) => {
                 use Operator::*;
@@ -243,19 +250,19 @@ impl<'v> Visitor<'v> {
                     (a, &Add, b) => if a == b {
                         Type::new(a.0, TypeMode::Just)
                     } else {
-                        return Err(make_error(Some(position), format!("can't add {} and {}", a, b)))
+                        return Err(make_error(Some(position), format!("can't add '{}' and '{}'", a, b)))
                     },
 
                     (a, &Sub, b) => if a == b {
                         Type::new(a.0, TypeMode::Just)
                     } else {
-                        return Err(make_error(Some(position), format!("can't subtract {} and {}", a, b)))
+                        return Err(make_error(Some(position), format!("can't subtract '{}' and '{}'", a, b)))
                     },
 
                     (a, &Mul, b) => if a == b {
                         Type::new(a.0, TypeMode::Just)
                     } else {
-                        return Err(make_error(Some(position), format!("can't multiply {} and {}", a, b)))
+                        return Err(make_error(Some(position), format!("can't multiply '{}' and '{}'", a, b)))
                     }
 
                     _ => Type::nil(),
@@ -267,7 +274,7 @@ impl<'v> Visitor<'v> {
 
         Ok(t)
     }
-
+    
     fn visit_definition(&mut self, kind: &TypeNode, left: &Expression, right: &Option<Expression>) -> Response<()> {
         use ExpressionNode::*;
 
@@ -276,12 +283,10 @@ impl<'v> Visitor<'v> {
                 self.typetab.grow();
                 self.symtab.add_name(&name)
             },
-            _                    => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
+            _ => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
 
         if let Some(ref right) = *right {
-            self.visit_expression(&right)?;
-
             if *kind != TypeNode::Nil {
                 let right_kind = self.type_expression(&right)?;
                 if *kind != right_kind.0 {
@@ -292,13 +297,15 @@ impl<'v> Visitor<'v> {
             } else {
                 self.typetab.set_type(index, 0, self.type_expression(right)?)?;
             }
+            
+            self.visit_expression(&right)?;
         }
         Ok(())
     }
 
     fn visit_constant(&mut self, left: &Expression, right: &Expression) -> Response<()> {
         use ExpressionNode::*;
-        
+
         let index = match left.0 {
             Identifier(ref name) => {
                 self.typetab.grow();
@@ -307,9 +314,9 @@ impl<'v> Visitor<'v> {
             _ => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
 
-        self.visit_expression(right)?;
+        self.typetab.set_type(index, 0, Type::new(self.type_expression(right)?.0, TypeMode::Constant))?;
 
-        self.typetab.set_type(index, 0, Type::new(self.type_expression(right)?.0, TypeMode::Constant))
+        self.visit_expression(right)
     }
 
     fn visit_assignment(&mut self, left: &Expression, right: &Expression) -> Response<()> {

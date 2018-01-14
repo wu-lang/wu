@@ -1,5 +1,5 @@
 use super::lexer::*;
-use super::visitor::TypeNode;
+use super::visitor::{TypeNode, Type, TypeMode};
 use super::*;
 
 use std::rc::Rc;
@@ -119,13 +119,44 @@ impl<'p> Parser<'p> {
     fn type_node(&mut self) -> Response<TypeNode> {
         use TypeNode::*;
         
-        let t = match self.consume_type(TokenType::Identifier)?.as_str() {
+        let t = match self.current_content().as_str() {
             "int"     => Int,
             "float"   => Float,
             "string"  => Str,
             "boolean" => Bool,
-            other     => Id(other.to_owned()), 
+            "("       => {
+                self.next()?;
+
+                let mut params = Vec::new();
+                
+                let mut nested = 1;
+
+                while nested != 0 {
+                    if self.current_content() == ")" {
+                        nested -= 1
+                    } else if self.current_content() == "(" {
+                        nested += 1
+                    }
+                    
+                    if nested == 0 {
+                        break
+                    }
+
+                    params.push(Rc::new(Type::new(self.type_node()?, TypeMode::Just)))
+                }
+                
+                self.next()?; // closing delimeter
+                
+                self.skip_types(vec![TokenType::Whitespace])?;
+                
+                let retty = Rc::new(Type::new(self.type_node()?, TypeMode::Just));
+
+                return Ok(Fun(params, retty))
+            },
+            _ => return Ok(Id(self.consume_type(TokenType::Identifier)?)), 
         };
+
+        self.next()?;
 
         Ok(t)
     }
@@ -159,7 +190,7 @@ impl<'p> Parser<'p> {
         if self.remaining() == 0 {
             return Ok(Expression::new(EOF, self.position()))
         }
-        
+
         let position = self.position();
 
         let node = match self.current_type() {
@@ -172,7 +203,6 @@ impl<'p> Parser<'p> {
             TokenType::Symbol => match self.current_content().as_str() {
                 "(" => {
                     let backup_top = self.top;
-                    
                     self.next()?;
                     
                     let mut nested = 1;
@@ -199,13 +229,13 @@ impl<'p> Parser<'p> {
                         match self.type_node() {
                             _ => ()
                         }
-                        
+
                         self.skip_types(vec![TokenType::Whitespace])?;
                     }
                     
                     if self.current_content() != "->" {
                         self.top = backup_top;
-
+                        
                         let content = self.block_of(&Self::expression_, ("(", ")"))?;
                         
                         if content.len() > 1 {
@@ -216,8 +246,6 @@ impl<'p> Parser<'p> {
                     } else {
                         self.top = backup_top
                     }
-
-                    println!("{:?}", self.lines.get(position.line));
                     
                     self.function()?
                 },
@@ -237,7 +265,7 @@ impl<'p> Parser<'p> {
     }
 
     fn function(&mut self) -> Response<ExpressionNode> {
-        let params      = self.block_of(&Self::param_, ("(", ")"))?;
+        let params = self.block_of(&Self::param_, ("(", ")"))?;
 
         self.skip_types(vec![TokenType::Whitespace])?;
 
@@ -253,18 +281,27 @@ impl<'p> Parser<'p> {
 
         let body = Rc::new(self.expression()?);
 
-        println!("{:?}", self.lines.get(body.1.line - 1));
-
         Ok(ExpressionNode::Function {params, return_type, body})
     }
 
     fn param_(self: &mut Self) -> Response<Option<(String, TypeNode)>> {
+        if self.remaining() == 0 {
+            return Ok(None)
+        }
+        
         let name = self.consume_type(TokenType::Identifier)?;
         self.skip_types(vec![TokenType::Whitespace])?;
+
         let kind = self.type_node()?;
+        self.skip_types(vec![TokenType::Whitespace])?;
+        
+        if self.remaining() > 1 {
+            self.consume_content(",")?;
+            self.skip_types(vec![TokenType::Whitespace])?;
+        }
 
         if self.remaining() == 0 {
-            Ok(None)
+            Ok(Some((name, kind)))
         } else {
             Ok(Some((name, kind)))
         }
