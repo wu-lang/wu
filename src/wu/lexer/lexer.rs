@@ -12,6 +12,8 @@ pub fn make_lexer<'l>(data: Vec<char>, lines: &'l Vec<String>, path: &'l str) ->
     let bool_matcher = ConstantStringMatcher::new(TokenType::Bool, &["true", "false"]);
     lexer.matchers_mut().push(Rc::new(bool_matcher));
 
+    lexer.matchers_mut().push(Rc::new(CommentMatcher));
+
     let key_matcher = KeyMatcher::new(TokenType::Keyword, &[
         "match", "struct", "->",
     ]);
@@ -35,7 +37,7 @@ pub fn make_lexer<'l>(data: Vec<char>, lines: &'l Vec<String>, path: &'l str) ->
     lexer.matchers_mut().push(Rc::new(symbol_matcher));
 
     lexer.matchers_mut().push(Rc::new(WhitespaceMatcher));
-    
+
     lexer
 }
 

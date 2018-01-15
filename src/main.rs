@@ -7,7 +7,9 @@ use wu::visitor::*;
 
 fn main() {
     let source = r#"
-apply: (int, (int) int) bool = (a int, f(int) int) int -> a
+foo := .1234               -- inferred variable
+bar: string = "swordfight" -- explicit variable
+baz :: true                -- inferred constant
     "#;
 
     let path = "test.wu";

@@ -33,7 +33,7 @@ impl Matcher for FloatLiteralMatcher {
         while !tokenizer.end() {
             let current = *tokenizer.peek().unwrap();
             if !current.is_whitespace() && current.is_digit(10) || current == '.' {
-                if current == '.' && accum.contains('.') {                    
+                if current == '.' && accum.contains('.') {
                     return Err(make_error(Some(tokenizer.last_position()), "extra decimal point".to_owned()))
                 }
                 accum.push(tokenizer.next().unwrap())
@@ -150,6 +150,21 @@ impl Matcher for IdentifierMatcher {
             Ok(None)
         } else {
             Ok(Some(token!(tokenizer, Identifier, string)))
+        }
+    }
+}
+
+pub struct CommentMatcher;
+
+impl Matcher for CommentMatcher {
+    fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
+        if tokenizer.peek_range(2).unwrap() == "--" {
+            while !tokenizer.end() && tokenizer.peek().unwrap() != &'\n' {
+                tokenizer.advance();
+            }
+            Ok(Some(token!(tokenizer, EOL, "\n".into())))
+        } else {
+            Ok(None)
         }
     }
 }

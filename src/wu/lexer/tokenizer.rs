@@ -1,4 +1,5 @@
 use super::*;
+use std::str::Chars;
 
 #[derive(Clone)]
 pub struct Snapshot {
@@ -54,6 +55,10 @@ impl Tokenizer {
         for _ in 0..n {
             self.advance();
         }
+    }
+
+    pub fn peek_range(&self, n: usize) -> Option<String> {
+        self.items.get(self.index..self.index + n).map(|chars| chars.iter().collect::<String>())
     }
 
     pub fn peek_n(&self, n: usize) -> Option<&char> {
