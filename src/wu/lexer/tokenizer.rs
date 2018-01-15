@@ -1,5 +1,4 @@
 use super::*;
-use std::str::Chars;
 
 #[derive(Clone)]
 pub struct Snapshot {

@@ -9,7 +9,7 @@ pub fn make_lexer<'l>(data: Vec<char>, lines: &'l Vec<String>, path: &'l str) ->
     lexer.matchers_mut().push(Rc::new(FloatLiteralMatcher));
     lexer.matchers_mut().push(Rc::new(StringLiteralMatcher));
 
-    let bool_matcher = ConstantStringMatcher::new(TokenType::Bool, &["true", "false"]);
+    let bool_matcher = KeyMatcher::new(TokenType::Bool, &["true", "false"]);
     lexer.matchers_mut().push(Rc::new(bool_matcher));
 
     lexer.matchers_mut().push(Rc::new(CommentMatcher));

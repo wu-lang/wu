@@ -258,6 +258,7 @@ impl Matcher for KeyMatcher {
             if let Some(s) = tokenizer.peek_range(constant.len()) {
                 if s == *constant {
                     if let Some(c) = tokenizer.peek_n(constant.len()) {
+                        println!("{:?}", s);
                         if "_!?".contains(*c) || c.is_alphanumeric() {
                             return Ok(None)
                         }
