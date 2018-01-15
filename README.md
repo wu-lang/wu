@@ -25,6 +25,28 @@ a neat wannabe low-level programming language
 
 ---
 
+### syntax
+
+```
+foo := .1234               -- inferred variable
+bar: string = "swordfight" -- explicit variable
+baz :: true                -- inferred constant
+```
+
+```
+add :: (a int, b int) int -> a + b
+fac :: (a int) int -> match {
+  | 1 -> 1
+  | _ -> fac (n - 1) * n
+}
+```
+
+```
+sub: (int, int) int = (a int, b int) int -> a - b
+```
+
+---
+
 ### inspiration
 
 - the thing about transpiling to lua, from moonscript
