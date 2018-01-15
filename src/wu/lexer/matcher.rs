@@ -227,13 +227,11 @@ impl ConstantStringMatcher {
 impl Matcher for ConstantStringMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         for constant in self.constants {
-            let dat = tokenizer.clone().take(constant.len());
-            if dat.size_hint().1.unwrap() != constant.len() {
-                return Ok(None)
-            }
-            if dat.collect::<String>() == *constant {
-                tokenizer.advance_n(constant.len());
-                return Ok(Some(token!(tokenizer, self.token_type.clone(), constant.to_string())))
+            if let Some(s) = tokenizer.peek_range(constant.len()) {
+                if s == *constant {
+                    tokenizer.advance_n(constant.len());
+                    return Ok(Some(token!(tokenizer, self.token_type.clone(), constant.to_string())))
+                }
             }
         }
         Ok(None)
@@ -256,19 +254,18 @@ impl KeyMatcher {
 
 impl Matcher for KeyMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
-        for constant in self.constants.clone() {
-            let dat = tokenizer.clone().take(constant.len());
-            if dat.size_hint().1.unwrap() != constant.len() {
-                return Ok(None)
-            } else if &&dat.collect::<String>() == constant {
-                if let Some(c) = tokenizer.peek_n(constant.len()) {
-                    if "_!?".contains(*c) || c.is_alphanumeric() {
-                        return Ok(None)
+        for constant in self.constants {
+            if let Some(s) = tokenizer.peek_range(constant.len()) {
+                if s == *constant {
+                    if let Some(c) = tokenizer.peek_n(constant.len()) {
+                        if "_!?".contains(*c) || c.is_alphanumeric() {
+                            return Ok(None)
+                        }
                     }
-                }
 
-                tokenizer.advance_n(constant.len());
-                return Ok(Some(token!(tokenizer, self.token_type.clone(), constant.to_string())))
+                    tokenizer.advance_n(constant.len());
+                    return Ok(Some(token!(tokenizer, self.token_type.clone(), constant.to_string())))
+                }
             }
         }
         Ok(None)
