@@ -86,7 +86,7 @@ impl Operator {
             "-"   => Some((Sub, 2)),
             "++"  => Some((Concat, 2)),
             "=="  => Some((Equal, 3)),
-            "~="  => Some((NEqual, 3)),
+            "!="  => Some((NEqual, 3)),
             "<"   => Some((Lt, 4)),
             ">"   => Some((Gt, 4)),
             "<="  => Some((LtEqual, 4)),
