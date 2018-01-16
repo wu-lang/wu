@@ -79,15 +79,25 @@ impl<'p> Parser<'p> {
                                 let kind = self.type_node()?;
 
                                 self.skip_types(vec![TokenType::Whitespace])?;
-                                
-                                self.consume_content("=")?;
 
-                                let right = self.expression()?;
+                                if self.current_content() == "=" {
+                                    self.next()?;
 
-                                StatementNode::Definition {
-                                    kind,
-                                    left:  identifier_node,
-                                    right: Some(right),
+                                    let right = self.expression()?;
+
+                                    StatementNode::Definition {
+                                        kind,
+                                        left:  identifier_node,
+                                        right: Some(right),
+                                    }
+                                } else {
+                                    self.consume_content("\n")?;
+
+                                    StatementNode::Definition {
+                                        kind,
+                                        left:  identifier_node,
+                                        right: None,
+                                    }
                                 }
                             }
                         }
@@ -250,12 +260,11 @@ impl<'p> Parser<'p> {
                             return Err(make_error(Some(content.get(0).unwrap().1), format!("claused expression can only contain one item")))
                         }
 
-                        return Ok(content.get(0).unwrap().clone())
+                        content.get(0).unwrap().clone().0
                     } else {
-                        self.top = backup_top
+                        self.top = backup_top;
+                        self.function()?
                     }
-                    
-                    self.function()?
                 },
 
                 ref t => return Err(make_error(Some(self.position()), format!("unexpected symbol: {}", t)))
@@ -266,10 +275,10 @@ impl<'p> Parser<'p> {
                 return Ok(self.atom()?)
             },
 
-            t => return Err(make_error(Some(self.position()), format!("token type '{:?}' currently unimplemented", t)))
+            t => panic!() // return Err(make_error(Some(self.position()), format!("token type '{:?}' currently unimplemented", t)))
         };
-
-        Ok(Expression::new(node, position))
+        
+        self.maybe_call(Expression::new(node, position))
     }
 
     fn function(&mut self) -> Response<ExpressionNode> {
@@ -296,13 +305,13 @@ impl<'p> Parser<'p> {
         if self.remaining() == 0 {
             return Ok(None)
         }
-        
+
         let name = self.consume_type(TokenType::Identifier)?;
         self.skip_types(vec![TokenType::Whitespace])?;
 
         let kind = self.type_node()?;
         self.skip_types(vec![TokenType::Whitespace])?;
-        
+
         if self.remaining() > 1 {
             self.consume_content(",")?;
             self.skip_types(vec![TokenType::Whitespace])?;
@@ -370,6 +379,38 @@ impl<'p> Parser<'p> {
 
     }
 
+    fn maybe_call(&mut self, atom: Expression) -> Response<Expression> {
+        use ExpressionNode::*;
+
+        match atom.0 {
+            Identifier(_) => match self.current_content().as_str() {
+                "(" => {
+                    let args = self.block_of(&mut Self::arg_, ("(", ")"))?;
+                    let pos  = atom.1.clone();
+                    let call = Expression(Call(Rc::new(atom), args.iter().map(|x| Rc::new(x.clone())).collect()), pos);
+
+                    Ok(call)
+                },
+
+                _ => Ok(atom)
+            },
+            
+            _ => Ok(atom)
+        }
+    }
+
+    fn arg_(self: &mut Self) -> Response<Option<Expression>> {
+        let expression = Self::expression_(self);
+        
+        self.skip_types(vec![TokenType::Whitespace])?;
+        
+        if self.remaining() > 1 {
+            self.consume_content(",")?;
+        }
+
+        expression
+    }
+
     // parsing operations using the Dijkstra shunting yard algorithm
     fn binary(&mut self, expression: Expression) -> Response<Expression> {
         let mut ex_stack = vec![expression];
@@ -378,6 +419,10 @@ impl<'p> Parser<'p> {
         let position = self.position();
         op_stack.push(Operator::from(&self.current_content()).unwrap());
         self.next()?;
+
+        if self.current_content() == "\n" {
+            return Err(make_error(Some(position), format!("EOL is not good")))
+        }
 
         let atom = self.atom()?;
 
@@ -530,7 +575,7 @@ impl<'p> Parser<'p> {
         } else {
             Err(make_error(
                 Some(self.current().position),
-                format!("expecting type '{:?}', found '{:?}'", token, self.current_content())
+                format!("expected type '{:?}', found '{:?}'", token, self.current_content())
             ))
         }
     }
@@ -543,7 +588,7 @@ impl<'p> Parser<'p> {
         } else {
             Err(make_error(
                 Some(self.current().position),
-                format!("expecting type '{:?}', found '{:?}'", token, self.current_content())
+                format!("expected type '{:?}', found '{:?}'", token, self.current_content())
             ))
         }
     }
@@ -554,7 +599,7 @@ impl<'p> Parser<'p> {
         } else {
             Err(make_error(
                 Some(self.current().position),
-                format!("expecting '{}', found '{}'", content, self.current_content())
+                format!("expected '{}', found '{}'", content, self.current_content())
             ))
         }
     }
@@ -567,7 +612,7 @@ impl<'p> Parser<'p> {
         } else {
             Err(make_error(
                 Some(self.current().position),
-                format!("expecting '{}', found '{}'", content, self.current_content())
+                format!("expected '{}', found '{}'", content, self.current_content())
             ))
         }
     }

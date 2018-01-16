@@ -28,8 +28,7 @@ impl PartialEq for TypeNode {
             (&Bool,      &Bool)      => true,
             (&Str,       &Str)       => true,
             (&Nil,       &Nil)       => true,
-            (ref a,     &Fun(_, ref b)) => **a == b.0,
-            (&Fun(_, ref a), ref b)  => a.0 == **b,
+            (&Fun(ref a_params, ref a_retty), &Fun(ref b_params, ref b_retty)) => a_params == b_params && a_retty == b_retty,
             (&Id(ref a), &Id(ref b)) => a == b,
             _                        => false,
         }
@@ -81,6 +80,18 @@ impl TypeMode {
     }
 }
 
+impl Display for TypeMode {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        use TypeMode::*;
+
+        match *self {
+            Just       => Ok(()),
+            Constant   => write!(f, "constant "),
+            Undeclared => write!(f, "undeclared "),
+        }
+    }
+}
+
 // this is for typechecking
 impl PartialEq for TypeMode {
     fn eq(&self, other: &TypeMode) -> bool {
@@ -128,7 +139,7 @@ impl Type {
 
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}{}", self.1, self.0)
     }
 }
 
@@ -193,9 +204,11 @@ impl<'v> Visitor<'v> {
             (&Binary { .. }, _) => match self.type_expression(&expression) {
                 Ok(_)    => Ok(()),
                 Err(err) => Err(err),
-            }
+            },
 
             (&Function {ref params, ref return_type, ref body}, position) => self.visit_function(&position, params, return_type, body),
+            
+            (&Call(ref callee, ref args), position) => self.visit_call(&callee, &args),
 
             _ => Ok(())
         }
@@ -223,6 +236,30 @@ impl<'v> Visitor<'v> {
             Err(make_error(Some(body.1), format!("mismatched return type, expected '{}'", return_type)))
         }
     }
+    
+    fn visit_call(&mut self, callee: &Rc<Expression>, args: &Vec<Rc<Expression>>) -> Response<()> {
+        let callee_t = self.type_expression(&**callee)?;
+
+        if callee_t.1 == TypeMode::Undeclared {
+            Err(make_error(Some(callee.1), format!("don't call an undeclared: '{}'", callee_t)))
+        } else {
+            match callee_t.0 {
+                TypeNode::Fun(ref params, _) => {
+                    let mut acc = 0;
+
+                    for param in params {
+                        if self.type_expression(&args[acc])? != **param {
+                            return Err(make_error(Some(args[acc].1), format!("mismatching argument type: '{}', expected: '{}'", self.type_expression(&args[acc])?, param)))
+                        }
+                        acc += 1
+                    }
+                    Ok(())
+                },
+
+                ref t => Err(make_error(Some(callee.1), format!("can't call: '{}'", t))),
+            }
+        }
+    }
 
     fn type_expression(&self, expression: &Expression) -> Response<Type> {
         use ExpressionNode::*;
@@ -242,6 +279,11 @@ impl<'v> Visitor<'v> {
                     params.iter().map(|x| Rc::new(Type::new(x.1.clone(), TypeMode::Just))).collect::<Vec<Rc<Type>>>(),
                     Rc::new(Type::new(return_type.clone(), TypeMode::Just)),
                 ), TypeMode::Just)
+            },
+
+            (&Call(ref callee, _), _) => match self.type_expression(&**callee)?.0 {
+                TypeNode::Fun(_, ref retty) => (**retty).clone(),
+                _ => unreachable!(),
             },
 
             (&Binary { ref left, ref op, ref right }, position) => {
@@ -300,6 +342,8 @@ impl<'v> Visitor<'v> {
             }
             
             self.visit_expression(&right)?;
+        } else {
+            self.typetab.set_type(index, 0, Type::new(kind.clone(), TypeMode::Undeclared))?;
         }
         Ok(())
     }

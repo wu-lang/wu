@@ -7,11 +7,9 @@ use wu::visitor::*;
 
 fn main() {
     let source = r#"
--- foo := .1234               -- inferred variable
--- bar: string = "swordfight" -- explicit variable
--- baz :: true                -- inferred constant
+foo :: (a int, b int, c int) boolean -> true
 
-true? :: (a boolean) boolean -> a
+bar: int = foo(10, 1, 3)
     "#;
 
     let path = "test.wu";
