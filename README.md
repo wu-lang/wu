@@ -37,7 +37,7 @@ baz :: true                -- inferred constant
 add :: (a int, b int) int -> a + b
 fac :: (a int) int -> match {
   | 1 -> 1
-  | _ -> fac (n - 1) * n
+  | _ -> fac(n - 1) * n
 }
 ```
 
@@ -51,8 +51,10 @@ sub: (int, int) int = (a int, b int) int -> a - b
 
 - the thing about transpiling to lua, from moonscript
 
-- the weird type order, from go
+- the weird argument type order, from go
 
-- function calls and operators, from haskell/elm etc.
+- the lack of inconsistency, not from javascript
 
-- low-level feel and control, from kai/jai
+- ~~function calls and~~ operators, from haskell/elm etc.
+
+- low-level feel and control, from kai/rust
