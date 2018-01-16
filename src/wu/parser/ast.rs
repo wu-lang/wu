@@ -13,6 +13,7 @@ pub enum ExpressionNode {
     Binary {left: Rc<Expression>, op: Operator, right: Rc<Expression>,},
     Function {params: Vec<(String, TypeNode)>, return_type: TypeNode, body: Rc<Expression>},
     Call(Rc<Expression>, Vec<Rc<Expression>>),
+    Block(Vec<Statement>),
     EOF,
 }
 
@@ -28,6 +29,8 @@ impl Expression {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatementNode {
     Expression(Expression),
+
+    Return(Option<Expression>),
 
     Definition {
         kind:  TypeNode,

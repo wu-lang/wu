@@ -189,6 +189,11 @@ impl<'v> Visitor<'v> {
             (&Definition {ref kind, ref left, ref right}, _) => self.visit_definition(kind, left, right),
             (&ConstDefinition {ref left, ref right}, _)      => self.visit_constant(left, right),
             (&Assignment {ref left, ref right}, _)           => self.visit_assignment(left, right),
+            (&Return(ref value), _)                          => if let Some(ref value) = *value {
+                self.visit_expression(value)
+            } else {
+                Ok(())
+            },
         }
     }
 
@@ -207,8 +212,16 @@ impl<'v> Visitor<'v> {
             },
 
             (&Function {ref params, ref return_type, ref body}, position) => self.visit_function(&position, params, return_type, body),
-            
-            (&Call(ref callee, ref args), position) => self.visit_call(&callee, &args),
+
+            (&Call(ref callee, ref args), _) => self.visit_call(&callee, &args),
+
+            (&Block(ref statements), _) => {
+                for statement in statements {
+                    self.visit_statement(&statement)?
+                }
+
+                Ok(())
+            }
 
             _ => Ok(())
         }
@@ -312,6 +325,25 @@ impl<'v> Visitor<'v> {
                 }
             },
 
+            (&Block(ref statements), _) => {
+                use StatementNode::*;
+
+                match statements.last() {
+                    Some(last) => match last.0 {
+                        Expression(ref expression) => self.type_expression(expression)?,
+                        Return(ref value)          => if let Some(ref value) = *value {
+                            self.type_expression(value)?
+                        } else {
+                            Type::nil()
+                        },
+
+                        _                          => Type::nil(),
+                    },
+
+                    None => Type::nil(),
+                }
+            },
+
             _ => Type::nil(),
         };
 
@@ -330,6 +362,8 @@ impl<'v> Visitor<'v> {
         };
 
         if let Some(ref right) = *right {
+            self.visit_expression(&right)?;
+
             if *kind != TypeNode::Nil {
                 let right_kind = self.type_expression(&right)?;
                 if *kind != right_kind.0 {
@@ -339,9 +373,7 @@ impl<'v> Visitor<'v> {
                 }
             } else {
                 self.typetab.set_type(index, 0, self.type_expression(right)?)?;
-            }
-            
-            self.visit_expression(&right)?;
+            }            
         } else {
             self.typetab.set_type(index, 0, Type::new(kind.clone(), TypeMode::Undeclared))?;
         }

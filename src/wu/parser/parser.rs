@@ -42,6 +42,29 @@ impl<'p> Parser<'p> {
         self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
 
         let node = match self.current_type() {
+            Keyword => match self.current_content().as_str() {
+                "return" => {
+                    self.next()?;
+                    self.skip_types(vec![Whitespace])?;
+
+                    if self.current_content() == "\n" {
+                        self.next()?;
+                        
+                        StatementNode::Return(None)
+                    } else {
+                        let ret = StatementNode::Return(Some(self.expression()?));
+
+                        if self.current_content() == "\n" {
+                            self.next()?;
+                        }
+
+                        ret
+                    }
+                },
+                
+                _ => StatementNode::Expression(self.expression()?),
+            },
+
             Identifier => {
                 let identifier_node = self.atom()?;
 
@@ -57,6 +80,10 @@ impl<'p> Parser<'p> {
                             self.next()?;
 
                             let right = self.expression()?;
+                            
+                            if self.current_content() == "\n" {
+                                self.next()?
+                            }
 
                             StatementNode::ConstDefinition {
                                 left:  identifier_node,
@@ -67,6 +94,10 @@ impl<'p> Parser<'p> {
                                 self.consume_content("=")?;
 
                                 let right = self.expression()?;
+                                
+                                if self.current_content() == "\n" {
+                                    self.next()?
+                                }
 
                                 StatementNode::Definition {
                                     kind:  TypeNode::Nil,
@@ -84,6 +115,10 @@ impl<'p> Parser<'p> {
                                     self.next()?;
 
                                     let right = self.expression()?;
+                                    
+                                    if self.current_content() == "\n" {
+                                        self.next()?
+                                    }
 
                                     StatementNode::Definition {
                                         kind,
@@ -107,6 +142,10 @@ impl<'p> Parser<'p> {
                         self.next()?;
 
                         let right = self.expression()?;
+
+                        if self.current_content() == "\n" {
+                            self.next()?
+                        }
 
                         StatementNode::Assignment {
                             left: identifier_node,
@@ -219,6 +258,13 @@ impl<'p> Parser<'p> {
             TokenType::Identifier => Identifier(self.consume_type(TokenType::Identifier)?),
 
             TokenType::Symbol => match self.current_content().as_str() {
+                "{" => {
+                    let content = self.block_of(&mut Self::statement_, ("{", "}"))?;
+                    
+
+                    Block(content)
+                },
+
                 "(" => {
                     let backup_top = self.top;
                     self.next()?;
@@ -250,12 +296,12 @@ impl<'p> Parser<'p> {
 
                         self.skip_types(vec![TokenType::Whitespace])?;
                     }
-                    
+
                     if self.current_content() != "->" {
                         self.top = backup_top;
-                        
+
                         let content = self.block_of(&Self::expression_, ("(", ")"))?;
-                        
+
                         if content.len() > 1 {
                             return Err(make_error(Some(content.get(0).unwrap().1), format!("claused expression can only contain one item")))
                         }
@@ -270,15 +316,31 @@ impl<'p> Parser<'p> {
                 ref t => return Err(make_error(Some(self.position()), format!("unexpected symbol: {}", t)))
             },
 
-            TokenType::Whitespace => {
+            TokenType::Whitespace | TokenType::EOL => {
                 self.next()?;
                 return Ok(self.atom()?)
             },
 
-            t => panic!() // return Err(make_error(Some(self.position()), format!("token type '{:?}' currently unimplemented", t)))
+            t => return Err(make_error(Some(position), format!("token type '{:?}' currently unimplemented", t)))
         };
         
         self.maybe_call(Expression::new(node, position))
+    }
+    
+    fn statement_(self: &mut Self) -> Response<Option<Statement>> {
+        let statement = self.statement()?;
+
+        let statement = match statement.0 {
+            StatementNode::Expression(ref e) => if e.0 == ExpressionNode::EOF {
+                None
+            } else {
+                Some(statement.clone())
+            },
+
+            _ => Some(statement),
+        };
+
+        Ok(statement)
     }
 
     fn function(&mut self) -> Response<ExpressionNode> {

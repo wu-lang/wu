@@ -7,9 +7,24 @@ use wu::visitor::*;
 
 fn main() {
     let source = r#"
-foo :: (a int, b int, c int) boolean -> true
+-- functions, haha
 
-bar: int = foo(10, 1, 3)
+foo: int = {
+    a :: 100
+    b: int = a
+
+    return true
+}
+
+apply :: (fun (int) int, a int) int -> {
+    ret :: fun(a)
+    ret
+}
+
+add_ten :: (a int) int -> a + 12
+
+bar := 100
+foo := apply(add_ten, bar)
     "#;
 
     let path = "test.wu";
