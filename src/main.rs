@@ -4,27 +4,13 @@ mod wu;
 use wu::lexer::*;
 use wu::parser::*;
 use wu::visitor::*;
+use wu::codegen::*;
 
 fn main() {
     let source = r#"
--- functions, haha
-
-foo: int = {
-    a :: 100
-    b: int = a
-
-    return true
+(a int, b int) int -> {
+    return a + b
 }
-
-apply :: (fun (int) int, a int) int -> {
-    ret :: fun(a)
-    ret
-}
-
-add_ten :: (a int) int -> a + 12
-
-bar := 100
-foo := apply(add_ten, bar)
     "#;
 
     let path = "test.wu";
@@ -41,7 +27,11 @@ foo := apply(add_ten, bar)
             let mut visitor = Visitor::new(&ast, &lines, &path);
 
             match visitor.validate() {
-                Ok(_)         => (),
+                Ok(_)         => {
+                    let codegen = Codegen::new(&ast);
+
+                    println!("```lua\n{}```", codegen)
+                },
                 Err(response) => response.display(&lines, &path),
             }
         },

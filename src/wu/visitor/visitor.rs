@@ -47,9 +47,17 @@ impl Display for TypeNode {
             Nil   => write!(f, "nil"),
             Fun(ref params, ref return_type) => {
                 write!(f, "(")?;
+                
+                let mut acc = 1;
 
                 for param in params {
-                    write!(f, "{}", param)?
+                    if acc == params.len() {
+                        write!(f, "{}", param)?;
+                    } else {
+                        write!(f, "{}, ", param)?;
+                    }
+
+                    acc += 1
                 }
 
                 write!(f, ") {}", return_type)

@@ -444,21 +444,29 @@ impl<'p> Parser<'p> {
     fn maybe_call(&mut self, atom: Expression) -> Response<Expression> {
         use ExpressionNode::*;
 
-        match atom.0 {
+        let backup_top = self.top;
+        
+        self.skip_types(vec![TokenType::Whitespace])?;
+
+        let node = match atom.0 {
             Identifier(_) => match self.current_content().as_str() {
                 "(" => {
                     let args = self.block_of(&mut Self::arg_, ("(", ")"))?;
                     let pos  = atom.1.clone();
                     let call = Expression(Call(Rc::new(atom), args.iter().map(|x| Rc::new(x.clone())).collect()), pos);
 
-                    Ok(call)
+                    return Ok(call)
                 },
 
-                _ => Ok(atom)
+                _ => atom
             },
             
-            _ => Ok(atom)
-        }
+            _ => atom
+        };
+
+        self.top = backup_top;
+        
+        Ok(node)
     }
 
     fn arg_(self: &mut Self) -> Response<Option<Expression>> {
