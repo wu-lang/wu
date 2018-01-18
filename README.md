@@ -25,21 +25,66 @@ a neat wannabe low-level programming language
 
 ---
 
-### syntax
+### version 0.0.1
 
+bindings
 ```
 foo := .1234               -- inferred variable
 bar: string = "swordfight" -- explicit variable
 baz :: true                -- inferred constant
 ```
 
+block-expression
 ```
-add :: (a int, b int) int -> a + b
-fac :: (a int) int -> match {
-  | 1 -> 1
-  | _ -> fac(n - 1) * n
+-- just a local scope
+{
+ foo := 100
+ bar :: foo + 100
+ 
+ print(foo, bar)
+}
+
+-- blocks return implicitly returns
+-- their last value ..
+foo :: {
+ baz :: (a float) float -> a^10
+ baz(100)
+}
+
+bar: bool = {
+ return true -- "return" = wrong grrrr
 }
 ```
+
+types
+```
+int float boolean string
+```
+
+functions
+```
+-- functions also implicitly return
+add_5 :: (a int) int -> a + 5
+
+apply :: (fun (int) int, a int) -> fun(a)
+
+ten: int = apply(add_5, 15)
+
+-- or not
+sub_5 :: (a int) int -> return a - 5
+sub_0 :: (a int) int -> {
+ return a - 0 -- "return" = sure
+}
+```
+
+```
+-- btw. pipe operators(can only one argument(currently))
+fifteen := 10 |> add_5
+fifteen := add_5 <| 10
+```
+
+function-type
+`(type*) type*` e.g. `(int, int) int`(taking two ints, returning int)
 
 ```
 sub: (int, int) int = (a int, b int) int -> a - b
@@ -55,6 +100,6 @@ sub: (int, int) int = (a int, b int) int -> a - b
 
 - the lack of inconsistency, not from javascript
 
-- ~~function calls and~~ operators, from haskell/elm etc.
+- ~~function calls and~~ *the* operators, from haskell/elm etc.
 
 - low-level feel and control, from kai/rust
