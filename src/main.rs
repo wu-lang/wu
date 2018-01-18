@@ -8,8 +8,8 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-(a int, b int) int -> {
-    return a + b
+foo := {
+    100
 }
     "#;
 

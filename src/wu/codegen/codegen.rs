@@ -32,7 +32,19 @@ impl<'c> Codegen<'c> {
                 Some(ref v) => format!(" {}", self.gen_expression(&v.0)),
                 None        => String::from("\n"),
             }),
-            _                          => String::new()
+            Definition { ref left, ref right, .. } => match *right {
+                Some(ref right) => match right.0 {
+                    ref block @ ExpressionNode::Block(_) => {
+                        format!("local {}\n{}", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                        
+                    },
+                    _ => format!("local {} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+                }
+                None            => format!("local {}", self.gen_expression(&left.0)),
+            },
+            
+            ConstDefinition { ref left, ref right, .. } => format!("local {} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)),
+            Assignment { ref left, ref right, .. }      => format!("{} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)),
         }
     }
     
@@ -99,6 +111,11 @@ impl<'c> Codegen<'c> {
 
                 code.push_str(")\n");
 
+                match body.0 {
+                    Block(_) => (),
+                    _ => code.push_str("return "),
+                }
+
                 code.push_str(&self.gen_expression(&body.0));
 
                 code.push_str("\nend");
@@ -106,7 +123,7 @@ impl<'c> Codegen<'c> {
                 code
             }
 
-            _ => String::new(),
+            EOF => String::new(),
         }
     }
 
@@ -169,6 +186,32 @@ impl<'c> Codegen<'c> {
         };
 
         c.to_owned()
+    }
+
+    fn gen_block_assignment(&self, block: &ExpressionNode, left: &ExpressionNode) -> String {
+        use ExpressionNode::*;
+
+        if let Block(ref statements) = *block {
+            let mut code = "do\n".to_string();
+            
+            let mut acc = 1;
+
+            for statement in statements {
+                if acc == statements.len() {
+                    code.push_str(&format!("{} = {}", self.gen_expression(left), self.gen_statement(&statement.0)))
+                } else {
+                    code.push_str(&self.gen_statement(&statement.0))
+                }
+
+                acc += 1
+            }
+
+            code.push_str("\nend");
+
+            code
+        } else {
+            String::new()
+        }
     }
 }
 
