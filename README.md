@@ -31,7 +31,8 @@ bindings
 ```
 foo := .1234               -- inferred variable
 bar: string = "swordfight" -- explicit variable
-baz :: true                -- inferred constant
+baz :: true                -- inferred immutable
+boo: float: 3.14159265     -- explicit immutable
 ```
 
 block-expression
