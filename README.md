@@ -28,7 +28,7 @@ a neat wannabe low-level programming language
 ### version 0.0.1
 
 bindings
-```java
+```lua
 foo := .1234               -- inferred variable
 bar: string = "swordfight" -- explicit variable
 baz :: true                -- inferred immutable
@@ -36,7 +36,7 @@ boo: float: 3.14159265     -- explicit immutable
 ```
 
 block-expression
-```java
+```lua
 -- just a local scope
 {
  foo := 100
@@ -58,12 +58,12 @@ bar: bool = {
 ```
 
 types
-```java
+```lua
 int float bool string
 ```
 
 functions
-```java
+```lua
 -- functions also implicitly return
 add_5 :: (a: int) int -> a + 5
 
@@ -78,7 +78,7 @@ sub_0 :: (a: int) int -> {
 }
 ```
 
-```java
+```lua
 -- btw. pipe operators(can only one argument(currently))
 fifteen := 10 |> add_5
 fifteen := add_5 <| 10
@@ -97,7 +97,7 @@ print(add(100, 200.5)) -- 300.5
 function-type
 `(type*) type*` e.g. `(int, int) int`(taking two ints, returning int)
 
-```java
+```lua
 sub: (int, int) int = (a: int, b: int) int -> a - b
 ```
 
