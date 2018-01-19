@@ -1,4 +1,3 @@
-use super::lexer::*;
 use super::*;
 
 use std::fmt::*;
@@ -72,6 +71,7 @@ pub enum TypeMode {
     Undeclared,
     Constant,
     Just,
+    Optional,
 }
 
 impl TypeMode {
@@ -83,6 +83,7 @@ impl TypeMode {
             (&Just,       &Just)       => true,
             (&Constant,   &Constant)   => true,
             (&Undeclared, &Undeclared) => true,
+            (&Optional,   &Optional)   => true,
             _ => false,
         }
     }
@@ -96,6 +97,7 @@ impl Display for TypeMode {
             Just       => Ok(()),
             Constant   => write!(f, "constant "),
             Undeclared => write!(f, "undeclared "),
+            Optional   => write!(f, "optional "),
         }
     }
 }
@@ -110,6 +112,8 @@ impl PartialEq for TypeMode {
             (&Just,       &Constant)   => true,
             (&Constant,   &Constant)   => true,
             (&Constant,   &Just)       => true,
+            (_,           &Optional)   => true,
+            (&Optional,   _)           => true,
             (&Undeclared, _)           => false,
             (_,           &Undeclared) => false,
         }
@@ -193,11 +197,11 @@ impl<'v> Visitor<'v> {
         use StatementNode::*;
 
         match (&statement.0, statement.1) {
-            (&Expression(ref expr), _)                       => self.visit_expression(expr),
-            (&Definition {ref kind, ref left, ref right}, _) => self.visit_definition(kind, left, right),
-            (&ConstDefinition {ref left, ref right}, _)      => self.visit_constant(left, right),
-            (&Assignment {ref left, ref right}, _)           => self.visit_assignment(left, right),
-            (&Return(ref value), _)                          => if let Some(ref value) = *value {
+            (&Expression(ref expr), _)                            => self.visit_expression(expr),
+            (&Definition {ref kind, ref left, ref right}, _)      => self.visit_definition(kind, left, right),
+            (&ConstDefinition {ref kind, ref left, ref right}, _) => self.visit_constant(kind, left, right),
+            (&Assignment {ref left, ref right}, _)                => self.visit_assignment(left, right),
+            (&Return(ref value), _)                               => if let Some(ref value) = *value {
                 self.visit_expression(value)
             } else {
                 Ok(())
@@ -219,7 +223,7 @@ impl<'v> Visitor<'v> {
                 Err(err) => Err(err),
             },
 
-            (&Function {ref params, ref return_type, ref body}, position) => self.visit_function(&position, params, return_type, body),
+            (&Function {ref params, ref return_type, ref body}, _) => self.visit_function(params, return_type, body),
 
             (&Call(ref callee, ref args), _) => self.visit_call(&callee, &args),
 
@@ -235,12 +239,18 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    fn visit_function(&mut self, position: &TokenPosition, params: &Vec<(String, TypeNode)>, return_type: &TypeNode, body: &Expression) -> Response<()> {
+    fn visit_function(&mut self, params: &Vec<(String, TypeNode, Option<Rc<Expression>>)>, return_type: &TypeNode, body: &Expression) -> Response<()> {
         let mut param_names = Vec::new();
         let mut param_types = Vec::new();
 
-        for &(ref name, ref t) in params.iter() {
+        for &(ref name, ref t, ref value) in params.iter() {
             param_names.push(name.clone());
+            if let Some(ref value) = *value {
+                if self.type_expression(value)?.0 != *t {
+                    return Err(make_error(Some(value.1), format!("mismatched return type, expected '{}'", t)))
+                }
+            }
+
             param_types.push(Type::new(t.clone(), TypeMode::Just))
         }
 
@@ -268,13 +278,28 @@ impl<'v> Visitor<'v> {
                 TypeNode::Fun(ref params, _) => {
                     let mut acc = 0;
 
-                    for param in params {
-                        if self.type_expression(&args[acc])? != **param {
-                            return Err(make_error(Some(args[acc].1), format!("mismatching argument type: '{}', expected: '{}'", self.type_expression(&args[acc])?, param)))
+                    if params.len() != args.len() {
+                        if params.len() < args.len() {
+                            Err(make_error(Some(args[acc].1), format!("function expected {} arg{}, got {}", params.len(), if params.len() > 1 { "s" } else { "" }, args.len())))
+                        } else {
+                            for param in &params[args.len() .. params.len()] {
+                                println!("{:?}", param.1);
+                                if !param.1.check(&TypeMode::Optional) {
+                                    return Err(make_error(Some(callee.1), format!("can't ommit non-optional argument")))
+                                }
+                            }
+
+                            Ok(())
                         }
-                        acc += 1
+                    } else {
+                        for param in params {
+                            if self.type_expression(&args[acc])? != **param {
+                                return Err(make_error(Some(args[acc].1), format!("mismatching argument type: '{}', expected: '{}'", self.type_expression(&args[acc])?, param)))
+                            }
+                            acc += 1
+                        }
+                        Ok(())
                     }
-                    Ok(())
                 },
 
                 ref t => Err(make_error(Some(callee.1), format!("can't call: '{}'", t))),
@@ -297,7 +322,7 @@ impl<'v> Visitor<'v> {
             
             (&Function {ref params, ref return_type, ..}, _) => {
                 Type::new(TypeNode::Fun(
-                    params.iter().map(|x| Rc::new(Type::new(x.1.clone(), TypeMode::Just))).collect::<Vec<Rc<Type>>>(),
+                    params.iter().map(|x| Rc::new(Type::new(x.1.clone(), if let Some(_) = x.2 { TypeMode::Optional } else { TypeMode::Just }))).collect::<Vec<Rc<Type>>>(),
                     Rc::new(Type::new(return_type.clone(), TypeMode::Just)),
                 ), TypeMode::Just)
             },
@@ -388,7 +413,7 @@ impl<'v> Visitor<'v> {
         Ok(())
     }
 
-    fn visit_constant(&mut self, left: &Expression, right: &Expression) -> Response<()> {
+    fn visit_constant(&mut self, kind: &TypeNode, left: &Expression, right: &Expression) -> Response<()> {
         use ExpressionNode::*;
 
         let index = match left.0 {
@@ -398,8 +423,18 @@ impl<'v> Visitor<'v> {
             },
             _ => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
+        
+        if *kind != TypeNode::Nil {
+            let right_kind = self.type_expression(&right)?;
 
-        self.typetab.set_type(index, 0, Type::new(self.type_expression(right)?.0, TypeMode::Constant))?;
+            if *kind != right_kind.0 {
+                return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
+            } else {
+                self.typetab.set_type(index, 0, Type::new(self.type_expression(right)?.0, TypeMode::Constant))?;
+            }
+        } else {
+            self.typetab.set_type(index, 0, Type::new(self.type_expression(right)?.0, TypeMode::Constant))?;
+        }
 
         self.visit_expression(right)
     }

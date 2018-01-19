@@ -42,8 +42,15 @@ impl<'c> Codegen<'c> {
                 }
                 None            => format!("local {}", self.gen_expression(&left.0)),
             },
-            
-            ConstDefinition { ref left, ref right, .. } => format!("local {} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)),
+
+            ConstDefinition { ref left, ref right, .. } => match right.0 {
+                ref block @ ExpressionNode::Block(_) => {
+                    format!("local {}\n{}", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                    
+                },
+                _ => format!("local {} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+            },
+
             Assignment { ref left, ref right, .. }      => format!("{} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)),
         }
     }
@@ -99,7 +106,13 @@ impl<'c> Codegen<'c> {
                 
                 let mut acc = 1;
                 
+                let mut guards = Vec::new();
+
                 for param in params {
+                    if let Some(ref value) = param.2 {
+                        guards.push((param.0.clone(), value.clone()))
+                    }
+                    
                     code.push_str(&param.0);
 
                     if acc != params.len() {
@@ -111,13 +124,17 @@ impl<'c> Codegen<'c> {
 
                 code.push_str(")\n");
 
+
+                for guard in guards {
+                    code.push_str(&format!("if {0} == nil then\n{0} = {1}\nend\n", guard.0, self.gen_expression(&(guard.1).0)))
+                }
+
                 match body.0 {
                     Block(_) => (),
                     _ => code.push_str("return "),
                 }
 
                 code.push_str(&self.gen_expression(&body.0));
-
                 code.push_str("\nend");
 
                 code

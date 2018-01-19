@@ -11,7 +11,7 @@ pub enum ExpressionNode {
     Str(String),
     Identifier(String),
     Binary {left: Rc<Expression>, op: Operator, right: Rc<Expression>,},
-    Function {params: Vec<(String, TypeNode)>, return_type: TypeNode, body: Rc<Expression>},
+    Function {params: Vec<(String, TypeNode, Option<Rc<Expression>>)>, return_type: TypeNode, body: Rc<Expression>},
     Call(Rc<Expression>, Vec<Rc<Expression>>),
     Block(Vec<Statement>),
     EOF,
@@ -39,6 +39,7 @@ pub enum StatementNode {
     },
 
     ConstDefinition {
+        kind:  TypeNode,
         left:  Expression,
         right: Expression,
     },

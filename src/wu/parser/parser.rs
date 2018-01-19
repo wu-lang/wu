@@ -66,9 +66,10 @@ impl<'p> Parser<'p> {
             },
 
             Identifier => {
-                let identifier_node = self.atom()?;
+                let backup_top = self.top;
 
-                let backup = self.top;
+                let position        = self.position();
+                let identifier_node = Expression::new(ExpressionNode::Identifier(self.consume_type(TokenType::Identifier)?), position);
 
                 self.skip_types(vec![TokenType::Whitespace])?;
 
@@ -86,9 +87,11 @@ impl<'p> Parser<'p> {
                             }
 
                             StatementNode::ConstDefinition {
+                                kind:  TypeNode::Nil,
                                 left:  identifier_node,
                                 right: right,
                             }
+
                         } else {
                             if self.current_content() == "=" {
                                 self.consume_content("=")?;
@@ -104,6 +107,7 @@ impl<'p> Parser<'p> {
                                     left:  identifier_node,
                                     right: Some(right),
                                 }
+
                             } else {
                                 self.skip_types(vec![TokenType::Whitespace])?;
 
@@ -125,6 +129,21 @@ impl<'p> Parser<'p> {
                                         left:  identifier_node,
                                         right: Some(right),
                                     }
+                                } else if self.current_content() == ":" {
+                                    self.next()?;
+
+                                    let right = self.expression()?;
+
+                                    if self.current_content() == "\n" {
+                                        self.next()?
+                                    }
+
+                                    StatementNode::ConstDefinition {
+                                        kind,
+                                        left: identifier_node,
+                                        right,
+                                    }
+
                                 } else {
                                     self.consume_content("\n")?;
 
@@ -154,8 +173,8 @@ impl<'p> Parser<'p> {
                     },
 
                     _ => {
-                        self.top = backup;
-                        StatementNode::Expression(identifier_node)
+                        self.top = backup_top;
+                        StatementNode::Expression(self.expression()?)
                     }
                 }
             },
@@ -323,7 +342,7 @@ impl<'p> Parser<'p> {
 
             t => return Err(make_error(Some(position), format!("token type '{:?}' currently unimplemented", t)))
         };
-        
+
         self.maybe_call(Expression::new(node, position))
     }
     
@@ -363,16 +382,28 @@ impl<'p> Parser<'p> {
         Ok(ExpressionNode::Function {params, return_type, body})
     }
 
-    fn param_(self: &mut Self) -> Response<Option<(String, TypeNode)>> {
+    fn param_(self: &mut Self) -> Response<Option<(String, TypeNode, Option<Rc<Expression>>)>> {
         if self.remaining() == 0 {
             return Ok(None)
         }
 
         let name = self.consume_type(TokenType::Identifier)?;
         self.skip_types(vec![TokenType::Whitespace])?;
+        
+        self.consume_content(":")?;
+        self.skip_types(vec![TokenType::Whitespace])?;
 
         let kind = self.type_node()?;
         self.skip_types(vec![TokenType::Whitespace])?;
+
+        let value = if self.current_content() == "=" {
+            self.next()?;
+            self.skip_types(vec![TokenType::Whitespace])?;
+
+            Some(Rc::new(self.expression()?))
+        } else {
+            None
+        };
 
         if self.remaining() > 1 {
             self.consume_content(",")?;
@@ -380,9 +411,9 @@ impl<'p> Parser<'p> {
         }
 
         if self.remaining() == 0 {
-            Ok(Some((name, kind)))
+            Ok(Some((name, kind, value)))
         } else {
-            Ok(Some((name, kind)))
+            Ok(Some((name, kind, value)))
         }
     }
 

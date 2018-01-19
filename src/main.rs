@@ -8,9 +8,11 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-foo := {
-    100
-}
+a: float: .120
+
+addf :: (a: float, b: float = 100.0, c: boolean = true) float -> a + b
+
+addf(100.0)
     "#;
 
     let path = "test.wu";
