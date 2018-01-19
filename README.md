@@ -64,15 +64,15 @@ int float boolean string
 functions
 ```
 -- functions also implicitly return
-add_5 :: (a int) int -> a + 5
+add_5 :: (a: int) int -> a + 5
 
-apply :: (fun (int) int, a int) -> fun(a)
+apply :: (fun: (int) int, a: int) -> fun(a)
 
 ten: int = apply(add_5, 15)
 
 -- or not
-sub_5 :: (a int) int -> return a - 5
-sub_0 :: (a int) int -> {
+sub_5 :: (a: int) int -> return a - 5
+sub_0 :: (a: int) int -> {
  return a - 0 -- "return" = sure
 }
 ```
@@ -83,11 +83,21 @@ fifteen := 10 |> add_5
 fifteen := add_5 <| 10
 ```
 
+parameter defaults
+```
+bar :: (a: float, b: float = 100.0) float -> {
+  return a + b
+}
+
+print(add(100)).       -- 200
+print(add(100, 200.5)) -- 300.5
+```
+
 function-type
 `(type*) type*` e.g. `(int, int) int`(taking two ints, returning int)
 
 ```
-sub: (int, int) int = (a int, b int) int -> a - b
+sub: (int, int) int = (a: int, b: int) int -> a - b
 ```
 
 ---
