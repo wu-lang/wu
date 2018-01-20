@@ -13,7 +13,7 @@ pub enum TypeNode {
     Str,
     Nil,
     Id(String),
-    Fun(Vec<Rc<Type>>, Rc<Type>),
+    Fun(Vec<Type>, Rc<Type>),
 }
 
 // this is for typechecking
@@ -47,7 +47,7 @@ impl Display for TypeNode {
             Nil   => write!(f, "nil"),
             Fun(ref params, ref return_type) => {
                 write!(f, "(")?;
-                
+
                 let mut acc = 1;
 
                 for param in params {
@@ -107,7 +107,7 @@ impl Display for TypeMode {
 impl PartialEq for TypeMode {
     fn eq(&self, other: &TypeMode) -> bool {
         use TypeMode::*;
-        
+
         match (self, other) {
             (&Just,       &Just)       => true,
             (&Just,       &Constant)   => true,
@@ -128,19 +128,19 @@ impl Type {
     pub fn new(node: TypeNode, mode: TypeMode) -> Type {
         Type(node, mode)
     }
-    
+
     pub fn int() -> Type {
         Type(TypeNode::Int, TypeMode::Just)
     }
-    
+
     pub fn string() -> Type {
         Type(TypeNode::Str, TypeMode::Just)
     }
-    
+
     pub fn float() -> Type {
         Type(TypeNode::Float, TypeMode::Just)
     }
-    
+
     pub fn boolean() -> Type {
         Type(TypeNode::Bool, TypeMode::Just)
     }
@@ -190,7 +190,7 @@ impl<'v> Visitor<'v> {
         for statement in self.ast.iter() {
             self.visit_statement(statement)?
         }
-        
+
         Ok(())
     }
 
@@ -227,7 +227,7 @@ impl<'v> Visitor<'v> {
 
             (&Function {ref params, ref return_type, ref body}, _) => self.visit_function(params, return_type, body),
 
-            (&Call(ref callee, ref args), _) => self.visit_call(&callee, &args),
+            (&Call(ref callee, ref args), _) => self.visit_call(callee, args),
 
             (&Block(ref statements), _) => {
                 let mut acc = 1;
@@ -288,7 +288,7 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    fn visit_call(&mut self, callee: &Rc<Expression>, args: &Vec<Rc<Expression>>) -> Response<()> {
+    fn visit_call(&mut self, callee: &Rc<Expression>, args: &Vec<Expression>) -> Response<()> {
         let callee_t = self.type_expression(&**callee)?;
 
         if callee_t.1 == TypeMode::Undeclared {
@@ -312,7 +312,7 @@ impl<'v> Visitor<'v> {
                         }
                     } else {
                         for param in params {
-                            if **param != self.type_expression(&args[acc])? {
+                            if *param != self.type_expression(&args[acc])? {
                                 return Err(make_error(Some(args[acc].1), format!("mismatched argument type: '{}', expected: '{}'", self.type_expression(&args[acc])?, param)))
                             }
                             acc += 1
@@ -339,10 +339,10 @@ impl<'v> Visitor<'v> {
                 Some((i, env_index)) => self.typetab.get_type(i, env_index)?,
                 None                 => return Err(make_error(Some(position), format!("undefined: {}", name)))
             },
-            
+
             (&Function {ref params, ref return_type, ..}, _) => {
                 Type::new(TypeNode::Fun(
-                    params.iter().map(|x| Rc::new(Type::new(x.1.clone(), if let Some(_) = x.2 { TypeMode::Optional } else { TypeMode::Just }))).collect::<Vec<Rc<Type>>>(),
+                    params.iter().map(|x| Type::new(x.1.clone(), if let Some(_) = x.2 { TypeMode::Optional } else { TypeMode::Just })).collect::<Vec<Type>>(),
                     Rc::new(Type::new(return_type.clone(), TypeMode::Just)),
                 ), TypeMode::Just)
             },
@@ -366,7 +366,7 @@ impl<'v> Visitor<'v> {
                     } else {
                         return Err(make_error(Some(position), format!("can't pow '{}' and '{}'", a, b)))
                     },
-                    
+
                     (a, &Add, b) => if a == b {
                         Type::new(a.0, TypeMode::Just)
                     } else {
@@ -443,7 +443,7 @@ impl<'v> Visitor<'v> {
 
         Ok(return_type)
     }
-    
+
     fn visit_definition(&mut self, kind: &TypeNode, left: &Expression, right: &Option<Expression>) -> Response<()> {
         use ExpressionNode::*;
 
@@ -467,7 +467,7 @@ impl<'v> Visitor<'v> {
                 }
             } else {
                 self.typetab.set_type(index, 0, self.type_expression(right)?)?;
-            }            
+            }
         } else {
             self.typetab.set_type(index, 0, Type::new(kind.clone(), TypeMode::Undeclared))?;
         }
@@ -484,7 +484,7 @@ impl<'v> Visitor<'v> {
             },
             _ => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
-        
+
         if *kind != TypeNode::Nil {
             let right_kind = self.type_expression(&right)?;
 
