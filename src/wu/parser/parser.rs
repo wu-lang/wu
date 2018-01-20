@@ -290,7 +290,7 @@ impl<'p> Parser<'p> {
 
                     self.skip_types(vec![TokenType::Whitespace])?;
 
-                    params.push(Rc::new(Type::new(self.type_node()?, TypeMode::Just)));
+                    params.push(Type::new(self.type_node()?, TypeMode::Just));
 
                     self.skip_types(vec![TokenType::Whitespace])?;
 

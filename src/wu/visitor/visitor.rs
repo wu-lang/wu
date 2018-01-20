@@ -13,7 +13,7 @@ pub enum TypeNode {
     Str,
     Nil,
     Id(String),
-    Fun(Vec<Rc<Type>>, Rc<Type>),
+    Fun(Vec<Type>, Rc<Type>),
 }
 
 // this is for typechecking
@@ -297,7 +297,7 @@ impl<'v> Visitor<'v> {
                         }
                     } else {
                         for param in params {
-                            if **param != self.type_expression(&args[acc])? {
+                            if *param != self.type_expression(&args[acc])? {
                                 return Err(make_error(Some(args[acc].1), format!("mismatched argument type: '{}', expected: '{}'", self.type_expression(&args[acc])?, param)))
                             }
                             acc += 1
@@ -326,7 +326,7 @@ impl<'v> Visitor<'v> {
 
             (&Function {ref params, ref return_type, ..}, _) => {
                 Type::new(TypeNode::Fun(
-                    params.iter().map(|x| Rc::new(Type::new(x.1.clone(), if let Some(_) = x.2 { TypeMode::Optional } else { TypeMode::Just }))).collect::<Vec<Rc<Type>>>(),
+                    params.iter().map(|x| Type::new(x.1.clone(), if let Some(_) = x.2 { TypeMode::Optional } else { TypeMode::Just })).collect::<Vec<Type>>(),
                     Rc::new(Type::new(return_type.clone(), TypeMode::Just)),
                 ), TypeMode::Just)
             },
