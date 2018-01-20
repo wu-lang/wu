@@ -46,7 +46,7 @@ impl ResponseNode {
             let path_line = format!("{:5}{}{}", " ", "--> ".blue().bold(), path);
 
             println!("{}{}\n{}\n{}", message, path_line, line, indicator)
-            
+
         } else {
             println!("{}", message);
         }
@@ -59,6 +59,16 @@ pub fn make_error(position: Option<TokenPosition>, message: String) -> ResponseN
         kind: ResponseType::Wrong,
         message,
     }
+}
+
+pub fn weird(position: Option<TokenPosition>, message: String, lines: &Vec<String>, path: &str) {
+    let warning = ResponseNode {
+        position,
+        kind: ResponseType::Weird,
+        message,
+    };
+
+    warning.display(lines, path)
 }
 
 pub type Response<T> = Result<T, ResponseNode>;

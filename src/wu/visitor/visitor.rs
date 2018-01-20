@@ -230,8 +230,23 @@ impl<'v> Visitor<'v> {
             (&Call(ref callee, ref args), _) => self.visit_call(&callee, &args),
 
             (&Block(ref statements), _) => {
+                let mut acc = 1;
                 for statement in statements {
-                    self.visit_statement(&statement)?
+                    if acc < statements.len() {
+                        match statement.0 {
+                            StatementNode::Expression(ref expr) => match expr.0 {
+                                ExpressionNode::Block(..) |
+                                ExpressionNode::Call(..)  => (),
+                                _                         => return Err(make_error(Some(statement.1), "a wild expression appeared".to_owned()))
+                            },
+
+                            _ => (),
+                        }
+                    }
+
+                    self.visit_statement(&statement)?;
+
+                    acc += 1
                 }
 
                 Ok(())
@@ -540,6 +555,10 @@ impl<'v> Visitor<'v> {
                     if return_type != case_t {
                         return Err(make_error(Some(case.2.clone()), format!("mismatched types: expected '{}', found '{}'", return_type, case_t)))
                     }
+                }
+
+                if cases.last().unwrap().0 != None {
+                    weird(Some(position.clone()), "maybe non-exhaustive".to_owned(), self.lines, self.path)
                 }
 
                 Ok(())

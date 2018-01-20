@@ -64,7 +64,8 @@ impl<'p> Parser<'p> {
                     }
                 },
 
-                "if" => StatementNode::If(self.if_node()?),
+                "if"    => StatementNode::If(self.if_node()?),
+                "match" => StatementNode::If(self.match_node()?),
 
                 _ => StatementNode::Expression(self.expression()?),
             },
@@ -259,6 +260,70 @@ impl<'p> Parser<'p> {
         } else {
             Ok(IfNode { condition, body, elses: None })
         }
+    }
+
+    fn match_node(&mut self) -> Response<IfNode> {
+        self.consume_content("match")?;
+        self.skip_types(vec![TokenType::Whitespace])?;
+
+        let left = Rc::new(self.expression()?);
+
+        self.skip_types(vec![TokenType::Whitespace])?;
+
+
+        let mut elses = Vec::new();
+
+        let mut found = false;
+
+        let mut condition = Expression::new(ExpressionNode::EOF, self.position());
+        let mut body      = Expression::new(ExpressionNode::EOF, self.position());;
+
+        self.consume_content("{")?;
+
+        let mut nested = 1;
+        while nested != 0 {
+            if self.current_content() == "}" {
+                self.next()?;
+                nested -= 1
+            } else if self.current_content() == "{" {
+                self.next()?;
+                nested += 1
+            }
+
+            if nested == 0 {
+                break
+            }
+
+            self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+            let position = self.position();
+
+            self.consume_content("|")?;
+            self.skip_types(vec![TokenType::Whitespace])?;
+
+            let right = Rc::new(self.expression()?);
+
+            self.skip_types(vec![TokenType::Whitespace])?;
+            self.consume_content("->")?;
+            self.skip_types(vec![TokenType::Whitespace])?;
+
+            let arm_body = Expression::new(ExpressionNode::Block(vec![self.statement()?]), position);
+
+            if found {
+                elses.push((Some(Expression::new(ExpressionNode::Binary {left: left.clone(), op: Operator::Equal, right}, left.1)), arm_body, position))
+            } else {
+                condition = Expression::new(ExpressionNode::Binary {left: left.clone(), op: Operator::Equal, right}, left.1);
+                body      = arm_body;
+                found = true
+            }
+
+            self.next()?;
+            self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+        }
+
+        self.next()?; // skips "}"
+
+        Ok(IfNode{ condition, body, elses: Some(elses) })
     }
 
     fn type_node(&mut self) -> Response<TypeNode> {

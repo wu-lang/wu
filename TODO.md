@@ -4,7 +4,7 @@ some stuff we need to do in no particular order, in order to make *wu* more cool
 
 ### todo
 
-- [ ] match
+- [x] match
 - [ ] for
 - [ ] while and loop
 - [ ] generics
@@ -18,4 +18,5 @@ some stuff we need to do in no particular order, in order to make *wu* more cool
 - [ ] imports
 - [ ] interpreter
 - [ ] optimizer
+- [ ] lots of errors at the same time
 - [x] ( ͡° ͜ʖ ͡°)
