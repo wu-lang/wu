@@ -6,7 +6,7 @@ use std::rc::Rc;
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatementNode {
     Expression(Expression),
-    
+
     Return(Option<Expression>),
 
     Definition {
@@ -14,13 +14,13 @@ pub enum StatementNode {
         left:  Expression,
         right: Option<Expression>,
     },
-    
+
     ConstDefinition {
         kind:  TypeNode,
         left:  Expression,
         right: Expression,
     },
-    
+
     Assignment {
         left:  Expression,
         right: Expression,
@@ -65,7 +65,7 @@ impl Expression {
 pub struct IfNode {
     pub condition: Expression,
     pub body:      Expression,
-    pub elses:     Option<Vec<(Option<Expression>, Vec<Statement>)>>,
+    pub elses:     Option<Vec<(Option<Expression>, Expression, TokenPosition)>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

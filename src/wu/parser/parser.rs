@@ -200,8 +200,65 @@ impl<'p> Parser<'p> {
 
         let position = self.position();
         let body = Expression::new(ExpressionNode::Block(self.block_of(&mut Self::statement_, ("{", "}"))?), position);
+        
+        self.skip_types(vec![TokenType::Whitespace])?;
+        
+        if self.current_content() == "elif" || self.current_content() == "else" {
+            let mut elses = Vec::new();
 
-        Ok(IfNode { condition, body, elses: None })
+            let mut else_flag = false;
+
+            loop {
+                let current_position = self.position();
+                let current          = self.current_content();
+
+                if else_flag && (current == "elif" || current == "else") {
+                    return Err(make_error(Some(self.position()), format!("irrelevant '{}' following previous 'else'", current)))
+                } else {
+                    match current.as_str() {
+                        "elif" => {
+                            self.next()?;
+                            self.skip_types(vec![TokenType::Whitespace])?;
+
+                            let condition = self.expression()?;
+
+                            self.skip_types(vec![TokenType::Whitespace])?;
+
+                            self.expect_content("{")?;
+
+                            let position = self.position();
+                            let body = Expression::new(ExpressionNode::Block(self.block_of(&mut Self::statement_, ("{", "}"))?), position);
+
+                            elses.push((Some(condition), body, current_position));
+
+                            self.skip_types(vec![TokenType::Whitespace])?;
+                        },
+
+                        "else" => {
+                            else_flag = true;
+                            
+                            self.next()?;
+                            self.skip_types(vec![TokenType::Whitespace])?;
+                            
+                            self.expect_content("{")?;
+
+                            let position = self.position();
+                            let body = Expression::new(ExpressionNode::Block(self.block_of(&mut Self::statement_, ("{", "}"))?), position);
+
+                            elses.push((None, body, current_position));
+
+                            self.skip_types(vec![TokenType::Whitespace])?;
+                        },
+
+                        _ => break,
+                    }
+                }
+            }
+
+            Ok(IfNode { condition, body, elses: Some(elses) })
+        } else {
+            Ok(IfNode { condition, body, elses: None })
+        }
     }
 
     fn type_node(&mut self) -> Response<TypeNode> {

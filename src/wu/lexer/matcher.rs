@@ -158,7 +158,7 @@ pub struct CommentMatcher;
 
 impl Matcher for CommentMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
-        if tokenizer.peek_range(2).unwrap() == "--" {
+        if tokenizer.peek_range(2).unwrap_or(String::new()) == "--" {
             while !tokenizer.end() && tokenizer.peek().unwrap() != &'\n' {
                 tokenizer.advance();
             }

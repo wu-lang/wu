@@ -505,11 +505,46 @@ impl<'v> Visitor<'v> {
     fn visit_if(&mut self, if_node: &IfNode, position: &TokenPosition) -> Response<()> {
         self.visit_expression(&if_node.condition)?;
 
-        if TypeNode::Bool != self.type_expression(&if_node.condition)?.0 {
+        let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
+        let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+
+        let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
+
+        if self.type_expression(&if_node.condition)? != Type::boolean() {
             Err(make_error(Some(position.clone()), "non-boolean condition".to_owned()))
         } else {
-            self.visit_expression(&if_node.body)?;
-            Ok(())
+            visitor.visit_expression(&if_node.body)?;
+
+            if let Some(ref cases) = if_node.elses {
+                let return_type = visitor.type_expression(&if_node.body)?;
+
+                for case in cases {
+                    if let Some(ref condition) = case.0 {
+                        self.visit_expression(condition)?;
+
+                        if self.type_expression(&condition)? != Type::boolean() {
+                            return Err(make_error(Some(position.clone()), "non-boolean condition".to_owned()))
+                        }
+                    }
+
+                    let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
+                    let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+
+                    let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
+
+                    visitor.visit_expression(&case.1)?;
+
+                    let case_t = visitor.type_expression(&case.1)?;
+
+                    if return_type != case_t {
+                        return Err(make_error(Some(case.2.clone()), format!("mismatched types: expected '{}', found '{}'", return_type, case_t)))
+                    }
+                }
+
+                Ok(())
+            } else {
+                Ok(())
+            }
         }
     }
 }
