@@ -570,7 +570,7 @@ impl<'p> Parser<'p> {
                 "(" => {
                     let args = self.block_of(&Self::arg_, ("(", ")"))?;
                     let pos  = atom.1.clone();
-                    let call = Expression(Call(Rc::new(atom), args.iter().map(|x| Rc::new(x.clone())).collect()), pos);
+                    let call = Expression(Call(Rc::new(atom), args), pos);
 
                     return Ok(call)
                 },
