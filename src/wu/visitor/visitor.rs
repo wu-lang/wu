@@ -1,3 +1,4 @@
+use super::lexer::*;
 use super::*;
 
 use std::fmt::*;
@@ -41,7 +42,7 @@ impl Display for TypeNode {
         match *self {
             Int   => write!(f, "int"),
             Float => write!(f, "float"),
-            Bool  => write!(f, "boolean"),
+            Bool  => write!(f, "bool"),
             Str   => write!(f, "string"),
             Nil   => write!(f, "nil"),
             Fun(ref params, ref return_type) => {
@@ -206,6 +207,7 @@ impl<'v> Visitor<'v> {
             } else {
                 Ok(())
             },
+            (&If(ref if_node), ref position) => self.visit_if(if_node, position),
         }
     }
 
@@ -245,13 +247,14 @@ impl<'v> Visitor<'v> {
 
         for &(ref name, ref t, ref value) in params.iter() {
             param_names.push(name.clone());
+            param_types.push(Type::new(t.clone(), TypeMode::Just));
+
             if let Some(ref value) = *value {
-                if self.type_expression(value)?.0 != *t {
-                    return Err(make_error(Some(value.1), format!("mismatched return type, expected '{}'", t)))
+                let value_t = self.type_expression(value)?.0;
+                if *t != value_t {
+                    return Err(make_error(Some(value.1), format!("mismatched parameter type, expected '{}' .. found '{}'", t, value_t)))
                 }
             }
-
-            param_types.push(Type::new(t.clone(), TypeMode::Just))
         }
 
         let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &param_names.as_slice());
@@ -261,13 +264,15 @@ impl<'v> Visitor<'v> {
 
         visitor.visit_expression(body)?;
 
-        if Type::new(return_type.clone(), TypeMode::Just) == visitor.type_expression(body)? {
-            Ok(())
+        let body_t = visitor.type_expression(body)?;
+
+        if Type::new(return_type.clone(), TypeMode::Just) != body_t {
+            Err(make_error(Some(body.1), format!("mismatched return type, expected '{}' .. found '{}'", return_type, body_t)))
         } else {
-            Err(make_error(Some(body.1), format!("mismatched return type, expected '{}'", return_type)))
+            Ok(())
         }
     }
-    
+
     fn visit_call(&mut self, callee: &Rc<Expression>, args: &Vec<Rc<Expression>>) -> Response<()> {
         let callee_t = self.type_expression(&**callee)?;
 
@@ -283,7 +288,6 @@ impl<'v> Visitor<'v> {
                             Err(make_error(Some(args[acc].1), format!("function expected {} arg{}, got {}", params.len(), if params.len() > 1 { "s" } else { "" }, args.len())))
                         } else {
                             for param in &params[args.len() .. params.len()] {
-                                println!("{:?}", param.1);
                                 if !param.1.check(&TypeMode::Optional) {
                                     return Err(make_error(Some(callee.1), format!("can't ommit non-optional argument")))
                                 }
@@ -293,8 +297,8 @@ impl<'v> Visitor<'v> {
                         }
                     } else {
                         for param in params {
-                            if self.type_expression(&args[acc])? != **param {
-                                return Err(make_error(Some(args[acc].1), format!("mismatching argument type: '{}', expected: '{}'", self.type_expression(&args[acc])?, param)))
+                            if **param != self.type_expression(&args[acc])? {
+                                return Err(make_error(Some(args[acc].1), format!("mismatched argument type: '{}', expected: '{}'", self.type_expression(&args[acc])?, param)))
                             }
                             acc += 1
                         }
@@ -334,8 +338,19 @@ impl<'v> Visitor<'v> {
 
             (&Binary { ref left, ref op, ref right }, position) => {
                 use Operator::*;
-                
+                use TypeNode::*;
+
                 match (self.type_expression(&*left)?, op, self.type_expression(&*right)?) {
+                    (a, &Pow, b) => if vec![Float, Int].contains(&a.0) {
+                        if a == b {
+                            Type::new(a.0, TypeMode::Just)
+                        } else {
+                            return Err(make_error(Some(position), format!("can't pow '{}' and '{}'", a, b)))
+                        }
+                    } else {
+                        return Err(make_error(Some(position), format!("can't pow '{}' and '{}'", a, b)))
+                    },
+                    
                     (a, &Add, b) => if a == b {
                         Type::new(a.0, TypeMode::Just)
                     } else {
@@ -354,33 +369,63 @@ impl<'v> Visitor<'v> {
                         return Err(make_error(Some(position), format!("can't multiply '{}' and '{}'", a, b)))
                     }
 
+                    (_, &Equal, _)   => Type::new(Bool, TypeMode::Just),
+                    (_, &NEqual, _)  => Type::new(Bool, TypeMode::Just),
+                    (_, &Lt, _)      => Type::new(Bool, TypeMode::Just),
+                    (_, &Gt, _)      => Type::new(Bool, TypeMode::Just),
+                    (_, &LtEqual, _) => Type::new(Bool, TypeMode::Just),
+                    (_, &GtEqual, _) => Type::new(Bool, TypeMode::Just),
+
                     _ => Type::nil(),
                 }
             },
 
             (&Block(ref statements), _) => {
-                use StatementNode::*;
+                let mut return_type = None;
 
-                match statements.last() {
-                    Some(last) => match last.0 {
-                        Expression(ref expression) => self.type_expression(expression)?,
-                        Return(ref value)          => if let Some(ref value) = *value {
-                            self.type_expression(value)?
-                        } else {
-                            Type::nil()
-                        },
+                let mut acc = 1;
 
-                        _                          => Type::nil(),
-                    },
+                for statement in statements {
+                    if return_type == None {
+                        if let Some(t) = self.find_return_type(&statement.0, acc == statements.len())? {
+                            return_type = Some(t)
+                        }
+                    }
 
-                    None => Type::nil(),
+                    acc += 1
                 }
+
+                return_type.unwrap_or(Type::nil())
             },
 
             _ => Type::nil(),
         };
 
         Ok(t)
+    }
+
+    fn find_return_type(&self, statement: &StatementNode, is_last: bool) -> Response<Option<Type>> {
+        use StatementNode::*;
+
+        let return_type = match *statement {
+            Expression(ref expression) => if is_last {
+                Some(self.type_expression(expression)?)
+            } else {
+                None
+            },
+
+            Return(ref value)          => if let Some(ref value) = *value {
+                Some(self.type_expression(value)?)
+            } else {
+                Some(Type::nil())
+            },
+
+            If(ref if_node) => Some(self.type_expression(&if_node.body)?),
+
+            _ => Some(Type::nil()),
+        };
+
+        Ok(return_type)
     }
     
     fn visit_definition(&mut self, kind: &TypeNode, left: &Expression, right: &Option<Expression>) -> Response<()> {
@@ -454,6 +499,17 @@ impl<'v> Visitor<'v> {
             } else {
                 Ok(())
             }
+        }
+    }
+
+    fn visit_if(&mut self, if_node: &IfNode, position: &TokenPosition) -> Response<()> {
+        self.visit_expression(&if_node.condition)?;
+
+        if TypeNode::Bool != self.type_expression(&if_node.condition)?.0 {
+            Err(make_error(Some(position.clone()), "non-boolean condition".to_owned()))
+        } else {
+            self.visit_expression(&if_node.body)?;
+            Ok(())
         }
     }
 }

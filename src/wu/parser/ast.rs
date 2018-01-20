@@ -4,6 +4,41 @@ use super::visitor::*;
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum StatementNode {
+    Expression(Expression),
+    
+    Return(Option<Expression>),
+
+    Definition {
+        kind:  TypeNode,
+        left:  Expression,
+        right: Option<Expression>,
+    },
+    
+    ConstDefinition {
+        kind:  TypeNode,
+        left:  Expression,
+        right: Expression,
+    },
+    
+    Assignment {
+        left:  Expression,
+        right: Expression,
+    },
+
+    If(IfNode),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Statement(pub StatementNode, pub TokenPosition);
+
+impl Statement {
+    pub fn new(node: StatementNode, position: TokenPosition) -> Statement {
+        Statement(node, position)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionNode {
     Float(f64),
     Int(i64),
@@ -27,36 +62,10 @@ impl Expression {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum StatementNode {
-    Expression(Expression),
-
-    Return(Option<Expression>),
-
-    Definition {
-        kind:  TypeNode,
-        left:  Expression,
-        right: Option<Expression>,
-    },
-
-    ConstDefinition {
-        kind:  TypeNode,
-        left:  Expression,
-        right: Expression,
-    },
-
-    Assignment {
-        left:  Expression,
-        right: Expression,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Statement(pub StatementNode, pub TokenPosition);
-
-impl Statement {
-    pub fn new(node: StatementNode, position: TokenPosition) -> Statement {
-        Statement(node, position)
-    }
+pub struct IfNode {
+    pub condition: Expression,
+    pub body:      Expression,
+    pub elses:     Option<Vec<(Option<Expression>, Vec<Statement>)>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

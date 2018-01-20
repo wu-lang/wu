@@ -11,7 +11,7 @@ pub struct Parser<'p> {
     // for displaying pretty warnings without returning Err
     pub lines:  &'p Vec<String>,
     pub path:   &'p str,
-    
+
     pub inside: String,
 }
 
@@ -40,6 +40,8 @@ impl<'p> Parser<'p> {
         use TokenType::*;
 
         self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+        
+        let position = self.position();
 
         let node = match self.current_type() {
             Keyword => match self.current_content().as_str() {
@@ -61,7 +63,9 @@ impl<'p> Parser<'p> {
                         ret
                     }
                 },
-                
+
+                "if" => StatementNode::If(self.if_node()?),
+
                 _ => StatementNode::Expression(self.expression()?),
             },
 
@@ -181,7 +185,23 @@ impl<'p> Parser<'p> {
             _ => StatementNode::Expression(self.expression()?)
         };
 
-        Ok(Statement::new(node, self.position()))
+        Ok(Statement::new(node, position))
+    }
+
+    fn if_node(&mut self) -> Response<IfNode> {
+        self.consume_content("if")?;
+        self.skip_types(vec![TokenType::Whitespace])?;
+        
+        let condition = self.expression()?;
+        
+        self.skip_types(vec![TokenType::Whitespace])?;
+
+        self.expect_content("{")?;
+
+        let position = self.position();
+        let body = Expression::new(ExpressionNode::Block(self.block_of(&mut Self::statement_, ("{", "}"))?), position);
+
+        Ok(IfNode { condition, body, elses: None })
     }
 
     fn type_node(&mut self) -> Response<TypeNode> {
@@ -191,7 +211,7 @@ impl<'p> Parser<'p> {
             "int"     => Int,
             "float"   => Float,
             "string"  => Str,
-            "boolean" => Bool,
+            "bool"    => Bool,
             "("       => {
                 self.next()?;
 
@@ -279,7 +299,6 @@ impl<'p> Parser<'p> {
             TokenType::Symbol => match self.current_content().as_str() {
                 "{" => {
                     let content = self.block_of(&mut Self::statement_, ("{", "}"))?;
-                    
 
                     Block(content)
                 },
@@ -388,17 +407,17 @@ impl<'p> Parser<'p> {
         }
 
         let name = self.consume_type(TokenType::Identifier)?;
-        self.skip_types(vec![TokenType::Whitespace])?;
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
         
         self.consume_content(":")?;
-        self.skip_types(vec![TokenType::Whitespace])?;
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
 
         let kind = self.type_node()?;
-        self.skip_types(vec![TokenType::Whitespace])?;
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
 
         let value = if self.current_content() == "=" {
             self.next()?;
-            self.skip_types(vec![TokenType::Whitespace])?;
+            self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
 
             Some(Rc::new(self.expression()?))
         } else {
@@ -407,7 +426,7 @@ impl<'p> Parser<'p> {
 
         if self.remaining() > 1 {
             self.consume_content(",")?;
-            self.skip_types(vec![TokenType::Whitespace])?;
+            self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
         }
 
         if self.remaining() == 0 {
@@ -514,20 +533,22 @@ impl<'p> Parser<'p> {
 
     // parsing operations using the Dijkstra shunting yard algorithm
     fn binary(&mut self, expression: Expression) -> Response<Expression> {
-        let mut ex_stack = vec![expression];
-        let mut op_stack: Vec<(Operator, u8)> = Vec::new();
+        let mut ex_stack = vec![expression];                // initial expression on the stack
+        let mut op_stack: Vec<(Operator, u8)> = Vec::new(); // the operator stack
 
         let position = self.position();
-        op_stack.push(Operator::from(&self.current_content()).unwrap());
-        self.next()?;
+        op_stack.push(Operator::from(&self.consume_type(TokenType::Operator)?).unwrap()); // find operator
 
+        // covering bad case
         if self.current_content() == "\n" {
             return Err(make_error(Some(position), format!("EOL is not good")))
         }
 
+        // the right hand of operation
         let atom = self.atom()?;
 
         if atom.0 != ExpressionNode::EOF {
+            // pushing right hand of operation onto the stack
             ex_stack.push(atom)
         } else {
             return Err(make_error(Some(atom.1), format!("EOF is not good")))
@@ -535,11 +556,12 @@ impl<'p> Parser<'p> {
 
         let mut done = false;
 
+        // loop for getting nested operations
         while ex_stack.len() > 1 {
             if !done {
                 self.skip_types(vec![TokenType::Whitespace])?;
 
-                if self.current_type() != TokenType::Operator {
+                if self.current_type() != TokenType::Operator { // stop looking when running into non-op
                     done = true;
                     continue
                 }
@@ -549,12 +571,15 @@ impl<'p> Parser<'p> {
                 }
 
                 let position         = self.position();
-                let (op, precedence) = Operator::from(&self.consume_type(TokenType::Operator)?).unwrap();
+                let (op, precedence) = Operator::from(&self.consume_type(TokenType::Operator)?).unwrap(); // the next operator has been found
 
+                // we're now comparing precedence, sorting the operators
                 if precedence >= op_stack.last().unwrap().1 {
+                    // in this case, found operator is assembled and pushed onto the stack later
                     let left  = ex_stack.pop().unwrap();
                     let right = ex_stack.pop().unwrap();
 
+                    // the first operation, with lower precedence is pushed onto the stack
                     ex_stack.push(
                         Expression::new(
                             ExpressionNode::Binary {
@@ -565,25 +590,23 @@ impl<'p> Parser<'p> {
                             position,
                         )
                     );
-
+                    
+                    // right hand of the higher precedence operation is found
                     let atom = self.atom()?;
 
-                    let term = if atom.0 != ExpressionNode::EOF {
-                        atom
-                    } else {
+                    if atom.0 == ExpressionNode::EOF {
                         return Err(make_error(Some(atom.1), format!("EOF is not good")))
-                    };
+                    }
+
+                    ex_stack.push(atom); // and is pushed onto the stack
+                    op_stack.push((op, precedence)); // along with the operator from before
+
+                } else { // otherwise, we just push the lower precedence operation onto the stack
+                    let term = self.atom()?;
 
                     ex_stack.push(term);
                     op_stack.push((op, precedence));
-
-                    continue
                 }
-                
-                let term = self.atom()?;
-
-                ex_stack.push(term);
-                op_stack.push((op, precedence));
             }
 
             let left  = ex_stack.pop().unwrap();

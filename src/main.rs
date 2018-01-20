@@ -8,11 +8,15 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-a: float: .120
-
-addf :: (a: float, b: float = 100.0, c: boolean = true) float -> a + b
-
-addf(100.0)
+if 1 + 100 == 10 {
+    addf :: (a: float, b: float = 100) float -> {
+        if true {
+            if true {
+                return a + b
+            }
+        }
+    }
+}
     "#;
 
     let path = "test.wu";
