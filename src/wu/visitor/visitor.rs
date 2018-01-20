@@ -356,9 +356,9 @@ impl<'v> Visitor<'v> {
                 ), TypeMode::Just)
             },
 
-            (&Call(ref callee, _), _) => match self.type_expression(&**callee)?.0 {
+            (&Call(ref callee, _), position) => match self.type_expression(&**callee)?.0 {
                 TypeNode::Fun(_, ref retty) => (**retty).clone(),
-                _ => unreachable!(),
+                ref t                       => return Err(make_error(Some(position), format!("can't call: {}", t))),
             },
 
             (&Binary { ref left, ref op, ref right }, position) => {
@@ -461,7 +461,9 @@ impl<'v> Visitor<'v> {
                 self.typetab.grow();
                 self.symtab.add_name(&name)
             },
-            _ => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
+
+            Index(..) => return Ok(()),
+            _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
 
         if let Some(ref right) = *right {
@@ -491,7 +493,8 @@ impl<'v> Visitor<'v> {
                 self.typetab.grow();
                 self.symtab.add_name(&name)
             },
-            _ => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
+            Index(..) => return Ok(()),
+            _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
 
         if *kind != TypeNode::Nil {

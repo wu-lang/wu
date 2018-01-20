@@ -50,6 +50,7 @@ pub enum ExpressionNode {
     Function {params: Vec<(String, TypeNode, Option<Rc<Expression>>)>, return_type: TypeNode, body: Rc<Expression>},
     Call(Rc<Expression>, Vec<Expression>),
     Block(Vec<Statement>),
+    Index(Rc<Expression>, Rc<Expression>),
     EOF,
 }
 

@@ -32,15 +32,25 @@ impl<'c> Codegen<'c> {
                 Some(ref v) => format!(" {}", self.gen_expression(&v.0)),
                 None        => String::from("\n"),
             }),
-            Definition { ref left, ref right, .. } => match *right {
-                Some(ref right) => match right.0 {
-                    ref block @ ExpressionNode::Block(_) => {
-                        format!("local {}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
-                        
-                    },
-                    _ => format!("local {} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+            Definition { ref left, ref right, .. } => {
+                match *right {
+                    Some(ref right) => match right.0 {
+                        ref block @ ExpressionNode::Block(_) => {
+                            if let ExpressionNode::Identifier(_) = left.0 {
+                                format!("local {}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                            } else {
+                                format!("{}\n", self.gen_block_assignment(&block, &left.0))
+                            }
+                        },
+                        _ => format!("{} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+                    }
+
+                    None => if let ExpressionNode::Identifier(_) = left.0 {
+                        format!("local {}\n", self.gen_expression(&left.0))
+                    } else {
+                        String::new()
+                    }
                 }
-                None => format!("local {}\n", self.gen_expression(&left.0)),
             },
 
             ConstDefinition { ref left, ref right, .. } => match right.0 {
@@ -117,7 +127,7 @@ impl<'c> Codegen<'c> {
 
         code
     }
-    
+
     fn gen_statement_return(&self, statement: &StatementNode) -> String {
         use StatementNode::*;
 
@@ -148,6 +158,15 @@ impl<'c> Codegen<'c> {
             Str(ref n)        => format!("{:?}", n),
             Bool(ref n)       => format!("{}", n),
             Identifier(ref n) => format!("{}", n),
+
+            Index(ref indexed, ref index) => {
+                let right = match index.0 {
+                    Block(_) => format!("(function()\n{}end)()", self.gen_block_return(&index.0)),
+                    _        => self.gen_expression(&index.0),
+                };
+
+                format!("{}[{}]", self.gen_expression(&indexed.0), right)
+            }
 
             Call(ref callee, ref args) => {
                 let mut code = self.gen_expression(&callee.0);

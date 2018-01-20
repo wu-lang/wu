@@ -74,7 +74,8 @@ impl<'p> Parser<'p> {
                 let backup_top = self.top;
 
                 let position        = self.position();
-                let identifier_node = Expression::new(ExpressionNode::Identifier(self.consume_type(TokenType::Identifier)?), position);
+                let name            = self.consume_type(TokenType::Identifier)?;
+                let identifier_node = self.maybe_index(Expression::new(ExpressionNode::Identifier(name), position))?;
 
                 self.skip_types(vec![TokenType::Whitespace])?;
 
@@ -491,7 +492,7 @@ impl<'p> Parser<'p> {
             t => return Err(make_error(Some(position), format!("unexpected token '{:?}'", t))),
         };
 
-        self.maybe_call(Expression::new(node, position))
+        self.maybe_index(Expression::new(node, position))
     }
 
     fn statement_(self: &mut Self) -> Response<Option<Statement>> {
@@ -634,18 +635,58 @@ impl<'p> Parser<'p> {
             "(" => {
                 let args = self.block_of(&mut Self::arg_, ("(", ")"))?;
                 let pos  = atom.1.clone();
-                let call = Expression(Call(Rc::new(atom), args), pos);
 
-
-                return Ok(call)
+                return self.maybe_index(Expression(Call(Rc::new(atom), args), pos))
             },
 
-            _ => atom
+            _ => atom,
         };
 
         self.top = backup_top;
 
         Ok(node)
+    }
+    
+    fn maybe_index(&mut self, atom: Expression) -> Response<Expression> {
+        use ExpressionNode::*;
+
+        let backup_top = self.top;
+
+        self.skip_types(vec![TokenType::Whitespace])?;
+
+        let node = match self.current_content().as_str() {
+            "." => {
+                self.next()?;
+
+                let position = self.position();
+                let indexing = Expression(Str(self.consume_type(TokenType::Identifier)?), position);
+
+                self.skip_types(vec![TokenType::Whitespace])?;
+
+                return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing)), position))
+            },
+
+            "[" => {
+                let position = self.position();
+                let indexing = self.block_of(&mut Self::expression_, ("[", "]"))?;
+                
+                if indexing.len() > 1 {
+                    return Err(make_error(Some(atom.1), "indexing with multiple expressions".to_owned()))
+                } else if indexing.len() == 0 {
+                    return Err(make_error(Some(atom.1), "indexing with nothing".to_owned()))
+                }
+
+                self.skip_types(vec![TokenType::Whitespace])?;
+
+                return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing[0].clone())), position))
+            },
+            
+            _ => atom,
+        };
+
+        self.top = backup_top;
+
+        self.maybe_call(node)
     }
 
     fn arg_(self: &mut Self) -> Response<Option<Expression>> {
