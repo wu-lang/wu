@@ -4,12 +4,13 @@ use colored::Colorize;
 pub enum ResponseType {
     Wrong,
     Weird,
+    Group(Vec<ResponseNode>),
 }
 
 pub struct ResponseNode {
-    position: Option<TokenPosition>,
-    kind:     ResponseType,
-    message:  String,
+    pub position: Option<TokenPosition>,
+    pub kind:     ResponseType,
+    pub message:  String,
 }
 
 impl ResponseNode {
@@ -17,6 +18,7 @@ impl ResponseNode {
         let (color, kind) = match self.kind {
             ResponseType::Wrong => ("red",    "wrong"),
             ResponseType::Weird => ("yellow", "weird"),
+            _                   => ("red",    "wrong"),
         };
 
         let message = format!(
@@ -48,6 +50,14 @@ impl ResponseNode {
             println!("{}{}\n{}\n{}", message, path_line, line, indicator)
 
         } else {
+            if let ResponseType::Group(ref responses) = self.kind {
+                for response in responses {
+                    response.display(lines, path)
+                }
+                
+                println!()
+            }
+
             println!("{}", message);
         }
     }

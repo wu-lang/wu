@@ -18,5 +18,5 @@ some stuff we need to do in no particular order, in order to make *wu* more cool
 - [ ] imports
 - [ ] interpreter
 - [ ] optimizer
-- [ ] lots of errors at the same time
+- [x] lots of errors at the same time
 - [x] ( ͡° ͜ʖ ͡°)

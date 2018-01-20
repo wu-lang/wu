@@ -187,11 +187,20 @@ impl<'v> Visitor<'v> {
     }
 
     pub fn validate(&mut self) -> Response<()> {
+        let mut responses = Vec::new();
+
         for statement in self.ast.iter() {
-            self.visit_statement(statement)?
+            match self.visit_statement(statement) {
+                Err(response) => responses.push(response),
+                Ok(_)         => (),
+            }
         }
 
-        Ok(())
+        if responses.len() > 0 {
+            Err(ResponseNode { kind: ResponseType::Group(responses), position: None, message: "fix the errors above, or consequences".to_owned() } )
+        } else {
+            Ok(())
+        }
     }
 
     fn visit_statement(&mut self, statement: &Statement) -> Response<()> {

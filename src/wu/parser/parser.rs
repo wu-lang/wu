@@ -830,7 +830,7 @@ impl<'p> Parser<'p> {
         } else {
             Err(make_error(
                 Some(self.current().position),
-                format!("expected type '{:?}', found '{:?}'", token, self.current_content())
+                format!("expected type '{:?}', found '{}'", token, self.current_content())
             ))
         }
     }
