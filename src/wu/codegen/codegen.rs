@@ -124,7 +124,8 @@ impl<'c> Codegen<'c> {
         match *statement {
             If(ref if_node) => self.gen_if_node_return(if_node),
             Return(_)       => format!("{}\n", self.gen_statement(statement)),
-            _               => format!("return {}\n", self.gen_statement(statement)),
+            Expression(_)   => format!("return {}", self.gen_statement(statement)),
+            _               => format!("{}\n", self.gen_statement(statement)),
         }
     }
 
@@ -189,7 +190,7 @@ impl<'c> Codegen<'c> {
             }
 
             Function { ref params, ref body, .. } => {
-                let mut code = "function(".to_string();
+                let mut code = "(function(".to_string();
 
                 let mut acc = 1;
 
@@ -220,7 +221,7 @@ impl<'c> Codegen<'c> {
                     _        => code.push_str(&format!("return {}\n", self.gen_expression(&body.0))),
                 }
 
-                code.push_str("end\n");
+                code.push_str("end)");
 
                 code
             }

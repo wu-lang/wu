@@ -293,7 +293,7 @@ impl<'v> Visitor<'v> {
                                 }
                             }
 
-                            Ok(())
+                            self.visit_expression(&**callee)
                         }
                     } else {
                         for param in params {
@@ -302,7 +302,8 @@ impl<'v> Visitor<'v> {
                             }
                             acc += 1
                         }
-                        Ok(())
+
+                        self.visit_expression(&**callee)
                     }
                 },
 
@@ -422,7 +423,7 @@ impl<'v> Visitor<'v> {
 
             If(ref if_node) => Some(self.type_expression(&if_node.body)?),
 
-            _ => Some(Type::nil()),
+            _ => None,
         };
 
         Ok(return_type)

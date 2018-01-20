@@ -528,7 +528,7 @@ impl<'p> Parser<'p> {
             }
 
             stack.push(self.current().clone());
-            
+
             self.next()?
         }
 
@@ -560,19 +560,15 @@ impl<'p> Parser<'p> {
         
         self.skip_types(vec![TokenType::Whitespace])?;
 
-        let node = match atom.0 {
-            Identifier(_) => match self.current_content().as_str() {
-                "(" => {
-                    let args = self.block_of(&mut Self::arg_, ("(", ")"))?;
-                    let pos  = atom.1.clone();
-                    let call = Expression(Call(Rc::new(atom), args.iter().map(|x| Rc::new(x.clone())).collect()), pos);
+        let node = match self.current_content().as_str() {
+            "(" => {
+                let args = self.block_of(&mut Self::arg_, ("(", ")"))?;
+                let pos  = atom.1.clone();
+                let call = Expression(Call(Rc::new(atom), args.iter().map(|x| Rc::new(x.clone())).collect()), pos);
 
-                    return Ok(call)
-                },
-
-                _ => atom
+                return Ok(call)
             },
-            
+
             _ => atom
         };
 
