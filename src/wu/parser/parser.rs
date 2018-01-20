@@ -40,7 +40,7 @@ impl<'p> Parser<'p> {
         use TokenType::*;
 
         self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-        
+
         let position = self.position();
 
         let node = match self.current_type() {
@@ -51,7 +51,7 @@ impl<'p> Parser<'p> {
 
                     if self.current_content() == "\n" {
                         self.next()?;
-                        
+
                         StatementNode::Return(None)
                     } else {
                         let ret = StatementNode::Return(Some(self.expression()?));
@@ -85,7 +85,7 @@ impl<'p> Parser<'p> {
                             self.next()?;
 
                             let right = self.expression()?;
-                            
+
                             if self.current_content() == "\n" {
                                 self.next()?
                             }
@@ -101,7 +101,7 @@ impl<'p> Parser<'p> {
                                 self.consume_content("=")?;
 
                                 let right = self.expression()?;
-                                
+
                                 if self.current_content() == "\n" {
                                     self.next()?
                                 }
@@ -123,7 +123,7 @@ impl<'p> Parser<'p> {
                                     self.next()?;
 
                                     let right = self.expression()?;
-                                    
+
                                     if self.current_content() == "\n" {
                                         self.next()?
                                     }
@@ -191,18 +191,18 @@ impl<'p> Parser<'p> {
     fn if_node(&mut self) -> Response<IfNode> {
         self.consume_content("if")?;
         self.skip_types(vec![TokenType::Whitespace])?;
-        
+
         let condition = self.expression()?;
-        
+
         self.skip_types(vec![TokenType::Whitespace])?;
 
         self.expect_content("{")?;
 
         let position = self.position();
-        let body = Expression::new(ExpressionNode::Block(self.block_of(&mut Self::statement_, ("{", "}"))?), position);
-        
+        let body = Expression::new(ExpressionNode::Block(self.block_of(&Self::statement_, ("{", "}"))?), position);
+
         self.skip_types(vec![TokenType::Whitespace])?;
-        
+
         if self.current_content() == "elif" || self.current_content() == "else" {
             let mut elses = Vec::new();
 
@@ -227,7 +227,7 @@ impl<'p> Parser<'p> {
                             self.expect_content("{")?;
 
                             let position = self.position();
-                            let body = Expression::new(ExpressionNode::Block(self.block_of(&mut Self::statement_, ("{", "}"))?), position);
+                            let body = Expression::new(ExpressionNode::Block(self.block_of(&Self::statement_, ("{", "}"))?), position);
 
                             elses.push((Some(condition), body, current_position));
 
@@ -236,14 +236,14 @@ impl<'p> Parser<'p> {
 
                         "else" => {
                             else_flag = true;
-                            
+
                             self.next()?;
                             self.skip_types(vec![TokenType::Whitespace])?;
-                            
+
                             self.expect_content("{")?;
 
                             let position = self.position();
-                            let body = Expression::new(ExpressionNode::Block(self.block_of(&mut Self::statement_, ("{", "}"))?), position);
+                            let body = Expression::new(ExpressionNode::Block(self.block_of(&Self::statement_, ("{", "}"))?), position);
 
                             elses.push((None, body, current_position));
 
@@ -263,7 +263,7 @@ impl<'p> Parser<'p> {
 
     fn type_node(&mut self) -> Response<TypeNode> {
         use TypeNode::*;
-        
+
         let t = match self.current_content().as_str() {
             "int"     => Int,
             "float"   => Float,
@@ -273,7 +273,7 @@ impl<'p> Parser<'p> {
                 self.next()?;
 
                 let mut params = Vec::new();
-                
+
                 let mut nested = 1;
 
                 while nested != 0 {
@@ -291,9 +291,9 @@ impl<'p> Parser<'p> {
                     self.skip_types(vec![TokenType::Whitespace])?;
 
                     params.push(Rc::new(Type::new(self.type_node()?, TypeMode::Just)));
-                    
+
                     self.skip_types(vec![TokenType::Whitespace])?;
-                    
+
                     if self.current_content() == "," {
                         self.next()?
                     }
@@ -306,7 +306,7 @@ impl<'p> Parser<'p> {
                 return Ok(Fun(params, Rc::new(retty)))
             },
 
-            _ => return Ok(Id(self.consume_type(TokenType::Identifier)?)), 
+            _ => return Ok(Id(self.consume_type(TokenType::Identifier)?)),
         };
 
         self.next()?;
@@ -355,15 +355,17 @@ impl<'p> Parser<'p> {
 
             TokenType::Symbol => match self.current_content().as_str() {
                 "{" => {
-                    let content = self.block_of(&mut Self::statement_, ("{", "}"))?;
+                    Block(self.block_of(&Self::statement_, ("{", "}"))?)
+                },
 
-                    Block(content)
+                "[" => {
+                    Array(self.block_of(&Self::arg_, ("[" ,"]"))?)
                 },
 
                 "(" => {
                     let backup_top = self.top;
                     self.next()?;
-                    
+
                     let mut nested = 1;
 
                     while nested != 0 {
@@ -372,7 +374,7 @@ impl<'p> Parser<'p> {
                         } else if self.current_content() == "(" {
                             nested += 1
                         }
-                        
+
                         if nested == 0 {
                             break
                         }
@@ -381,7 +383,7 @@ impl<'p> Parser<'p> {
                     }
 
                     self.next()?;
-                    
+
                     self.skip_types(vec![TokenType::Whitespace])?;
 
                     if self.current_content() != "->" {
@@ -426,7 +428,7 @@ impl<'p> Parser<'p> {
 
         self.maybe_call(Expression::new(node, position))
     }
-    
+
     fn statement_(self: &mut Self) -> Response<Option<Statement>> {
         let statement = self.statement()?;
 
@@ -452,7 +454,7 @@ impl<'p> Parser<'p> {
 
         if self.current_content() != "->" {
             return_type = self.type_node()?;
-            
+
             self.skip_types(vec![TokenType::Whitespace])?;
         }
 
@@ -470,7 +472,7 @@ impl<'p> Parser<'p> {
 
         let name = self.consume_type(TokenType::Identifier)?;
         self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-        
+
         self.consume_content(":")?;
         self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
 
@@ -516,6 +518,8 @@ impl<'p> Parser<'p> {
         let mut stack  = Vec::new();
         let mut nested = 1;
 
+        // find all tokens between the two delimiters f.x. between "{" "}"
+        // and add them to the stack
         while nested != 0 {
             if self.current_content() == delimeters.1 {
                 nested -= 1
@@ -528,7 +532,7 @@ impl<'p> Parser<'p> {
             }
 
             stack.push(self.current().clone());
-            
+
             self.next()?
         }
 
@@ -539,7 +543,8 @@ impl<'p> Parser<'p> {
             parser.inside   = self.inside.clone();
 
             let mut stack_b = Vec::new();
-            
+
+            // Use the provided function to find the things we want
             while let Some(n) = match_with(&mut parser)? {
                 stack_b.push(n)
             }
@@ -557,13 +562,13 @@ impl<'p> Parser<'p> {
         use ExpressionNode::*;
 
         let backup_top = self.top;
-        
+
         self.skip_types(vec![TokenType::Whitespace])?;
 
         let node = match atom.0 {
             Identifier(_) => match self.current_content().as_str() {
                 "(" => {
-                    let args = self.block_of(&mut Self::arg_, ("(", ")"))?;
+                    let args = self.block_of(&Self::arg_, ("(", ")"))?;
                     let pos  = atom.1.clone();
                     let call = Expression(Call(Rc::new(atom), args.iter().map(|x| Rc::new(x.clone())).collect()), pos);
 
@@ -572,23 +577,25 @@ impl<'p> Parser<'p> {
 
                 _ => atom
             },
-            
+
             _ => atom
         };
 
         self.top = backup_top;
-        
+
         Ok(node)
     }
 
     fn arg_(self: &mut Self) -> Response<Option<Expression>> {
         let expression = Self::expression_(self);
-        
+
         self.skip_types(vec![TokenType::Whitespace])?;
-        
+
         if self.remaining() > 1 {
             self.consume_content(",")?;
         }
+
+        self.skip_types(vec![TokenType::Whitespace])?;
 
         expression
     }
@@ -652,7 +659,7 @@ impl<'p> Parser<'p> {
                             position,
                         )
                     );
-                    
+
                     // right hand of the higher precedence operation is found
                     let atom = self.atom()?;
 
@@ -688,7 +695,7 @@ impl<'p> Parser<'p> {
 
         Ok(ex_stack.pop().unwrap())
     }
-    
+
     // skipping tokens
     fn next(&mut self) -> Response<()> {
         if self.top <= self.tokens.len() {
@@ -790,6 +797,8 @@ impl<'p> Parser<'p> {
         }
     }
 
+    // checks if the provided string matches the current tokens content and then
+    // steps to the next token and returns the content of the original token
     pub fn consume_content(&mut self, content: &str) -> Response<String> {
         if self.current().content == content {
             let content = self.current_content();
