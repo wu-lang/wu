@@ -8,7 +8,11 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-
+a :: if false {
+    100
+} else {
+    200
+}
 "#;
 
     let path = "test.wu";

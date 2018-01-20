@@ -416,7 +416,12 @@ impl<'p> Parser<'p> {
                 return Ok(self.atom()?)
             },
 
-            t => return Err(make_error(Some(position), format!("token type '{:?}' currently unimplemented", t)))
+            TokenType::Keyword => match self.current_content().as_str() {
+                "if" => Block(vec![self.statement()?]),
+                key  => return Err(make_error(Some(position), format!("unexpected keyword '{}'", key)))
+            },
+
+            t => return Err(make_error(Some(position), format!("unexpected token '{:?}'", t))),
         };
 
         self.maybe_call(Expression::new(node, position))

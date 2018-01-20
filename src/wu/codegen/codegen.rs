@@ -69,9 +69,10 @@ impl<'c> Codegen<'c> {
             }
 
             code.push_str("end\n")
+        } else {
+            code.push_str("end\n");
         }
 
-        code.push_str("end\n");
         code
     }
 
@@ -89,9 +90,31 @@ impl<'c> Codegen<'c> {
             }
 
             code.push_str("end\n")
+        } else {
+            code.push_str("end\n");
         }
 
-        code.push_str("end\n");
+        code
+    }
+    
+    fn gen_if_node_assignment(&self, if_node: &IfNode, left: &ExpressionNode) -> String {
+        let mut code = format!("if {} then\n{}", self.gen_expression(&if_node.condition.0), self.gen_block_assignment(&if_node.body.0, left));
+        
+        if let Some(ref cases) = if_node.elses {
+            for case in cases {
+                let case_code = match *case {
+                    (Some(ref condition), ref body, _) => format!("elseif {} then\n{}\n", self.gen_expression(&condition.0), self.gen_block_assignment(&body.0, left)),
+                    (None,                ref body, _) => format!("else\n{}\n", self.gen_block_assignment(&body.0, left)),
+                };
+
+                code.push_str(&case_code)
+            }
+
+            code.push_str("end\n")
+        } else {
+            code.push_str("end\n");
+        }
+
         code
     }
     
@@ -102,6 +125,16 @@ impl<'c> Codegen<'c> {
             If(ref if_node) => self.gen_if_node_return(if_node),
             Return(_)       => format!("{}\n", self.gen_statement(statement)),
             _               => format!("return {}\n", self.gen_statement(statement)),
+        }
+    }
+
+    fn gen_statement_assignment(&self, statement: &StatementNode, left: &ExpressionNode) -> String {
+        use StatementNode::*;
+
+        match *statement {
+            If(ref if_node) => self.gen_if_node_assignment(if_node, left),
+            Return(_)       => self.gen_statement(statement),
+            _               => format!("{} = {}\n", self.gen_expression(left), self.gen_statement(statement)),
         }
     }
 
@@ -140,22 +173,26 @@ impl<'c> Codegen<'c> {
             Binary { ref left, ref op, ref right } => self.gen_operation(&left.0, op, &right.0),
 
             Block(ref statements) => {
-                let mut code = "do\n".to_string();
+                if statements.len() == 1 {
+                    format!("{}", self.gen_statement(&statements.last().unwrap().0))
+                } else {
+                    let mut code = "do\n".to_string();
 
-                for statement in statements {
-                    code.push_str(&self.gen_statement(&statement.0))
+                    for statement in statements {
+                        code.push_str(&self.gen_statement(&statement.0))
+                    }
+
+                    code.push_str("end\n");
+
+                    code
                 }
-
-                code.push_str("end\n");
-
-                code
             }
 
             Function { ref params, ref body, .. } => {
                 let mut code = "function(".to_string();
-                
+
                 let mut acc = 1;
-                
+
                 let mut guards = Vec::new();
 
                 for param in params {
@@ -188,7 +225,7 @@ impl<'c> Codegen<'c> {
                 code
             }
 
-            EOF => String::new(),
+            _ => String::new(),
         }
     }
 
@@ -258,15 +295,15 @@ impl<'c> Codegen<'c> {
 
         if let Block(ref statements) = *block {
             if statements.len() == 1 {
-                format!("{} = {}", self.gen_expression(left), self.gen_statement(&statements.last().unwrap().0))
+                self.gen_statement_assignment(&statements.last().unwrap().0, left)
             } else {
                 let mut code = "do\n".to_string();
-                
+
                 let mut acc = 1;
 
                 for statement in statements {
                     if acc == statements.len() {
-                        code.push_str(&format!("{} = {}", self.gen_expression(left), self.gen_statement(&statement.0)))
+                        code.push_str(&self.gen_statement_assignment(&statement.0, left))
                     } else {
                         code.push_str(&format!("{}\n", self.gen_statement(&statement.0)));
                     }
