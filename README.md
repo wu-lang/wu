@@ -85,12 +85,12 @@ fifteen := add_5 <| 10
 ```
 
 parameter defaults
-```java
+```lua
 bar :: (a: float, b: float = 100.0) float -> {
   return a + b
 }
 
-print(add(100)).       -- 200
+print(add(100))        -- 200
 print(add(100, 200.5)) -- 300.5
 ```
 
