@@ -1,6 +1,6 @@
 -- functions, haha
 
-apply :: (fun (int) int, a int) int -> fun(a)
+apply :: (fun: (int) int, a: int) int -> fun(a)
 
 bar := 100
 foo := apply(add_ten, bar)
