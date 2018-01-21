@@ -62,6 +62,15 @@ types
 int float bool string
 ```
 
+arrays
+```
+foo :: [1, 2, 3,]
+bar: [string] = ["hey", "grr"]
+baz := [false, true, false, false]
+
+hmm := foo[0] -- arrays begin at 0
+```
+
 functions
 ```lua
 -- functions also implicitly return
@@ -79,7 +88,7 @@ sub_0 :: (a: int) int -> {
 ```
 
 ```lua
--- btw. pipe operators(can only one argument(currently))
+-- btw. pipe operators(can only take one argument(currently))
 fifteen := 10 |> add_5
 fifteen := add_5 <| 10
 ```
