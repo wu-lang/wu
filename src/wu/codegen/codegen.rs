@@ -166,6 +166,24 @@ impl<'c> Codegen<'c> {
                 };
 
                 format!("{}[{}]", self.gen_expression(&indexed.0), right)
+            },
+            
+            Array(ref content) => {
+                let mut code = String::new();
+
+                code.push_str("{\n");
+
+                let mut acc = 0;
+
+                for element in content {
+                    code.push_str(&format!("[{}] = {}", acc, &self.gen_expression(&element.0)));
+                    code.push_str(",\n");
+                    acc += 1
+                }
+
+                code.push('}');
+
+                code
             }
 
             Call(ref callee, ref args) => {

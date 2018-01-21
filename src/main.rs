@@ -8,7 +8,13 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-foo[ if false { 10 } else { 200 } ]: int
+foo: [float] = [
+    "1",
+    2,
+    3,
+]
+
+foo[0] = 100.0
 "#;
 
     let path = "test.wu";

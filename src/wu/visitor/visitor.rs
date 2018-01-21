@@ -14,6 +14,7 @@ pub enum TypeNode {
     Nil,
     Id(String),
     Fun(Vec<Type>, Rc<Type>),
+    Array(Rc<Type>),
 }
 
 // this is for typechecking
@@ -28,6 +29,7 @@ impl PartialEq for TypeNode {
             (&Bool,      &Bool)      => true,
             (&Str,       &Str)       => true,
             (&Nil,       &Nil)       => true,
+            (&Array(ref a), &Array(ref b)) => a == b,
             (&Fun(ref a_params, ref a_retty), &Fun(ref b_params, ref b_retty)) => a_params == b_params && a_retty == b_retty,
             (&Id(ref a), &Id(ref b)) => a == b,
             _                        => false,
@@ -45,6 +47,7 @@ impl Display for TypeNode {
             Bool  => write!(f, "bool"),
             Str   => write!(f, "string"),
             Nil   => write!(f, "nil"),
+            Array(ref content) => write!(f, "[{}]", content),
             Fun(ref params, ref return_type) => {
                 write!(f, "(")?;
 
@@ -236,6 +239,38 @@ impl<'v> Visitor<'v> {
 
             (&Function {ref params, ref return_type, ref body}, _) => self.visit_function(params, return_type, body),
 
+            (&Array(ref content), position) => {
+                let array_type = self.type_expression(&content[0])?;
+
+                for element in content {
+                    let element_type = self.type_expression(element)?;
+
+                    if array_type != element_type {
+                        return Err(make_error(Some(position), format!("mismatched element type '{}'", element_type)))
+                    }
+                }
+
+                Ok(())
+            },
+
+            (&Index(ref indexed, ref index), position) => {
+                let indexed_type = self.type_expression(indexed)?;
+
+                match indexed_type.0 {
+                    TypeNode::Array(_) => {
+                        let index_type = self.type_expression(index)?;
+
+                        if Type::int() != index_type {
+                            Err(make_error(Some(position), format!("can't index '{}' with '{}'", indexed_type, index_type)))
+                        } else {
+                            Ok(())
+                        }
+                    },
+
+                    _ => Err(make_error(Some(position), format!("can't index type '{}'", indexed_type)))
+                }
+            }
+
             (&Call(ref callee, ref args), _) => self.visit_call(callee, args),
 
             (&Block(ref statements), _) => {
@@ -347,6 +382,14 @@ impl<'v> Visitor<'v> {
             (&Identifier(ref name), position) => match self.symtab.get_name(&*name) {
                 Some((i, env_index)) => self.typetab.get_type(i, env_index)?,
                 None                 => return Err(make_error(Some(position), format!("undefined: {}", name)))
+            },
+
+            (&Array(ref content), _) => Type::new(TypeNode::Array(Rc::new(self.type_expression(&content[0])?)), TypeMode::Just),
+
+            (&Index(ref indexed, _), _) => if let TypeNode::Array(ref content) = self.type_expression(indexed)?.0 {
+                (**content).clone()
+            } else {
+                unreachable!()
             },
 
             (&Function {ref params, ref return_type, ..}, _) => {
@@ -465,6 +508,8 @@ impl<'v> Visitor<'v> {
             Index(..) => return Ok(()),
             _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
+        
+        let var_type = Type::new(kind.clone(), TypeMode::Just);
 
         if let Some(ref right) = *right {
             self.visit_expression(&right)?;
@@ -474,10 +519,10 @@ impl<'v> Visitor<'v> {
                 if *kind != right_kind.0 {
                     return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
                 } else {
-                    self.typetab.set_type(index, 0, self.type_expression(right)?)?;
+                    self.typetab.set_type(index, 0, var_type)?;
                 }
             } else {
-                self.typetab.set_type(index, 0, self.type_expression(right)?)?;
+                self.typetab.set_type(index, 0, var_type)?;
             }
         } else {
             self.typetab.set_type(index, 0, Type::new(kind.clone(), TypeMode::Undeclared))?;
@@ -496,6 +541,8 @@ impl<'v> Visitor<'v> {
             Index(..) => return Ok(()),
             _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
+        
+        let const_type = Type::new(kind.clone(), TypeMode::Constant);
 
         if *kind != TypeNode::Nil {
             let right_kind = self.type_expression(&right)?;
@@ -503,10 +550,10 @@ impl<'v> Visitor<'v> {
             if *kind != right_kind.0 {
                 return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
             } else {
-                self.typetab.set_type(index, 0, Type::new(self.type_expression(right)?.0, TypeMode::Constant))?;
+                self.typetab.set_type(index, 0, const_type)?;
             }
         } else {
-            self.typetab.set_type(index, 0, Type::new(self.type_expression(right)?.0, TypeMode::Constant))?;
+            self.typetab.set_type(index, 0, const_type)?;
         }
 
         self.visit_expression(right)

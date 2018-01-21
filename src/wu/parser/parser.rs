@@ -335,6 +335,19 @@ impl<'p> Parser<'p> {
             "float"   => Float,
             "string"  => Str,
             "bool"    => Bool,
+            "["       => {
+                self.next()?;
+                
+                self.skip_types(vec![TokenType::Whitespace])?;
+                
+                let content = Type::new(self.type_node()?, TypeMode::Just);
+
+                self.skip_types(vec![TokenType::Whitespace])?;
+
+                self.consume_content("]")?;
+
+                Array(Rc::new(content))
+            }
             "("       => {
                 self.next()?;
 
@@ -694,7 +707,7 @@ impl<'p> Parser<'p> {
 
         self.skip_types(vec![TokenType::Whitespace])?;
 
-        if self.remaining() > 1 {
+        if self.remaining() > 1 || self.current_content() == "," {
             self.consume_content(",")?;
         }
 
