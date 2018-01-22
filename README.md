@@ -1,5 +1,5 @@
 ## wu
-a neat wannabe low-level programming language
+a strongly typed language that transpiles to lua
 
 ---
 
@@ -57,13 +57,38 @@ bar: bool = {
 }
 ```
 
+if and match
+```lua
+number := math.random(0, 100)
+
+if number % 2 == 0 {
+  print("okok")
+}
+
+-- they're both valid as expressions
+hmm := match number % 2 {
+ | 0 -> "idc"
+ | 1 -> "sure"
+}
+
+print(hmm)
+```
+
+```lua
+fib :: (a: int) int -> match a 
+ | 0 -> 0
+ | 1 -> 1
+ | a -> fib(a - 1) + fib(a - 2)
+}
+```
+
 types
 ```lua
 int float bool string
 ```
 
 arrays
-```
+```lua
 foo :: [1, 2, 3,]
 bar: [string] = ["hey", "grr"]
 baz := [false, true, false, false]
