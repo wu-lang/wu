@@ -8,13 +8,11 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-foo: [float] = [
-    "1",
-    2,
-    3,
-]
-
-foo[0] = 100.0
+fib := (a: int) int -> match a {
+    | 0 -> 0
+    | 1 -> 1
+    | a -> fib(a - 1) + fib(a - 2)
+}
 "#;
 
     let path = "test.wu";

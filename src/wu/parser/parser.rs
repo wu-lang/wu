@@ -498,7 +498,8 @@ impl<'p> Parser<'p> {
             },
 
             TokenType::Keyword => match self.current_content().as_str() {
-                "if" => Block(vec![self.statement()?]),
+                "if"    => Block(vec![self.statement()?]),
+                "match" => Block(vec![self.statement()?]),
                 key  => return Err(make_error(Some(position), format!("unexpected keyword '{}'", key)))
             },
 

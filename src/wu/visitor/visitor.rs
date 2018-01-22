@@ -512,22 +512,22 @@ impl<'v> Visitor<'v> {
         let var_type = Type::new(kind.clone(), TypeMode::Just);
 
         if let Some(ref right) = *right {
-            self.visit_expression(&right)?;
+            let right_kind = self.type_expression(&right)?;
 
             if *kind != TypeNode::Nil {
-                let right_kind = self.type_expression(&right)?;
                 if *kind != right_kind.0 {
                     return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
                 } else {
                     self.typetab.set_type(index, 0, var_type)?;
                 }
             } else {
-                self.typetab.set_type(index, 0, var_type)?;
+                self.typetab.set_type(index, 0, right_kind)?;
             }
+
+            self.visit_expression(&right)
         } else {
-            self.typetab.set_type(index, 0, Type::new(kind.clone(), TypeMode::Undeclared))?;
+            self.typetab.set_type(index, 0, Type::new(kind.clone(), TypeMode::Undeclared))
         }
-        Ok(())
     }
 
     fn visit_constant(&mut self, kind: &TypeNode, left: &Expression, right: &Expression) -> Response<()> {
@@ -544,8 +544,9 @@ impl<'v> Visitor<'v> {
         
         let const_type = Type::new(kind.clone(), TypeMode::Constant);
 
+        let right_kind = self.type_expression(&right)?;
+        
         if *kind != TypeNode::Nil {
-            let right_kind = self.type_expression(&right)?;
 
             if *kind != right_kind.0 {
                 return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
@@ -553,7 +554,7 @@ impl<'v> Visitor<'v> {
                 self.typetab.set_type(index, 0, const_type)?;
             }
         } else {
-            self.typetab.set_type(index, 0, const_type)?;
+            self.typetab.set_type(index, 0, right_kind)?;
         }
 
         self.visit_expression(right)

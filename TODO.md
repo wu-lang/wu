@@ -11,7 +11,7 @@ some stuff we need to do in no particular order, in order to make *wu* more cool
 - [ ] tuples
 - [ ] import
 - [ ] modules
-- [ ] arrays
+- [x] arrays
 - [ ] unary operations
 - [ ] tables
 - [ ] structs or classes
