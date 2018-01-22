@@ -371,7 +371,7 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    fn type_expression(&self, expression: &Expression) -> Response<Type> {
+    fn type_expression(&mut self, expression: &Expression) -> Response<Type> {
         use ExpressionNode::*;
 
         let t = match (&expression.0, expression.1) {
@@ -381,7 +381,7 @@ impl<'v> Visitor<'v> {
             (&Str(_), _)   => Type::string(),
             (&Identifier(ref name), position) => match self.symtab.get_name(&*name) {
                 Some((i, env_index)) => self.typetab.get_type(i, env_index)?,
-                None                 => return Err(make_error(Some(position), format!("undefined: {}", name)))
+                None                 => return Err(make_error(Some(position), format!("undefined type of: {}", name)))
             },
 
             (&Array(ref content), _) => Type::new(TypeNode::Array(Rc::new(self.type_expression(&content[0])?)), TypeMode::Just),
@@ -453,9 +453,16 @@ impl<'v> Visitor<'v> {
 
                 let mut acc = 1;
 
+                let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
+                let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+
+                let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
+
                 for statement in statements {
+                    visitor.visit_statement(&statement)?;
+
                     if return_type == None {
-                        if let Some(t) = self.find_return_type(&statement.0, acc == statements.len())? {
+                        if let Some(t) = visitor.find_return_type(&statement.0, acc == statements.len())? {
                             return_type = Some(t)
                         }
                     }
@@ -472,7 +479,7 @@ impl<'v> Visitor<'v> {
         Ok(t)
     }
 
-    fn find_return_type(&self, statement: &StatementNode, is_last: bool) -> Response<Option<Type>> {
+    fn find_return_type(&mut self, statement: &StatementNode, is_last: bool) -> Response<Option<Type>> {
         use StatementNode::*;
 
         let return_type = match *statement {
@@ -508,7 +515,7 @@ impl<'v> Visitor<'v> {
             Index(..) => return Ok(()),
             _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
-        
+
         let var_type = Type::new(kind.clone(), TypeMode::Just);
 
         if let Some(ref right) = *right {
@@ -541,13 +548,13 @@ impl<'v> Visitor<'v> {
             Index(..) => return Ok(()),
             _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
         };
-        
+
         let const_type = Type::new(kind.clone(), TypeMode::Constant);
 
+        self.visit_expression(right)?;
         let right_kind = self.type_expression(&right)?;
-        
-        if *kind != TypeNode::Nil {
 
+        if *kind != TypeNode::Nil {
             if *kind != right_kind.0 {
                 return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
             } else {
@@ -556,8 +563,7 @@ impl<'v> Visitor<'v> {
         } else {
             self.typetab.set_type(index, 0, right_kind)?;
         }
-
-        self.visit_expression(right)
+        Ok(())
     }
 
     fn visit_assignment(&mut self, left: &Expression, right: &Expression) -> Response<()> {
@@ -615,10 +621,6 @@ impl<'v> Visitor<'v> {
                     if return_type != case_t {
                         return Err(make_error(Some(case.2.clone()), format!("mismatched types: expected '{}', found '{}'", return_type, case_t)))
                     }
-                }
-
-                if cases.last().unwrap().0 != None {
-                    weird(Some(position.clone()), "maybe non-exhaustive".to_owned(), self.lines, self.path)
                 }
 
                 Ok(())

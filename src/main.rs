@@ -8,10 +8,9 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-fib := (a: int) int -> match a {
-    | 0 -> 0
-    | 1 -> 1
-    | a -> fib(a - 1) + fib(a - 2)
+bar :: match 100 {
+    | 0 -> 10
+    | a -> a - 12
 }
 "#;
 

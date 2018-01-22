@@ -271,7 +271,6 @@ impl<'p> Parser<'p> {
 
         self.skip_types(vec![TokenType::Whitespace])?;
 
-
         let mut elses = Vec::new();
 
         let mut found = false;
@@ -304,18 +303,38 @@ impl<'p> Parser<'p> {
 
             let right = Rc::new(self.expression()?);
 
+            let else_binding = match right.0 {
+                ExpressionNode::Identifier(_) => vec!(Statement::new(StatementNode::ConstDefinition {
+                    kind: TypeNode::Nil,
+                    left: (*right).clone(),
+                    right: (*left).clone(),
+                }, right.1)),
+                
+                _ => Vec::new(),
+            };
+
             self.skip_types(vec![TokenType::Whitespace])?;
             self.consume_content("->")?;
             self.skip_types(vec![TokenType::Whitespace])?;
 
-            let arm_body = Expression::new(ExpressionNode::Block(vec![self.statement()?]), position);
+            let arm_body = Expression::new(ExpressionNode::Block([&else_binding[..], &vec![self.statement()?][..]].concat()), position);
 
             if found {
-                elses.push((Some(Expression::new(ExpressionNode::Binary {left: left.clone(), op: Operator::Equal, right}, left.1)), arm_body, position))
+                if else_binding.len() > 0 {
+                    elses.push((None, arm_body, position))
+                } else {
+                    elses.push((Some(Expression::new(ExpressionNode::Binary {left: left.clone(), op: Operator::Equal, right}, left.1)), arm_body, position))
+                }
             } else {
-                condition = Expression::new(ExpressionNode::Binary {left: left.clone(), op: Operator::Equal, right}, left.1);
-                body      = arm_body;
-                found = true
+                if else_binding.len() > 0 {
+                    condition = Expression::new(ExpressionNode::Bool(true), left.1);
+                    body      = arm_body;
+                    found = true
+                } else {
+                    condition = Expression::new(ExpressionNode::Binary {left: left.clone(), op: Operator::Equal, right}, left.1);
+                    body      = arm_body;
+                    found = true
+                }
             }
 
             self.next()?;
