@@ -73,7 +73,7 @@ impl<'p> Parser<'p> {
 
                     self.skip_types(vec![Whitespace])?;
 
-                    let members = self.block_of(&mut Self::param_, ("{", "}"))?;
+                    let members = self.block_of(&mut Self::member_, ("{", "}"))?;
 
                     StatementNode::Struct {
                         name,
@@ -595,11 +595,11 @@ impl<'p> Parser<'p> {
         self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
 
         let kind = self.type_node()?;
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+        self.skip_types(vec![TokenType::Whitespace])?;
 
         let value = if self.current_content() == "=" {
             self.next()?;
-            self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+            self.skip_types(vec![TokenType::Whitespace])?;
 
             Some(Rc::new(self.expression()?))
         } else {
@@ -616,11 +616,36 @@ impl<'p> Parser<'p> {
 
         self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
 
-        if self.remaining() == 0 {
-            Ok(Some((name, kind, value)))
-        } else {
-            Ok(Some((name, kind, value)))
+        Ok(Some((name, kind, value)))
+    }
+
+    fn member_(self: &mut Self) -> Response<Option<(String, TypeNode)>> {
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+        if self.remaining() < 2 {
+            return Ok(None)
         }
+
+        let name = self.consume_type(TokenType::Identifier)?;
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+        self.consume_content(":")?;
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+        let kind = self.type_node()?;
+        self.skip_types(vec![TokenType::Whitespace])?;
+
+        if self.remaining() > 1 {
+            if self.current_content() == "," {
+                self.consume_content(",")?;
+            } else {
+                self.consume_type(TokenType::EOL)?;
+            }
+        }
+
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+        Ok(Some((name, kind)))
     }
 
     fn expression_(self: &mut Self) -> Response<Option<Expression>> {

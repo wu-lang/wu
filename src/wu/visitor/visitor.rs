@@ -225,14 +225,8 @@ impl<'v> Visitor<'v> {
 
                     let mut hash_members = HashMap::new();
 
-                    for &(ref name, ref member_type, ref optional) in members.iter() {
-                        let optional = if let Some(ref expression) = *optional {
-                            Some(self.type_expression(&*expression))
-                        } else {
-                            None
-                        };
-
-                        hash_members.insert(name, (member_type, optional));
+                    for &(ref name, ref member_type) in members.iter() {
+                        hash_members.insert(name, member_type);
                     }
 
                     Ok(())

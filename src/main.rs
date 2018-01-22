@@ -9,9 +9,11 @@ use wu::codegen::*;
 fn main() {
     let source = r#"
 struct point {
-    x: float = 100
+    x: float
     y: float
 }
+
+foo :: (a: float = if 2 % 2 == 0 {100} else {200}) float -> a
 "#;
 
     let path = "test.wu";

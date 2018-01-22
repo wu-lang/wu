@@ -28,7 +28,7 @@ pub enum StatementNode {
 
     Struct {
         name:    String,
-        members: Vec<(String, TypeNode, Option<Rc<Expression>>)>
+        members: Vec<(String, TypeNode)>
     },
 
     If(IfNode),
@@ -56,6 +56,7 @@ pub enum ExpressionNode {
     Call(Rc<Expression>, Vec<Expression>),
     Block(Vec<Statement>),
     Index(Rc<Expression>, Rc<Expression>),
+    Constructor(String),
     EOF,
 }
 
