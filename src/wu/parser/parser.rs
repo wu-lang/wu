@@ -687,34 +687,33 @@ impl<'p> Parser<'p> {
 
         self.skip_types(vec![TokenType::Whitespace])?;
 
-        let node = match self.current_content().as_str() {
-            "." => {
-                self.next()?;
-
+        let node = match self.current_type() {
+            TokenType::Identifier => {
                 let position = self.position();
                 let indexing = Expression(Str(self.consume_type(TokenType::Identifier)?), position);
 
                 self.skip_types(vec![TokenType::Whitespace])?;
 
                 return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing)), position))
-            },
+            }
+            _ => match self.current_content().as_str() {
+                "[" => {
+                    let position = self.position();
+                    let indexing = self.block_of(&mut Self::expression_, ("[", "]"))?;
+                    
+                    if indexing.len() > 1 {
+                        return Err(make_error(Some(atom.1), "indexing with multiple expressions".to_owned()))
+                    } else if indexing.len() == 0 {
+                        return Err(make_error(Some(atom.1), "indexing with nothing".to_owned()))
+                    }
 
-            "[" => {
-                let position = self.position();
-                let indexing = self.block_of(&mut Self::expression_, ("[", "]"))?;
+                    self.skip_types(vec![TokenType::Whitespace])?;
+
+                    return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing[0].clone())), position))
+                },
                 
-                if indexing.len() > 1 {
-                    return Err(make_error(Some(atom.1), "indexing with multiple expressions".to_owned()))
-                } else if indexing.len() == 0 {
-                    return Err(make_error(Some(atom.1), "indexing with nothing".to_owned()))
-                }
-
-                self.skip_types(vec![TokenType::Whitespace])?;
-
-                return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing[0].clone())), position))
-            },
-            
-            _ => atom,
+                _ => atom,
+            }
         };
 
         self.top = backup_top;

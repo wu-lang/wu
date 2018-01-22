@@ -8,13 +8,7 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-fib :: {(a: int) int -> match a {
-	| 0 -> 0
-	| 1 -> 1
-	| _ -> fib(a - 1) + fib(a - 2)
-}}
-
-foo: string = fib(10)
+love graphics rectangle("fill", 100, 100, 100, 100)
 "#;
 
     let path = "test.wu";

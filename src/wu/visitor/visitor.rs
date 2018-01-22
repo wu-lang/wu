@@ -401,7 +401,7 @@ impl<'v> Visitor<'v> {
 
             (&Call(ref callee, _), position) => match self.type_expression(&**callee)?.0 {
                 TypeNode::Fun(_, ref retty) => (**retty).clone(),
-                ref t                       => panic!() // return Err(make_error(Some(position), format!("can't call: {}", t))),
+                ref t                       => return Err(make_error(Some(position), format!("can't call: {}", t))),
             },
 
             (&Binary { ref left, ref op, ref right }, position) => {
@@ -577,7 +577,7 @@ impl<'v> Visitor<'v> {
         } else {
             self.typetab.set_type(index, 0, right_kind)?;
         }
-        
+
         match right.0 {
             Function { .. } => self.visit_expression(right),
             _               => Ok(()),
