@@ -75,7 +75,7 @@ print(hmm)
 ```
 
 ```lua
-fib :: (a: int) int -> match a 
+fib :: (a: int) int -> match a {
  | 0 -> 0
  | 1 -> 1
  | a -> fib(a - 1) + fib(a - 2)
