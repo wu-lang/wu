@@ -64,6 +64,23 @@ impl<'p> Parser<'p> {
                     }
                 },
 
+                "struct" => {
+                    self.next()?;
+
+                    self.skip_types(vec![Whitespace])?;
+
+                    let name = self.consume_type(Identifier)?;
+
+                    self.skip_types(vec![Whitespace])?;
+
+                    let members = self.block_of(&mut Self::param_, ("{", "}"))?;
+
+                    StatementNode::Struct {
+                        name,
+                        members,
+                    }
+                },
+
                 "if"    => StatementNode::If(self.if_node()?),
                 "match" => StatementNode::If(self.match_node()?),
 
@@ -565,7 +582,9 @@ impl<'p> Parser<'p> {
     }
 
     fn param_(self: &mut Self) -> Response<Option<(String, TypeNode, Option<Rc<Expression>>)>> {
-        if self.remaining() == 0 {
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+        if self.remaining() < 2 {
             return Ok(None)
         }
 
@@ -588,9 +607,14 @@ impl<'p> Parser<'p> {
         };
 
         if self.remaining() > 1 {
-            self.consume_content(",")?;
-            self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+            if self.current_content() == "," {
+                self.consume_content(",")?;
+            } else {
+                self.consume_type(TokenType::EOL)?;
+            }
         }
+
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
 
         if self.remaining() == 0 {
             Ok(Some((name, kind, value)))

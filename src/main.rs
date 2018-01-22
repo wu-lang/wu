@@ -8,7 +8,10 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-love graphics rectangle("fill", 100, 100, 100, 100)
+struct point {
+    x: float = 100
+    y: float
+}
 "#;
 
     let path = "test.wu";

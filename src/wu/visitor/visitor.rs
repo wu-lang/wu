@@ -15,6 +15,7 @@ pub enum TypeNode {
     Id(String),
     Fun(Vec<Type>, Rc<Type>),
     Array(Rc<Type>),
+    Struct(HashMap<String, (Type, Option<Type>)>)
 }
 
 // this is for typechecking
@@ -47,6 +48,7 @@ impl Display for TypeNode {
             Bool  => write!(f, "bool"),
             Str   => write!(f, "string"),
             Nil   => write!(f, "nil"),
+            Struct(_) => write!(f, "struct"),
             Array(ref content) => write!(f, "[{}]", content),
             Fun(ref params, ref return_type) => {
                 write!(f, "(")?;
@@ -214,7 +216,29 @@ impl<'v> Visitor<'v> {
             (&Definition {ref kind, ref left, ref right}, _)      => self.visit_definition(kind, left, right),
             (&ConstDefinition {ref kind, ref left, ref right}, _) => self.visit_constant(kind, left, right),
             (&Assignment {ref left, ref right}, _)                => self.visit_assignment(left, right),
-            (&Return(ref value), _)                               => if let Some(ref value) = *value {
+            (&Struct {ref name, ref members}, position) => {
+                if self.symtab.get_name(name).is_some() {
+                    Err(make_error(Some(position), format!("struct '{}' defined multiple times", name)))
+                } else {
+                    self.typetab.grow();
+                    self.symtab.add_name(&name);
+
+                    let mut hash_members = HashMap::new();
+
+                    for &(ref name, ref member_type, ref optional) in members.iter() {
+                        let optional = if let Some(ref expression) = *optional {
+                            Some(self.type_expression(&*expression))
+                        } else {
+                            None
+                        };
+
+                        hash_members.insert(name, (member_type, optional));
+                    }
+
+                    Ok(())
+                }
+            },
+            (&Return(ref value), _) => if let Some(ref value) = *value {
                 self.visit_expression(value)
             } else {
                 Ok(())
@@ -344,7 +368,7 @@ impl<'v> Visitor<'v> {
 
                     if params.len() != args.len() {
                         if params.len() < args.len() {
-                            Err(make_error(Some(args[acc].1), format!("function expected {} arg{}, got {}", params.len(), if params.len() > 1 { "s" } else { "" }, args.len())))
+                            Err(make_error(Some(args[acc].1), format!("function expected {} arg{}, got {}", params.len(), if params.len() != 1 { "s" } else { "" }, args.len())))
                         } else {
                             for param in &params[args.len() .. params.len()] {
                                 if !param.1.check(&TypeMode::Optional) {

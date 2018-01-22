@@ -26,6 +26,11 @@ pub enum StatementNode {
         right: Expression,
     },
 
+    Struct {
+        name:    String,
+        members: Vec<(String, TypeNode, Option<Rc<Expression>>)>
+    },
+
     If(IfNode),
 }
 

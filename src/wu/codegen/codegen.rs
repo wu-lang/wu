@@ -55,13 +55,50 @@ impl<'c> Codegen<'c> {
 
             ConstDefinition { ref left, ref right, .. } => match right.0 {
                 ref block @ ExpressionNode::Block(_) => {
-                    format!("local {}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                    if let ExpressionNode::Identifier(_) = left.0 {
+                        format!("local {}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                    } else {
+                        format!("{}\n", self.gen_block_assignment(&block, &left.0))
+                    }
                 },
                 _ => format!("local {} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
             },
 
             Assignment { ref left, ref right, .. } => format!("{} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)),
             If(ref if_node) => self.gen_if_node(if_node),
+
+            Struct {ref name, ref members} => {
+                use ExpressionNode::*;
+                
+                let mut code = format!("local {} = setmetatable({{}}, {{\n", name);
+
+                code.push_str(&format!("__construct__ = function(__constructor)\n"));
+
+                code.push_str("local structure = {{}}\n");
+
+                for &(ref name, _, ref optional) in members {
+                    if let Some(ref expression) = *optional {
+                        code.push_str(&format!("local {0} = __constructor.{0}\n", name));
+
+                        let assignment = StatementNode::ConstDefinition {
+                            left:  super::Expression(Identifier(name.clone()), expression.1),
+                            right: (**expression).clone(),
+                            kind:  TypeNode::Nil,
+                        };
+
+                        code.push_str(&format!("if {} == nil then\n{}\nend\n", name, self.gen_statement(&assignment)));
+
+                        code.push_str(&format!("structure.{0} = {0}\n", name))
+                    } else {
+                        code.push_str(&format!("structure.{0} = __constructor.{0}\n", name))
+                    }
+                }
+
+                code.push_str("return structure\nend\n");
+
+                code.push_str("})");
+                code
+            }
         }
     }
 
@@ -176,7 +213,12 @@ impl<'c> Codegen<'c> {
                 let mut acc = 0;
 
                 for element in content {
-                    code.push_str(&format!("[{}] = {}", acc, &self.gen_expression(&element.0)));
+                    let right = match element.0 {
+                        Block(_) => format!("(function()\n{}end)()", self.gen_block_return(&element.0)),
+                        _        => self.gen_expression(&element.0),
+                    }; 
+                    
+                    code.push_str(&format!("[{}] = {}", acc, right));
                     code.push_str(",\n");
                     acc += 1
                 }
@@ -250,7 +292,7 @@ impl<'c> Codegen<'c> {
                 code.push_str(")\n");
 
                 for guard in guards {
-                    code.push_str(&format!("if {0} == nil then\n{0} = {1}\nend\n", guard.0, self.gen_expression(&(guard.1).0)))
+                    code.push_str(&format!("if {0} == nil then\n{0} = {1}\nend\n", guard.0.clone(), self.gen_block_assignment(&Block(vec!(Statement(StatementNode::Expression((*guard.1).clone()), (guard.1).1))), &Identifier(guard.0))))
                 }
 
                 match body.0 {
