@@ -8,10 +8,13 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-bar :: match 100 {
-    | 0 -> 10
-    | a -> a - 12
-}
+fib :: {(a: int) int -> match a {
+	| 0 -> 0
+	| 1 -> 1
+	| _ -> fib(a - 1) + fib(a - 2)
+}}
+
+foo: string = fib(10)
 "#;
 
     let path = "test.wu";

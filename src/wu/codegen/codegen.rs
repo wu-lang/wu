@@ -296,7 +296,8 @@ impl<'c> Codegen<'c> {
                     Float(_)      |
                     Str(_)        |
                     Bool(_)       |
-                    Identifier(_) => format!("{}{}{}", compiled_left, compiled_op, compiled_right),
+                    Identifier(_) |
+                    Call(..)      => format!("{}{}{}", compiled_left, compiled_op, compiled_right),
                     _             => format!("{}{}({})", compiled_left, compiled_op, compiled_right),
                 }
             }

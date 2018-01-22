@@ -401,7 +401,7 @@ impl<'v> Visitor<'v> {
 
             (&Call(ref callee, _), position) => match self.type_expression(&**callee)?.0 {
                 TypeNode::Fun(_, ref retty) => (**retty).clone(),
-                ref t                       => return Err(make_error(Some(position), format!("can't call: {}", t))),
+                ref t                       => panic!() // return Err(make_error(Some(position), format!("can't call: {}", t))),
             },
 
             (&Binary { ref left, ref op, ref right }, position) => {
@@ -459,7 +459,9 @@ impl<'v> Visitor<'v> {
                 let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
                 for statement in statements {
-                    visitor.visit_statement(&statement)?;
+                    if acc != statements.len() {
+                        visitor.visit_statement(&statement)?
+                    }
 
                     if return_type == None {
                         if let Some(t) = visitor.find_return_type(&statement.0, acc == statements.len())? {
@@ -519,6 +521,11 @@ impl<'v> Visitor<'v> {
         let var_type = Type::new(kind.clone(), TypeMode::Just);
 
         if let Some(ref right) = *right {
+            match right.0 {
+                Function { .. } | Block(_) => (),
+                _                          => self.visit_expression(right)?,
+            }
+
             let right_kind = self.type_expression(&right)?;
 
             if *kind != TypeNode::Nil {
@@ -531,7 +538,10 @@ impl<'v> Visitor<'v> {
                 self.typetab.set_type(index, 0, right_kind)?;
             }
 
-            self.visit_expression(&right)
+            match right.0 {
+                Function { .. } => self.visit_expression(right),
+                _               => Ok(()),
+            }
         } else {
             self.typetab.set_type(index, 0, Type::new(kind.clone(), TypeMode::Undeclared))
         }
@@ -551,7 +561,11 @@ impl<'v> Visitor<'v> {
 
         let const_type = Type::new(kind.clone(), TypeMode::Constant);
 
-        self.visit_expression(right)?;
+        match right.0 {
+            Function { .. } | Block(_) => (),
+            _                          => self.visit_expression(right)?,
+        }
+
         let right_kind = self.type_expression(&right)?;
 
         if *kind != TypeNode::Nil {
@@ -563,7 +577,11 @@ impl<'v> Visitor<'v> {
         } else {
             self.typetab.set_type(index, 0, right_kind)?;
         }
-        Ok(())
+        
+        match right.0 {
+            Function { .. } => self.visit_expression(right),
+            _               => Ok(()),
+        }
     }
 
     fn visit_assignment(&mut self, left: &Expression, right: &Expression) -> Response<()> {
