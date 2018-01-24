@@ -25,7 +25,7 @@ a strongly typed language that transpiles to lua
 
 ---
 
-### version 0.0.1
+### the syntax
 
 bindings
 ```lua
@@ -133,6 +133,36 @@ function-type
 
 ```lua
 sub: (int, int) int = (a: int, b: int) int -> a - b
+```
+
+structs
+```
+struct point {
+ x: float
+ y: float
+}
+
+position: point = point {
+ x: 100
+ y: 200
+}
+```
+
+member indexing
+```
+struct frog {
+ position:    point
+ jump_height: float
+}
+
+bob := frog {
+ position:    point { x: 100, y: 100 }
+ jump_height: 100000
+}
+
+-- very innovative, doesn't have `.`
+bob position x = -100
+bob jump_height -= 10
 ```
 
 ---
