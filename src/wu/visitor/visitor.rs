@@ -16,7 +16,6 @@ pub enum TypeNode {
     Fun(Vec<Type>, Rc<Type>),
     Array(Rc<Type>),
     Struct(HashMap<String, TypeNode>),
-    Instance(Rc<Type>),
 }
 
 // this is for typechecking
@@ -34,6 +33,7 @@ impl PartialEq for TypeNode {
             (&Array(ref a), &Array(ref b)) => a == b,
             (&Fun(ref a_params, ref a_retty), &Fun(ref b_params, ref b_retty)) => a_params == b_params && a_retty == b_retty,
             (&Id(ref a), &Id(ref b)) => a == b,
+            (&Struct(ref a), &Struct(ref b)) => a == b,
             _                        => false,
         }
     }
@@ -50,7 +50,6 @@ impl Display for TypeNode {
             Str   => write!(f, "string"),
             Nil   => write!(f, "nil"),
             Struct(_)   => write!(f, "struct"),
-            Instance(_) => write!(f, "instance"),
             Array(ref content) => write!(f, "[{}]", content),
             Fun(ref params, ref return_type) => {
                 write!(f, "(")?;
@@ -305,7 +304,16 @@ impl<'v> Visitor<'v> {
             },
 
             (&Index(ref indexed, ref index), position) => {
-                let indexed_type = self.type_expression(indexed)?;
+                let indexed_type = match self.type_expression(indexed)?.0 {
+                    TypeNode::Id(ref id) => {
+                        self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), position))?
+                    }
+                    _ => self.type_expression(indexed)?,
+                };
+
+                if indexed_type.1.check(&TypeMode::Undeclared) {
+                    return Err(make_error(Some(position), format!("can't index undeclared")))
+                }
 
                 match indexed_type.0 {
                     TypeNode::Array(_) => {
@@ -318,22 +326,16 @@ impl<'v> Visitor<'v> {
                         }
                     },
 
-                    TypeNode::Instance(ref structure) => {
-                        if let TypeNode::Struct(ref members) = structure.0 {
-                            match index.0 {
-                                Identifier(ref name) |
-                                Str(ref name)        => {
-                                    if members.get(name).is_some() {
-                                        Ok(())
-                                    } else {
-                                        Err(make_error(Some(position), format!("no field '{}'", name)))
-                                    }
-                                },
-                                _ => Err(make_error(Some(position), format!("indexing struct with non-key '{:?}'", index.0)))
+                    TypeNode::Struct(ref members) => match index.0 {
+                        Identifier(ref name) |
+                        Str(ref name)        => {
+                            if members.get(name).is_some() {
+                                Ok(())
+                            } else {
+                                Err(make_error(Some(position), format!("no field '{}'", name)))
                             }
-                        } else {
-                            Err(make_error(Some(position), format!("weird-ass instance here")))
-                        }
+                        },
+                        _ => Err(make_error(Some(position), format!("indexing struct with non-key '{:?}'", index.0)))
                     },
 
                     _ => Err(make_error(Some(position), format!("can't index type '{}'", indexed_type)))
@@ -393,6 +395,11 @@ impl<'v> Visitor<'v> {
         visitor.visit_expression(body)?;
 
         let body_t = visitor.type_expression(body)?;
+        
+        let return_type = match *return_type {
+            TypeNode::Id(ref id) => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), body.1))?.0,
+            _                    => return_type.clone(),
+        };
 
         if Type::new(return_type.clone(), TypeMode::Just) != body_t {
             Err(make_error(Some(body.1), format!("mismatched return type, expected '{}' .. found '{}'", return_type, body_t)))
@@ -425,7 +432,12 @@ impl<'v> Visitor<'v> {
                         }
                     } else {
                         for param in params {
-                            if *param != self.type_expression(&args[acc])? {
+                            let param = match param.0 {
+                                TypeNode::Id(ref id) => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), args[acc].1))?,
+                                _                    => param.clone(),
+                            };
+                            
+                            if param != self.type_expression(&args[acc])? {
                                 return Err(make_error(Some(args[acc].1), format!("mismatched argument type: '{}', expected: '{}'", self.type_expression(&args[acc])?, param)))
                             }
                             acc += 1
@@ -455,26 +467,33 @@ impl<'v> Visitor<'v> {
 
             (&Array(ref content), _) => Type::new(TypeNode::Array(Rc::new(self.type_expression(&content[0])?)), TypeMode::Just),
 
-            (&Index(ref indexed, ref index), _) => match self.type_expression(indexed)?.0 {
-                TypeNode::Array(ref content) => (**content).clone(),
-                TypeNode::Instance(ref structure) => if let TypeNode::Struct(ref members) = structure.0 {
-                    match index.0 {
+            (&Index(ref indexed, ref index), position) => {
+                let indexed_type = match self.type_expression(indexed)?.0 {
+                    TypeNode::Id(ref id) => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), position))?.0,
+                    _                    => self.type_expression(indexed)?.0,
+                };
+
+                match indexed_type {
+                    TypeNode::Array(ref content) => (**content).clone(),
+                    TypeNode::Struct(ref members) => match index.0 {
                         Identifier(ref name) |
                         Str(ref name)        => Type::new(members.get(name).unwrap().clone(), TypeMode::Just),
                         _ => unreachable!(),
                     }
-                } else {
-                    unreachable!()
+
+                    _ => unreachable!(),
                 }
-                _ => unreachable!(),
             }
 
-            (&Constructor(ref name, _), _) => Type::new(TypeNode::Instance(Rc::new(self.type_expression(name)?)), TypeMode::Just),
+            (&Constructor(ref name, _), _) => Type::new(self.type_expression(name)?.0, TypeMode::Just),
 
-            (&Function {ref params, ref return_type, ..}, _) => {
+            (&Function {ref params, ref return_type, ..}, position) => {
                 Type::new(TypeNode::Fun(
                     params.iter().map(|x| Type::new(x.1.clone(), if let Some(_) = x.2 { TypeMode::Optional } else { TypeMode::Just })).collect::<Vec<Type>>(),
-                    Rc::new(Type::new(return_type.clone(), TypeMode::Just)),
+                    Rc::new(Type::new(match *return_type {
+                        TypeNode::Id(ref id) => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), position))?.0,
+                        _                    => return_type.clone(),
+                    }, TypeMode::Just)),
                 ), TypeMode::Just)
             },
 

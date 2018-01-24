@@ -18,7 +18,18 @@ position :: point {
     y: 100
 }
 
-test: float = position x
+new_point :: (x: float, y: float) point -> point {
+    x: x
+    y: y
+}
+
+point_from :: (other: point) point -> point {
+    x: other x
+    y: other y
+}
+
+hmm := point_from(position,)
+hm2 := new_point(100, 12.0)
 "#;
 
     let path = "test.wu";

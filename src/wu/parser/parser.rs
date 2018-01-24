@@ -789,41 +789,47 @@ impl<'p> Parser<'p> {
         let backup_top = self.top;
 
         self.skip_types(vec![TokenType::Whitespace])?;
-
-        let node = match self.current_type() {
-            TokenType::Identifier => {
-                let position = self.position();
-                let indexing = Expression(Str(self.consume_type(TokenType::Identifier)?), position);
-
-                self.skip_types(vec![TokenType::Whitespace])?;
-
-                return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing)), position))
-            }
-            _ => match self.current_content().as_str() {
-                "[" => {
+        
+        if self.remaining() > 1 {
+            let node = match self.current_type() {
+                TokenType::Identifier => {
                     let position = self.position();
-                    let indexing = self.block_of(&mut Self::expression_, ("[", "]"))?;
+                    println!("{:?}", self.remaining());
+                    let indexing = Expression(Str(self.consume_type(TokenType::Identifier)?), position);
                     
-                    if indexing.len() > 1 {
-                        return Err(make_error(Some(atom.1), "indexing with multiple expressions".to_owned()))
-                    } else if indexing.len() == 0 {
-                        return Err(make_error(Some(atom.1), "indexing with nothing".to_owned()))
-                    }
-
                     self.skip_types(vec![TokenType::Whitespace])?;
+                    
+                    return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing)), position))
+                }
+                _ => match self.current_content().as_str() {
+                    "[" => {
+                        let position = self.position();
+                        let indexing = self.block_of(&mut Self::expression_, ("[", "]"))?;
+                        
+                        if indexing.len() > 1 {
+                            return Err(make_error(Some(atom.1), "indexing with multiple expressions".to_owned()))
+                        } else if indexing.len() == 0 {
+                            return Err(make_error(Some(atom.1), "indexing with nothing".to_owned()))
+                        }
+                        
+                        self.skip_types(vec![TokenType::Whitespace])?;
+                        
+                        return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing[0].clone())), position))
+                    },
+                    
+                    _ => atom,
+                }
+            };
+            
+            self.top = backup_top;
+            
+            let maybe_call = self.maybe_call(node)?;
 
-                    return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing[0].clone())), position))
-                },
-                
-                _ => atom,
-            }
-        };
-
-        self.top = backup_top;
-
-        let maybe_call = self.maybe_call(node)?;
-
-        self.maybe_construct(maybe_call)
+            self.maybe_construct(maybe_call)
+        } else {
+            self.top = backup_top;
+            return Ok(atom)
+        }
     }
 
     fn arg_(self: &mut Self) -> Response<Option<Expression>> {
@@ -942,6 +948,7 @@ impl<'p> Parser<'p> {
             self.top += 1;
             Ok(())
         } else {
+            panic!();
             Err(make_error(None, "nexting outside token stack".to_owned()))
         }
     }
