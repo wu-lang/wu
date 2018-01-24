@@ -188,7 +188,18 @@ impl<'c> Codegen<'c> {
 
                 format!("{}[{}]", self.gen_expression(&indexed.0), right)
             },
-            
+
+            Constructor(ref name, ref members) => {
+                let mut code = format!("{}.__construct__({{\n", self.gen_expression(&name.0));
+
+                for member in members {
+                    code.push_str(&format!("{} = {},\n", member.0, self.gen_expression(&(member.1).0)))
+                }
+
+                code.push_str("})\n");
+                code
+            },
+
             Array(ref content) => {
                 let mut code = String::new();
 

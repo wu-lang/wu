@@ -104,10 +104,9 @@ impl<'p> Parser<'p> {
                             self.next()?;
 
                             let right = self.expression()?;
-
-                            if self.current_content() == "\n" {
-                                self.next()?
-                            }
+                            
+                            self.skip_types(vec![TokenType::Whitespace])?;
+                            self.consume_content("\n")?;
 
                             StatementNode::ConstDefinition {
                                 kind:  TypeNode::Nil,
@@ -121,9 +120,8 @@ impl<'p> Parser<'p> {
 
                                 let right = self.expression()?;
 
-                                if self.current_content() == "\n" {
-                                    self.next()?
-                                }
+                                self.skip_types(vec![TokenType::Whitespace])?;
+                                self.consume_content("\n")?;
 
                                 StatementNode::Definition {
                                     kind:  TypeNode::Nil,
@@ -143,9 +141,8 @@ impl<'p> Parser<'p> {
 
                                     let right = self.expression()?;
 
-                                    if self.current_content() == "\n" {
-                                        self.next()?
-                                    }
+                                    self.skip_types(vec![TokenType::Whitespace])?;
+                                    self.consume_content("\n")?;
 
                                     StatementNode::Definition {
                                         kind,
@@ -157,9 +154,8 @@ impl<'p> Parser<'p> {
 
                                     let right = self.expression()?;
 
-                                    if self.current_content() == "\n" {
-                                        self.next()?
-                                    }
+                                    self.skip_types(vec![TokenType::Whitespace])?;
+                                    self.consume_content("\n")?;
 
                                     StatementNode::ConstDefinition {
                                         kind,
@@ -648,6 +644,35 @@ impl<'p> Parser<'p> {
         Ok(Some((name, kind)))
     }
 
+    fn member_construct_(self: &mut Self) -> Response<Option<(String, Rc<Expression>)>> {
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+        if self.remaining() < 2 {
+            return Ok(None)
+        }
+
+        let name = self.consume_type(TokenType::Identifier)?;
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+        self.consume_content(":")?;
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+        let expression = Rc::new(self.expression()?);
+        self.skip_types(vec![TokenType::Whitespace])?;
+
+        if self.remaining() > 1 {
+            if self.current_content() == "," {
+                self.consume_content(",")?;
+            } else {
+                self.consume_type(TokenType::EOL)?;
+            }
+        }
+
+        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
+
+        Ok(Some((name, expression)))
+    }
+
     fn expression_(self: &mut Self) -> Response<Option<Expression>> {
         let expression = self.expression()?;
 
@@ -704,6 +729,35 @@ impl<'p> Parser<'p> {
             Ok(Vec::new())
         }
 
+    }
+    
+    fn maybe_construct(&mut self, atom: Expression) -> Response<Expression> {
+        use ExpressionNode::*;
+
+        if let Identifier(_) = atom.0 {
+            let backup_top = self.top;
+
+            self.skip_types(vec![TokenType::Whitespace])?;
+
+            let node = match self.current_content().as_str() {
+                "{" => {
+                    let members = self.block_of(&mut Self::member_construct_, ("{", "}"))?;
+
+                    return Ok(Expression::new(
+                        ExpressionNode::Constructor(Rc::new(atom.clone()), members),
+                        atom.1.clone(),
+                    ));
+                },
+
+                _ => atom.clone(),
+            };
+
+            self.top = backup_top;
+
+            Ok(node)
+        } else {
+            Ok(atom)
+        }
     }
 
     fn maybe_call(&mut self, atom: Expression) -> Response<Expression> {
@@ -767,7 +821,9 @@ impl<'p> Parser<'p> {
 
         self.top = backup_top;
 
-        self.maybe_call(node)
+        let maybe_call = self.maybe_call(node)?;
+
+        self.maybe_construct(maybe_call)
     }
 
     fn arg_(self: &mut Self) -> Response<Option<Expression>> {
@@ -976,7 +1032,7 @@ impl<'p> Parser<'p> {
         } else {
             Err(make_error(
                 Some(self.current().position),
-                format!("expected '{}', found '{}'", content, self.current_content())
+                format!("expected '{}', found '{}'", if content != "\n" { content } else { "new line" }, self.current_content())
             ))
         }
     }
@@ -991,7 +1047,7 @@ impl<'p> Parser<'p> {
         } else {
             Err(make_error(
                 Some(self.current().position),
-                format!("expected '{}', found '{}'", content, self.current_content())
+                format!("expected '{}', found '{}'", if content != "\n" { content } else { "new line" }, self.current_content())
             ))
         }
     }

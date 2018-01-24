@@ -15,7 +15,8 @@ pub enum TypeNode {
     Id(String),
     Fun(Vec<Type>, Rc<Type>),
     Array(Rc<Type>),
-    Struct(HashMap<String, (Type, Option<Type>)>)
+    Struct(HashMap<String, TypeNode>),
+    Instance(Rc<Type>),
 }
 
 // this is for typechecking
@@ -48,7 +49,8 @@ impl Display for TypeNode {
             Bool  => write!(f, "bool"),
             Str   => write!(f, "string"),
             Nil   => write!(f, "nil"),
-            Struct(_) => write!(f, "struct"),
+            Struct(_)   => write!(f, "struct"),
+            Instance(_) => write!(f, "instance"),
             Array(ref content) => write!(f, "[{}]", content),
             Fun(ref params, ref return_type) => {
                 write!(f, "(")?;
@@ -221,15 +223,15 @@ impl<'v> Visitor<'v> {
                     Err(make_error(Some(position), format!("struct '{}' defined multiple times", name)))
                 } else {
                     self.typetab.grow();
-                    self.symtab.add_name(&name);
+                    let index = self.symtab.add_name(&name);
 
                     let mut hash_members = HashMap::new();
 
                     for &(ref name, ref member_type) in members.iter() {
-                        hash_members.insert(name, member_type);
+                        hash_members.insert(name.clone(), member_type.clone());
                     }
 
-                    Ok(())
+                    self.typetab.set_type(index, 0, Type::new(TypeNode::Struct(hash_members), TypeMode::Constant))
                 }
             },
             (&Return(ref value), _) => if let Some(ref value) = *value {
@@ -271,6 +273,37 @@ impl<'v> Visitor<'v> {
                 Ok(())
             },
 
+            (&Constructor(ref name, ref members), position) => {
+                use TypeNode::*;
+                
+                let name_type = self.type_expression(&name)?;
+
+                match name_type.0 {
+                    Struct(ref types) => {
+                        let mut acc = 0;
+
+                        for (member_name, member_type) in types {
+                            let con_member = match members.get(acc) {
+                                Some(member) => member,
+                                None         => return Err(make_error(Some(position), format!("missing initialization '{}'", member_name)))
+                            };
+
+                            self.visit_expression(&con_member.1)?;
+                            let con_type = self.type_expression(&con_member.1)?;
+
+                            if *member_type != con_type.0 {
+                                return Err(make_error(Some(position), format!("mismatching member '{}': expected '{}', found '{}'", member_name, member_type, con_type)))
+                            }
+
+                            acc += 1
+                        }
+
+                        Ok(())
+                    },
+                    _ => Err(make_error(Some(position), format!("can't initialize '{}'", name_type)))
+                }
+            },
+
             (&Index(ref indexed, ref index), position) => {
                 let indexed_type = self.type_expression(indexed)?;
 
@@ -282,6 +315,24 @@ impl<'v> Visitor<'v> {
                             Err(make_error(Some(position), format!("can't index '{}' with '{}'", indexed_type, index_type)))
                         } else {
                             Ok(())
+                        }
+                    },
+
+                    TypeNode::Instance(ref structure) => {
+                        if let TypeNode::Struct(ref members) = structure.0 {
+                            match index.0 {
+                                Identifier(ref name) |
+                                Str(ref name)        => {
+                                    if members.get(name).is_some() {
+                                        Ok(())
+                                    } else {
+                                        Err(make_error(Some(position), format!("no field '{}'", name)))
+                                    }
+                                },
+                                _ => Err(make_error(Some(position), format!("indexing struct with non-key '{:?}'", index.0)))
+                            }
+                        } else {
+                            Err(make_error(Some(position), format!("weird-ass instance here")))
                         }
                     },
 
@@ -404,11 +455,21 @@ impl<'v> Visitor<'v> {
 
             (&Array(ref content), _) => Type::new(TypeNode::Array(Rc::new(self.type_expression(&content[0])?)), TypeMode::Just),
 
-            (&Index(ref indexed, _), _) => if let TypeNode::Array(ref content) = self.type_expression(indexed)?.0 {
-                (**content).clone()
-            } else {
-                unreachable!()
-            },
+            (&Index(ref indexed, ref index), _) => match self.type_expression(indexed)?.0 {
+                TypeNode::Array(ref content) => (**content).clone(),
+                TypeNode::Instance(ref structure) => if let TypeNode::Struct(ref members) = structure.0 {
+                    match index.0 {
+                        Identifier(ref name) |
+                        Str(ref name)        => Type::new(members.get(name).unwrap().clone(), TypeMode::Just),
+                        _ => unreachable!(),
+                    }
+                } else {
+                    unreachable!()
+                }
+                _ => unreachable!(),
+            }
+
+            (&Constructor(ref name, _), _) => Type::new(TypeNode::Instance(Rc::new(self.type_expression(name)?)), TypeMode::Just),
 
             (&Function {ref params, ref return_type, ..}, _) => {
                 Type::new(TypeNode::Fun(

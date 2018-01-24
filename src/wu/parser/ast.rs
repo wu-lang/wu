@@ -56,7 +56,7 @@ pub enum ExpressionNode {
     Call(Rc<Expression>, Vec<Expression>),
     Block(Vec<Statement>),
     Index(Rc<Expression>, Rc<Expression>),
-    Constructor(String),
+    Constructor(Rc<Expression>, Vec<(String, Rc<Expression>)>),
     EOF,
 }
 

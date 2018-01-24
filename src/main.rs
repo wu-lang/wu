@@ -13,7 +13,12 @@ struct point {
     y: float
 }
 
-foo :: (a: float = if 2 % 2 == 0 {100} else {200}) float -> a
+position :: point {
+    x: 100
+    y: 100
+}
+
+test: float = position x
 "#;
 
     let path = "test.wu";
