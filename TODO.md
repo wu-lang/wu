@@ -6,13 +6,13 @@ some stuff we need to do in no particular order, in order to make *wu* more cool
 
 - [x] match
 - [ ] for
-- [ ] while and loop
+- [x] while
 - [ ] generics
 - [ ] tuples
 - [ ] import
 - [ ] modules
 - [x] arrays
-- [ ] unary operations
+- [x] unary operations
 - [x] structs or classes
 - [ ] interpreter
 - [x] lots of errors at the same time

@@ -63,6 +63,25 @@ impl<'p> Parser<'p> {
                         ret
                     }
                 },
+                
+                "while" => {
+                    self.next()?;
+                    
+                    self.skip_types(vec![Whitespace])?;
+                    
+                    let condition = self.expression()?;
+                    
+                    self.skip_types(vec![Whitespace])?;
+                    
+                    self.expect_content("{")?;
+
+                    let body = self.atom()?;
+
+                    StatementNode::While {
+                        condition,
+                        body,
+                    }
+                }
 
                 "struct" => {
                     self.next()?;

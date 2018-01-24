@@ -251,6 +251,20 @@ impl<'v> Visitor<'v> {
                 Ok(())
             },
             (&If(ref if_node), ref position) => self.visit_if(if_node, position),
+            (&While { ref condition, ref body }, position) => {
+                let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
+                let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+
+                let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
+
+                self.visit_expression(&condition)?;
+
+                if self.type_expression(&condition)? != Type::boolean() {
+                    Err(make_error(Some(position.clone()), "non-boolean condition".to_owned()))
+                } else {
+                    visitor.visit_expression(body)
+                }
+            }
         }
     }
 
@@ -687,7 +701,7 @@ impl<'v> Visitor<'v> {
             _                          => self.visit_expression(right)?,
         }
 
-        let right_kind = self.type_expression(&right)?;
+        let right_kind = Type::new(self.type_expression(&right)?.0, TypeMode::Constant);
         
         if kind != TypeNode::Nil {
             if kind != right_kind.0 {

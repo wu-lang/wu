@@ -42,7 +42,7 @@ impl<'c> Codegen<'c> {
                                 format!("{}\n", self.gen_block_assignment(&block, &left.0))
                             }
                         },
-                        _ => format!("{} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+                        _ => format!("local {} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
                     }
 
                     None => if let ExpressionNode::Identifier(_) = left.0 {
@@ -52,6 +52,8 @@ impl<'c> Codegen<'c> {
                     }
                 }
             },
+            
+            While { ref condition, ref body } => format!("while {} do\n{}\nend", self.gen_expression(&condition.0), self.gen_expression(&body.0)),
 
             ConstDefinition { ref left, ref right, .. } => match right.0 {
                 ref block @ ExpressionNode::Block(_) => {
