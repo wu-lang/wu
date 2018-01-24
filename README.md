@@ -71,7 +71,7 @@ print(hmm)
 ```
 
 while
-```
+```lua
 i := 0
 
 while i < 1000 {
