@@ -99,6 +99,7 @@ pub enum Operator {
     Concat,
     PipeLeft,
     PipeRight,
+    Compound(Rc<Operator>),
     Not,
 }
 
@@ -116,13 +117,22 @@ impl Operator {
             "-"   => Some((Sub, 2)),
             "++"  => Some((Concat, 2)),
             "=="  => Some((Equal, 3)),
-            "~="  => Some((NEqual, 3)),
-            "<"   => Some((Lt, 4)),
-            ">"   => Some((Gt, 4)),
-            "<="  => Some((LtEqual, 4)),
-            ">="  => Some((GtEqual, 4)),
-            "<|"  => Some((PipeLeft, 5)),
-            "|>"  => Some((PipeRight, 5)),
+            "!="  => Some((NEqual, 3)),
+
+            "+="  => Some((Compound(Rc::new(Add)), 3)),
+            "-="  => Some((Compound(Rc::new(Sub)), 3)),
+            "*="  => Some((Compound(Rc::new(Mul)), 3)),
+            "%="  => Some((Compound(Rc::new(Mod)), 3)),
+            "/="  => Some((Compound(Rc::new(Div)), 3)),
+            "^="  => Some((Compound(Rc::new(Pow)), 3)),
+            "++=" => Some((Compound(Rc::new(Concat)), 3)),
+
+            "<"   => Some((Lt, 3)),
+            ">"   => Some((Gt, 3)),
+            "<="  => Some((LtEqual, 3)),
+            ">="  => Some((GtEqual, 3)),
+            "<|"  => Some((PipeLeft, 4)),
+            "|>"  => Some((PipeRight, 4)),
             _     => None,
         }
     }

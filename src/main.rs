@@ -9,10 +9,14 @@ use wu::codegen::*;
 fn main() {
     let source = r#"
 a := 0
+a += true
+a -= 10
+a ^= 10
+a *= 2
+a /= true
 
-while a < 100 {
-    a = a + 1
-}
+s: string = "hello, "
+s ++= "world"
 "#;
     let path = "test.wu";
 

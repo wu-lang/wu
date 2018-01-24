@@ -548,32 +548,34 @@ impl<'v> Visitor<'v> {
                         return Err(make_error(Some(position), format!("can't pow '{}' and '{}'", a, b)))
                     },
 
-                    (a, &Add, b) => if a == b {
+                    (a, c @ &Mul, b) |
+                    (a, c @ &Div, b) |
+                    (a, c @ &Sub, b) |
+                    (a, c @ &Add, b) => if a == b {
                         Type::new(a.0, TypeMode::Just)
                     } else {
-                        return Err(make_error(Some(position), format!("can't add '{}' and '{}'", a, b)))
-                    },
-
-                    (a, &Sub, b) => if a == b {
-                        Type::new(a.0, TypeMode::Just)
-                    } else {
-                        return Err(make_error(Some(position), format!("can't subtract '{}' and '{}'", a, b)))
-                    },
-
-                    (a, &Mul, b) => if a == b {
-                        Type::new(a.0, TypeMode::Just)
-                    } else {
-                        return Err(make_error(Some(position), format!("can't multiply '{}' and '{}'", a, b)))
+                        return Err(make_error(Some(position), format!("failed to {} '{}' and '{}'", format!("{:?}", c).to_lowercase(), a, b)))
                     }
 
-                    (_, &Equal, _)   => Type::new(Bool, TypeMode::Just),
-                    (_, &NEqual, _)  => Type::new(Bool, TypeMode::Just),
-                    (_, &Lt, _)      => Type::new(Bool, TypeMode::Just),
-                    (_, &Gt, _)      => Type::new(Bool, TypeMode::Just),
-                    (_, &LtEqual, _) => Type::new(Bool, TypeMode::Just),
+                    (_, &Equal, _)   |
+                    (_, &NEqual, _)  |
+                    (_, &Lt, _)      |
+                    (_, &Gt, _)      |
+                    (_, &LtEqual, _) |
                     (_, &GtEqual, _) => Type::new(Bool, TypeMode::Just),
 
                     (_, &Not, _) => return Err(make_error(Some(position), format!("can't use '~' as a binary operation"))),
+
+                    (ref left_type, &Compound(ref op), _) => {
+                        if left_type.1.check(&TypeMode::Constant) {
+                            return Err(make_error(Some(position), "can't reassign immutable".to_owned()))
+                        } else {
+                            match self.type_expression(&Expression::new(Binary { left: left.clone(), op: (**op).clone(), right: right.clone() }, position)) {
+                                Ok(_)      => Type::nil(),
+                                e @ Err(_) => return e,
+                            }
+                        }
+                    },
 
                     _ => Type::nil(),
                 }

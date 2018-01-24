@@ -51,10 +51,6 @@ foo :: {
  baz :: (a float) float -> a^10
  baz(100)
 }
-
-bar: bool = {
- return true -- "return" = wrong grrrr
-}
 ```
 
 if and match

@@ -333,7 +333,14 @@ impl<'c> Codegen<'c> {
 
                 format!("{}({})", compiled_left, compiled_right)
             },
-            
+
+            Compound(ref op) => {
+                let compiled_left  = self.gen_expression(left);
+                let compiled_right = self.gen_expression(right);
+
+                format!("{0} = {0}{1}{2}", compiled_left, self.gen_operator(&*op), compiled_right)
+            },
+
             _ => {
                 let compiled_left  = self.gen_expression(left);
                 let compiled_op    = self.gen_operator(op);
