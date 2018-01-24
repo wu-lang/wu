@@ -55,7 +55,7 @@ foo :: {
 
 if and match
 ```lua
-number := math.random(0, 100)
+number := math random(0, 100)
 
 if number % 2 == 0 {
   print("okok")
