@@ -70,6 +70,16 @@ hmm := match number % 2 {
 print(hmm)
 ```
 
+while
+```
+i := 0
+
+while i < 1000 {
+ print("hey")
+ i += 1
+}
+```
+
 ```lua
 fib :: (a: int) int -> match a {
  | 0 -> 0
@@ -159,6 +169,20 @@ bob := frog {
 -- very innovative, doesn't have `.`
 bob position x = -100
 bob jump_height -= 10
+```
+
+compound assignments
+```
+a: float = 0
+a += 10
+a -= 10
+a %= 2
+a ^= 10
+a *= 2
+a /= 0.5
+
+s: string = "hello, "
+s ++= "world"
 ```
 
 ---
