@@ -192,6 +192,18 @@ impl<'v> Visitor<'v> {
         }
     }
 
+    pub fn dealias(&mut self, alias: &Type) -> Response<Type> {
+        use TypeNode::*;
+
+        let a = match alias.0 {
+            Id(ref id)   => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), TokenPosition::default())),
+            Array(ref t) => Ok(Type::new(Array(Rc::new(self.dealias(&*t)?)), alias.1.clone())),
+            _            => Ok(alias.clone()),
+        };
+
+        a
+    }
+
     pub fn validate(&mut self) -> Response<()> {
         let mut responses = Vec::new();
 
@@ -304,13 +316,8 @@ impl<'v> Visitor<'v> {
             },
 
             (&Index(ref indexed, ref index), position) => {
-                let indexed_type = match self.type_expression(indexed)?.0 {
-                    TypeNode::Id(ref id) => {
-                        self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), position))?
-                    }
-                    _ => self.type_expression(indexed)?,
-                };
-
+                let indexed_type = self.type_expression(&indexed)?;
+                
                 if indexed_type.1.check(&TypeMode::Undeclared) {
                     return Err(make_error(Some(position), format!("can't index undeclared")))
                 }
@@ -396,12 +403,9 @@ impl<'v> Visitor<'v> {
 
         let body_t = visitor.type_expression(body)?;
         
-        let return_type = match *return_type {
-            TypeNode::Id(ref id) => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), body.1))?.0,
-            _                    => return_type.clone(),
-        };
+        let return_type = self.dealias(&Type::new(return_type.clone(), TypeMode::Just))?;
 
-        if Type::new(return_type.clone(), TypeMode::Just) != body_t {
+        if return_type != body_t {
             Err(make_error(Some(body.1), format!("mismatched return type, expected '{}' .. found '{}'", return_type, body_t)))
         } else {
             Ok(())
@@ -467,13 +471,8 @@ impl<'v> Visitor<'v> {
 
             (&Array(ref content), _) => Type::new(TypeNode::Array(Rc::new(self.type_expression(&content[0])?)), TypeMode::Just),
 
-            (&Index(ref indexed, ref index), position) => {
-                let indexed_type = match self.type_expression(indexed)?.0 {
-                    TypeNode::Id(ref id) => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), position))?.0,
-                    _                    => self.type_expression(indexed)?.0,
-                };
-
-                match indexed_type {
+            (&Index(ref indexed, ref index), _) => {
+                match self.type_expression(indexed)?.0 {
                     TypeNode::Array(ref content) => (**content).clone(),
                     TypeNode::Struct(ref members) => match index.0 {
                         Identifier(ref name) |
@@ -487,13 +486,10 @@ impl<'v> Visitor<'v> {
 
             (&Constructor(ref name, _), _) => Type::new(self.type_expression(name)?.0, TypeMode::Just),
 
-            (&Function {ref params, ref return_type, ..}, position) => {
+            (&Function {ref params, ref return_type, ..}, _) => {
                 Type::new(TypeNode::Fun(
                     params.iter().map(|x| Type::new(x.1.clone(), if let Some(_) = x.2 { TypeMode::Optional } else { TypeMode::Just })).collect::<Vec<Type>>(),
-                    Rc::new(Type::new(match *return_type {
-                        TypeNode::Id(ref id) => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), position))?.0,
-                        _                    => return_type.clone(),
-                    }, TypeMode::Just)),
+                    Rc::new(self.dealias(&Type::new(return_type.clone(), TypeMode::Just))?),
                 ), TypeMode::Just)
             },
 
@@ -576,7 +572,7 @@ impl<'v> Visitor<'v> {
             _ => Type::nil(),
         };
 
-        Ok(t)
+        self.dealias(&t)
     }
 
     fn find_return_type(&mut self, statement: &StatementNode, is_last: bool) -> Response<Option<Type>> {
@@ -605,6 +601,8 @@ impl<'v> Visitor<'v> {
 
     fn visit_definition(&mut self, kind: &TypeNode, left: &Expression, right: &Option<Expression>) -> Response<()> {
         use ExpressionNode::*;
+        
+        let kind = self.dealias(&Type::new(kind.clone(), TypeMode::Constant))?.0;
 
         let index = match left.0 {
             Identifier(ref name) => {
@@ -626,8 +624,8 @@ impl<'v> Visitor<'v> {
 
             let right_kind = self.type_expression(&right)?;
 
-            if *kind != TypeNode::Nil {
-                if *kind != right_kind.0 {
+            if kind != TypeNode::Nil {
+                if kind != right_kind.0 {
                     return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
                 } else {
                     self.typetab.set_type(index, 0, var_type)?;
@@ -648,6 +646,8 @@ impl<'v> Visitor<'v> {
     fn visit_constant(&mut self, kind: &TypeNode, left: &Expression, right: &Expression) -> Response<()> {
         use ExpressionNode::*;
 
+        let kind = self.dealias(&Type::new(kind.clone(), TypeMode::Constant))?.0;
+
         let index = match left.0 {
             Identifier(ref name) => {
                 self.typetab.grow();
@@ -665,9 +665,9 @@ impl<'v> Visitor<'v> {
         }
 
         let right_kind = self.type_expression(&right)?;
-
-        if *kind != TypeNode::Nil {
-            if *kind != right_kind.0 {
+        
+        if kind != TypeNode::Nil {
+            if kind != right_kind.0 {
                 return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))
             } else {
                 self.typetab.set_type(index, 0, const_type)?;

@@ -1,12 +1,14 @@
 use super::lexer::TokenPosition;
 use colored::Colorize;
 
+#[derive(Debug)]
 pub enum ResponseType {
     Wrong,
     Weird,
     Group(Vec<ResponseNode>),
 }
 
+#[derive(Debug)]
 pub struct ResponseNode {
     pub position: Option<TokenPosition>,
     pub kind:     ResponseType,

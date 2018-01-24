@@ -13,8 +13,7 @@ some stuff we need to do in no particular order, in order to make *wu* more cool
 - [ ] modules
 - [x] arrays
 - [ ] unary operations
-- [ ] tables
-- [ ] structs or classes
+- [x] structs or classes
 - [ ] interpreter
 - [x] lots of errors at the same time
 - [x] ( ͡° ͜ʖ ͡°)

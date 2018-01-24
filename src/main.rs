@@ -30,6 +30,8 @@ point_from :: (other: point) point -> point {
 
 hmm := point_from(position,)
 hm2 := new_point(100, 12.0)
+
+grrr: [point] = [point {x: 100, y: 200}, point {x: 1, y: 2}]
 "#;
 
     let path = "test.wu";
