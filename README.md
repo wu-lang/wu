@@ -136,7 +136,7 @@ sub: (int, int) int = (a: int, b: int) int -> a - b
 ```
 
 structs
-```
+```lua
 struct point {
  x: float
  y: float
@@ -149,7 +149,7 @@ position: point = point {
 ```
 
 member indexing
-```
+```lua
 struct frog {
  position:    point
  jump_height: float
