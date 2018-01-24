@@ -180,6 +180,8 @@ impl<'c> Codegen<'c> {
             Bool(ref n)       => format!("{}", n),
             Identifier(ref n) => format!("{}", n),
 
+            Unary(ref op, ref expression) => format!("{}({})", self.gen_operator(op), self.gen_expression(&expression.0)),
+
             Index(ref indexed, ref index) => {
                 let right = match index.0 {
                     Block(_) => format!("(function()\n{}end)()", self.gen_block_return(&index.0)),

@@ -464,6 +464,14 @@ impl<'p> Parser<'p> {
             TokenType::Bool       => Bool(self.consume_type(TokenType::Bool)? == "true"),
             TokenType::Identifier => Identifier(self.consume_type(TokenType::Identifier)?),
 
+            TokenType::Operator => {
+                let (op, _) = Operator::from(&self.consume_type(TokenType::Operator)?).unwrap();
+                
+                self.skip_types(vec![TokenType::Whitespace])?;
+
+                Unary(op, Rc::new(self.atom()?))
+            }
+
             TokenType::Symbol => match self.current_content().as_str() {
                 "{" => {
                     Block(self.block_of(&Self::statement_, ("{", "}"))?)

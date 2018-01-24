@@ -25,13 +25,13 @@ pub fn make_lexer<'l>(data: Vec<char>, lines: &'l Vec<String>, path: &'l str) ->
     lexer.matchers_mut().push(Rc::new(eol_matcher));
 
     let operator_matcher = ConstantStringMatcher::new(TokenType::Operator, &[
-        "++", "+", "-", "*", "/", "^", ">=", "<=", "==", "!=", "<|", "|>", "<", ">", "%",
+        "++", "+", "-", "*", "/", "^", ">=", "<=", "==", "!=", "<|", "|>", "<", ">", "%", "!",
     ]);
 
     lexer.matchers_mut().push(Rc::new(operator_matcher));
 
     let symbol_matcher = ConstantCharMatcher::new(TokenType::Symbol, &[
-        '(', ')', '[', ']', '{', '}', ',', ':', ';', '!', '|', '=', '.'
+        '(', ')', '[', ']', '{', '}', ',', ':', ';', '|', '=', '.'
     ]);
 
     lexer.matchers_mut().push(Rc::new(symbol_matcher));

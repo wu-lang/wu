@@ -497,6 +497,27 @@ impl<'v> Visitor<'v> {
                 TypeNode::Fun(_, ref retty) => (**retty).clone(),
                 ref t                       => return Err(make_error(Some(position), format!("can't call: {}", t))),
             },
+            
+            (&Unary(ref op, ref expression), position) => {
+                use Operator::*;
+                use TypeNode::*;
+
+                match (op, &self.type_expression(&*expression)?) {
+                    (&Sub, a) => if vec![Float, Int].contains(&a.0) {
+                        a.clone()
+                    } else {
+                        return Err(make_error(Some(position), format!("can't negate '{}'", a)))
+                    }
+
+                    (&Not, a) => if a.0 == Bool {
+                        a.clone()
+                    } else {
+                        return Err(make_error(Some(position), format!("can't negate non-bool '{}'", a)))
+                    }
+
+                    _ => Type::nil(),
+                }
+            },
 
             (&Binary { ref left, ref op, ref right }, position) => {
                 use Operator::*;
@@ -537,6 +558,8 @@ impl<'v> Visitor<'v> {
                     (_, &Gt, _)      => Type::new(Bool, TypeMode::Just),
                     (_, &LtEqual, _) => Type::new(Bool, TypeMode::Just),
                     (_, &GtEqual, _) => Type::new(Bool, TypeMode::Just),
+
+                    (_, &Not, _) => return Err(make_error(Some(position), format!("can't use '~' as a binary operation"))),
 
                     _ => Type::nil(),
                 }

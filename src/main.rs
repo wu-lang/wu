@@ -8,32 +8,10 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-struct point {
-    x: float
-    y: float
+a := if !true {
+    10 + -100 * -(100 * 100)
 }
-
-position :: point {
-    x: 100
-    y: 100
-}
-
-new_point :: (x: float, y: float) point -> point {
-    x: x
-    y: y
-}
-
-point_from :: (other: point) point -> point {
-    x: other x
-    y: other y
-}
-
-hmm := point_from(position,)
-hm2 := new_point(100, 12.0)
-
-grrr: [point] = [point {x: 100, y: 200}, point {x: 1, y: 2}]
 "#;
-
     let path = "test.wu";
 
     let lines = source.lines().map(|x| x.to_string()).collect();

@@ -57,6 +57,7 @@ pub enum ExpressionNode {
     Block(Vec<Statement>),
     Index(Rc<Expression>, Rc<Expression>),
     Constructor(Rc<Expression>, Vec<(String, Rc<Expression>)>),
+    Unary(Operator, Rc<Expression>),
     EOF,
 }
 
@@ -93,6 +94,7 @@ pub enum Operator {
     Concat,
     PipeLeft,
     PipeRight,
+    Not,
 }
 
 impl Operator {
@@ -101,6 +103,7 @@ impl Operator {
 
         match v {
             "^"   => Some((Pow, 0)),
+            "!"   => Some((Not, 0)),
             "*"   => Some((Mul, 1)),
             "/"   => Some((Div, 1)),
             "%"   => Some((Mod, 1)),
@@ -108,7 +111,7 @@ impl Operator {
             "-"   => Some((Sub, 2)),
             "++"  => Some((Concat, 2)),
             "=="  => Some((Equal, 3)),
-            "!="  => Some((NEqual, 3)),
+            "~="  => Some((NEqual, 3)),
             "<"   => Some((Lt, 4)),
             ">"   => Some((Gt, 4)),
             "<="  => Some((LtEqual, 4)),
