@@ -64,6 +64,47 @@ impl<'p> Parser<'p> {
                     }
                 },
                 
+                "import" => {
+                    self.next()?;
+                    self.skip_types(vec![Whitespace])?;
+
+                    let origin = self.atom()?;
+                    
+                    self.skip_types(vec![Whitespace])?;
+
+                    if self.current_content() == "\n" {
+                        StatementNode::Import {
+                            origin,
+                            expose: None,
+                        }
+                    } else {
+                        self.consume_content("expose")?;
+                        self.skip_types(vec![Whitespace])?;
+
+                        let mut expose = Vec::new();
+
+                        loop {
+                            expose.push(self.consume_type(Identifier)?);
+                            self.skip_types(vec![Whitespace])?;
+                            
+                            if self.current_content() == "," {
+                                self.next()?;
+                                self.skip_types(vec![Whitespace])?;
+                            } else {
+                                break
+                            }
+                        }
+
+                        self.skip_types(vec![Whitespace])?;
+                        self.consume_content("\n")?;
+
+                        StatementNode::Import {
+                            origin,
+                            expose: Some(expose),
+                        }
+                    }
+                }
+                
                 "module" => {
                     self.next()?;
                     self.skip_types(vec![Whitespace])?;
@@ -841,7 +882,6 @@ impl<'p> Parser<'p> {
             let node = match self.current_type() {
                 TokenType::Identifier => {
                     let position = self.position();
-                    println!("{:?}", self.remaining());
                     let indexing = Expression(Str(self.consume_type(TokenType::Identifier)?), position);
                     
                     self.skip_types(vec![TokenType::Whitespace])?;

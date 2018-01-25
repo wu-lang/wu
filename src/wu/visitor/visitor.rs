@@ -295,11 +295,36 @@ impl<'v> Visitor<'v> {
                         hash_types.insert(name.clone(), visitor.typetab.get_type(*index, 0)?);
                     }
                     
-                    println!("{:#?}", hash_types);
-
                     self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
                 }
-            }
+            },
+
+            (&Import { ref origin, ref expose }, position) => {
+                let origin_type = self.type_expression(origin)?;
+
+                match origin_type.0 {
+                    TypeNode::Module(ref members) => {
+                        if let Some(ref expose) = *expose {
+                            for exposed in expose {
+                                match members.get(exposed) {
+                                    Some(ref member) => {
+                                        self.typetab.grow();
+                                        let index = self.symtab.add_name(&exposed);
+                                        self.typetab.set_type(index, 0, (**member).clone())?;
+                                    },
+                                    None    => return Err(make_error(Some(position), format!("can't expose non-existing member '{}'", exposed)))
+                                }
+                            }
+
+                            Ok(())
+                        } else {
+                            Ok(())
+                        }
+                    },
+
+                    _ => Err(make_error(Some(position), format!("can't import from '{}'", origin_type)))
+                }
+            },
         }
     }
 
@@ -551,10 +576,7 @@ impl<'v> Visitor<'v> {
                         Identifier(ref name) |
                         Str(ref name)        => match members.get(name) {
                             Some(a) => a.clone(),
-                            None    => {
-                                println!("{:#?}", members);
-                                return Err(make_error(Some(position), format!("undefined member '{}'", name)))
-                            }
+                            None    => return Err(make_error(Some(position), format!("undefined member '{}'", name))),
                         },
                         _ => unreachable!(),
                     },

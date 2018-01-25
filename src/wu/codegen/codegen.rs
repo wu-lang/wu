@@ -74,6 +74,20 @@ impl<'c> Codegen<'c> {
                 code
             },
 
+            Import { ref origin, ref expose } => {
+                let mut code = String::new();
+
+                if let Some(ref expose) = *expose {
+                    for exposed in expose {
+                        code.push_str(&format!("local {0} = {1}.{0}\n", exposed, self.gen_expression(&origin.0)))
+                    }
+                } else {
+                    code.push_str(&format!("local {0} = {0}\n", self.gen_expression(&origin.0)))
+                }
+
+                code
+            },
+
             Struct {ref name, ref members} => {
                 let mut code = format!("local {} = {{\n", name);
 
@@ -139,6 +153,20 @@ impl<'c> Codegen<'c> {
                 }
 
                 code.push('}');
+                code
+            },
+
+            Import { ref origin, ref expose } => {
+                let mut code = String::new();
+
+                if let Some(ref expose) = *expose {
+                    for exposed in expose {
+                        code.push_str(&format!("{0} = {1}.{0}", exposed, self.gen_expression(&origin.0)))
+                    }
+                } else {
+                    code.push_str(&format!("{0} = {0}", self.gen_expression(&origin.0)))
+                }
+
                 code
             },
 

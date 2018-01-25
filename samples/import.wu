@@ -1,0 +1,19 @@
+module test {
+  struct yes {
+    content: string
+  }
+
+  struct no {
+    content: string
+  }
+}
+
+import test expose yes, no
+
+something := yes {
+  content: "hello world"
+}
+
+idk :: no {
+  content: "yes ok"
+}

@@ -13,7 +13,7 @@ module test {
     }
 }
 
-test_point :=  point {
+test_point := test point {
     x: 1
     y: 2
     z: 3

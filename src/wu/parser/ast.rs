@@ -41,6 +41,11 @@ pub enum StatementNode {
         content: Expression,
     },
 
+    Import {
+        origin: Expression,
+        expose: Option<Vec<String>>,
+    },
+
     If(IfNode),
 }
 
