@@ -17,21 +17,16 @@ impl<'c> Codegen<'c> {
         let mut code = String::new();
 
         for statement in self.ast.iter() {
-            code.push_str(&format!("{}\n", self.gen_statement(&statement.0)))
+            code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)))
         }
         
         code
     }
 
-    fn gen_statement(&self, statement: &StatementNode) -> String {
+    fn gen_statement_local(&self, statement: &StatementNode) -> String {
         use StatementNode::*;
 
         match *statement {
-            Expression(ref expression) => format!("{}\n", self.gen_expression(&expression.0)),
-            Return(ref value)          => format!("return{}\n", match *value {
-                Some(ref v) => format!(" {}", self.gen_expression(&v.0)),
-                None        => String::from("\n"),
-            }),
             Definition { ref left, ref right, .. } => {
                 match *right {
                     Some(ref right) => match right.0 {
@@ -52,8 +47,6 @@ impl<'c> Codegen<'c> {
                     }
                 }
             },
-            
-            While { ref condition, ref body } => format!("while {} do\n{}\nend", self.gen_expression(&condition.0), self.gen_expression(&body.0)),
 
             ConstDefinition { ref left, ref right, .. } => match right.0 {
                 ref block @ ExpressionNode::Block(_) => {
@@ -65,10 +58,7 @@ impl<'c> Codegen<'c> {
                 },
                 _ => format!("local {} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
             },
-
-            Assignment { ref left, ref right, .. } => format!("{} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)),
-            If(ref if_node) => self.gen_if_node(if_node),
-
+            
             Struct {ref name, ref members} => {
                 let mut code = format!("local {} = {{\n", name);
 
@@ -84,7 +74,89 @@ impl<'c> Codegen<'c> {
 
                 code.push_str("\nend\n}");
                 code
-            }
+            },
+
+            ref other => self.gen_statement(other),
+        }
+    }
+
+    fn gen_statement(&self, statement: &StatementNode) -> String {
+        use StatementNode::*;
+
+        match *statement {
+            Expression(ref expression) => format!("{}\n", self.gen_expression(&expression.0)),
+            Return(ref value)          => format!("return{}\n", match *value {
+                Some(ref v) => format!(" {}", self.gen_expression(&v.0)),
+                None        => String::from("\n"),
+            }),
+            Definition { ref left, ref right, .. } => {
+                match *right {
+                    Some(ref right) => match right.0 {
+                        ref block @ ExpressionNode::Block(_) => {
+                            if let ExpressionNode::Identifier(_) = left.0 {
+                                format!("{}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                            } else {
+                                format!("{}\n", self.gen_block_assignment(&block, &left.0))
+                            }
+                        },
+                        _ => format!("{} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+                    }
+
+                    None => if let ExpressionNode::Identifier(_) = left.0 {
+                        format!("{}\n", self.gen_expression(&left.0))
+                    } else {
+                        String::new()
+                    }
+                }
+            },
+
+            While { ref condition, ref body } => format!("while {} do\n{}\nend", self.gen_expression(&condition.0), self.gen_expression(&body.0)),
+
+            Module { ref name, ref content } => {
+                let mut code = format!("local {} = {{\n", name);
+
+                match content.0 {
+                    ExpressionNode::Block(ref content) => for statement in content {
+                        code.push_str(&format!("{}\n", self.gen_statement(&statement.0)))
+                    },
+                    
+                    _ => (),
+                }
+
+                code.push('}');
+                code
+            },
+
+            ConstDefinition { ref left, ref right, .. } => match right.0 {
+                ref block @ ExpressionNode::Block(_) => {
+                    if let ExpressionNode::Identifier(_) = left.0 {
+                        format!("{}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                    } else {
+                        format!("{}\n", self.gen_block_assignment(&block, &left.0))
+                    }
+                },
+                _ => format!("{} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+            },
+
+            Assignment { ref left, ref right, .. } => format!("{} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)),
+            If(ref if_node) => self.gen_if_node(if_node),
+
+            Struct {ref name, ref members} => {
+                let mut code = format!("{} = {{\n", name);
+
+                code.push_str(&format!("__construct__ = function(__constructor)\n"));
+
+                code.push_str("return {\n");
+
+                for &(ref name, _) in members {
+                    code.push_str(&format!("{0} = __constructor.{0},\n", name))
+                }
+
+                code.push('}');
+
+                code.push_str("\nend\n}");
+                code
+            },
         }
     }
 
@@ -156,9 +228,9 @@ impl<'c> Codegen<'c> {
 
         match *statement {
             If(ref if_node) => self.gen_if_node_return(if_node),
-            Return(_)       => format!("{}\n", self.gen_statement(statement)),
-            Expression(_)   => format!("return {}", self.gen_statement(statement)),
-            _               => format!("{}\n", self.gen_statement(statement)),
+            Return(_)       => format!("{}\n", self.gen_statement_local(statement)),
+            Expression(_)   => format!("return {}", self.gen_statement_local(statement)),
+            _               => format!("{}\n", self.gen_statement_local(statement)),
         }
     }
 
@@ -167,8 +239,8 @@ impl<'c> Codegen<'c> {
 
         match *statement {
             If(ref if_node) => self.gen_if_node_assignment(if_node, left),
-            Return(_)       => self.gen_statement(statement),
-            _               => format!("{} = {}\n", self.gen_expression(left), self.gen_statement(statement)),
+            Return(_)       => self.gen_statement_local(statement),
+            _               => format!("{} = {}\n", self.gen_expression(left), self.gen_statement_local(statement)),
         }
     }
 
@@ -253,12 +325,12 @@ impl<'c> Codegen<'c> {
 
             Block(ref statements) => {
                 if statements.len() == 1 {
-                    format!("{}", self.gen_statement(&statements.last().unwrap().0))
+                    format!("{}", self.gen_statement_local(&statements.last().unwrap().0))
                 } else {
                     let mut code = "do\n".to_string();
 
                     for statement in statements {
-                        code.push_str(&self.gen_statement(&statement.0))
+                        code.push_str(&self.gen_statement_local(&statement.0))
                     }
 
                     code.push_str("end\n");
@@ -297,7 +369,7 @@ impl<'c> Codegen<'c> {
                         kind:  TypeNode::Nil,
                     };
 
-                    code.push_str(&self.gen_statement(&definition));
+                    code.push_str(&self.gen_statement_local(&definition));
                     code.push_str(&format!("{0} = {0} and {0} or optional_{0}\n", guard.0));
                 }
 
@@ -399,7 +471,7 @@ impl<'c> Codegen<'c> {
                     if acc == statements.len() {
                         code.push_str(&self.gen_statement_assignment(&statement.0, left))
                     } else {
-                        code.push_str(&format!("{}\n", self.gen_statement(&statement.0)));
+                        code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)));
                     }
 
                     acc += 1

@@ -8,15 +8,29 @@ use wu::codegen::*;
 
 fn main() {
     let source = r#"
-a := 0
-a += true
-a -= 10
-a ^= 10
-a *= 2
-a /= true
+module test {    
+    struct point {
+        x: float
+        y: float
+    }
 
-s: string = "hello, "
-s ++= "world"
+    point := point {
+        x: 100
+        y: 100
+    }
+
+    a: float = point x
+
+    module inner_test {
+        struct point_inner {
+            x: float
+            y: float
+            z: float
+        }
+
+        a: point_inner = point_inner {x: 10, y: 10, z: 10,}
+    }
+}
 "#;
     let path = "test.wu";
 

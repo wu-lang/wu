@@ -76,6 +76,7 @@ impl Display for TypeNode {
 #[derive(Debug, Clone)]
 pub enum TypeMode {
     Undeclared,
+    Unconstructed,
     Constant,
     Just,
     Optional,
@@ -90,6 +91,7 @@ impl TypeMode {
             (&Just,       &Just)       => true,
             (&Constant,   &Constant)   => true,
             (&Undeclared, &Undeclared) => true,
+            (&Unconstructed, &Unconstructed) => true,
             (&Optional,   &Optional)   => true,
             _ => false,
         }
@@ -101,10 +103,11 @@ impl Display for TypeMode {
         use TypeMode::*;
 
         match *self {
-            Just       => Ok(()),
-            Constant   => write!(f, "constant "),
-            Undeclared => write!(f, "undeclared "),
-            Optional   => write!(f, "optional "),
+            Just          => Ok(()),
+            Constant      => write!(f, "constant "),
+            Undeclared    => write!(f, "undeclared "),
+            Unconstructed => write!(f, "unconstructed "),
+            Optional      => write!(f, "optional "),
         }
     }
 }
@@ -115,14 +118,16 @@ impl PartialEq for TypeMode {
         use TypeMode::*;
 
         match (self, other) {
-            (&Just,       &Just)       => true,
-            (&Just,       &Constant)   => true,
-            (&Constant,   &Constant)   => true,
-            (&Constant,   &Just)       => true,
-            (_,           &Optional)   => true,
-            (&Optional,   _)           => true,
-            (&Undeclared, _)           => false,
-            (_,           &Undeclared) => false,
+            (&Just,       &Just)          => true,
+            (&Just,       &Constant)      => true,
+            (&Constant,   &Constant)      => true,
+            (&Constant,   &Just)          => true,
+            (_,           &Optional)      => true,
+            (&Optional,   _)              => true,
+            (&Undeclared, _)              => false,
+            (&Unconstructed, _)           => false,
+            (_,           &Undeclared)    => false,
+            (_,           &Unconstructed) => false,
         }
     }
 }
@@ -242,9 +247,10 @@ impl<'v> Visitor<'v> {
                         hash_members.insert(name.clone(), member_type.clone());
                     }
 
-                    self.typetab.set_type(index, 0, Type::new(TypeNode::Struct(hash_members), TypeMode::Constant))
+                    self.typetab.set_type(index, 0, Type::new(TypeNode::Struct(hash_members), TypeMode::Unconstructed))
                 }
             },
+
             (&Return(ref value), _) => if let Some(ref value) = *value {
                 self.visit_expression(value)
             } else {
@@ -263,6 +269,24 @@ impl<'v> Visitor<'v> {
                     Err(make_error(Some(position.clone()), "non-boolean condition".to_owned()))
                 } else {
                     visitor.visit_expression(body)
+                }
+            },
+
+            (&Module { ref name, ref content }, position) => {
+                if self.symtab.get_name(name).is_some() {
+                    Err(make_error(Some(position), format!("module '{}' defined multiple times", name)))
+                } else {
+                    self.typetab.grow();
+                    let index = self.symtab.add_name(&name);
+
+                    let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
+                    let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+
+                    let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
+
+                    visitor.visit_expression(&content)?;
+
+                    self.typetab.set_type(index, 0, Type::nil())
                 }
             }
         }
@@ -302,9 +326,13 @@ impl<'v> Visitor<'v> {
                 use TypeNode::*;
                 
                 let name_type = self.type_expression(&name)?;
-
+                
                 match name_type.0 {
                     Struct(ref types) => {
+                        if !name_type.1.check(&TypeMode::Unconstructed) {
+                            return Err(make_error(Some(position), format!("expected unconstructed struct, found '{}'", name_type)))
+                        }
+
                         let mut acc = 0;
 
                         for (member_name, member_type) in types {
@@ -332,8 +360,8 @@ impl<'v> Visitor<'v> {
             (&Index(ref indexed, ref index), position) => {
                 let indexed_type = self.type_expression(&indexed)?;
                 
-                if indexed_type.1.check(&TypeMode::Undeclared) {
-                    return Err(make_error(Some(position), format!("can't index undeclared")))
+                if indexed_type.1.check(&TypeMode::Undeclared) || indexed_type.1.check(&TypeMode::Unconstructed) {
+                    return Err(make_error(Some(position), format!("can't index '{}'", indexed_type)))
                 }
 
                 match indexed_type.0 {
@@ -478,10 +506,12 @@ impl<'v> Visitor<'v> {
             (&Float(_), _) => Type::float(),
             (&Bool(_), _)  => Type::boolean(),
             (&Str(_), _)   => Type::string(),
-            (&Identifier(ref name), position) => match self.symtab.get_name(&*name) {
-                Some((i, env_index)) => self.typetab.get_type(i, env_index)?,
-                None                 => return Err(make_error(Some(position), format!("undefined type of: {}", name)))
-            },
+            (&Identifier(ref name), position) => {
+                match self.symtab.get_name(&*name) {
+                    Some((i, env_index)) => self.typetab.get_type(i, env_index)?,
+                    None                 => return Err(make_error(Some(position), format!("undefined type of: {}", name)))
+                }
+            }
 
             (&Array(ref content), _) => Type::new(TypeNode::Array(Rc::new(self.type_expression(&content[0])?)), TypeMode::Just),
 
@@ -624,7 +654,7 @@ impl<'v> Visitor<'v> {
                 None
             },
 
-            Return(ref value)          => if let Some(ref value) = *value {
+            Return(ref value) => if let Some(ref value) = *value {
                 Some(self.type_expression(value)?)
             } else {
                 Some(Type::nil())
@@ -643,16 +673,6 @@ impl<'v> Visitor<'v> {
         
         let kind = self.dealias(&Type::new(kind.clone(), TypeMode::Constant))?.0;
 
-        let index = match left.0 {
-            Identifier(ref name) => {
-                self.typetab.grow();
-                self.symtab.add_name(&name)
-            },
-
-            Index(..) => return Ok(()),
-            _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
-        };
-
         let var_type = Type::new(kind.clone(), TypeMode::Just);
 
         if let Some(ref right) = *right {
@@ -660,8 +680,18 @@ impl<'v> Visitor<'v> {
                 Function { .. } | Block(_) => (),
                 _                          => self.visit_expression(right)?,
             }
-
+            
             let right_kind = self.type_expression(&right)?;
+            
+            let index = match left.0 {
+                Identifier(ref name) => {
+                    self.typetab.grow();
+                    self.symtab.add_name(&name)
+                },
+
+                Index(..) => return Ok(()),
+                _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
+            };
 
             if kind != TypeNode::Nil {
                 if kind != right_kind.0 {
@@ -669,15 +699,25 @@ impl<'v> Visitor<'v> {
                 } else {
                     self.typetab.set_type(index, 0, var_type)?;
                 }
-            } else {
+            } else {                
                 self.typetab.set_type(index, 0, right_kind)?;
             }
 
             match right.0 {
-                Function { .. } => self.visit_expression(right),
-                _               => Ok(()),
+                Function { .. } | Block(_) => self.visit_expression(right),
+                _                          => Ok(()),
             }
         } else {
+            let index = match left.0 {
+                Identifier(ref name) => {
+                    self.typetab.grow();
+                    self.symtab.add_name(&name)
+                },
+
+                Index(..) => return Ok(()),
+                _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
+            };
+
             self.typetab.set_type(index, 0, Type::new(kind.clone(), TypeMode::Undeclared))
         }
     }
@@ -704,7 +744,11 @@ impl<'v> Visitor<'v> {
         }
 
         let right_kind = Type::new(self.type_expression(&right)?.0, TypeMode::Constant);
-        
+
+        if right_kind.0 == TypeNode::Nil {
+            return Err(make_error(Some(right.1), format!("expected non-nil")))
+        }
+
         if kind != TypeNode::Nil {
             if kind != right_kind.0 {
                 return Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", kind, right_kind)))

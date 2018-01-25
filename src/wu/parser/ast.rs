@@ -36,6 +36,11 @@ pub enum StatementNode {
         body:      Expression,
     },
 
+    Module {
+        name:    String,
+        content: Expression,
+    },
+
     If(IfNode),
 }
 

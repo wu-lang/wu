@@ -64,6 +64,24 @@ impl<'p> Parser<'p> {
                     }
                 },
                 
+                "module" => {
+                    self.next()?;
+                    self.skip_types(vec![Whitespace])?;
+
+                    let name = self.consume_type(Identifier)?;
+
+                    self.skip_types(vec![Whitespace])?;
+                    
+                    self.expect_content("{")?;
+
+                    let content = self.atom()?;
+
+                    StatementNode::Module {
+                        name,
+                        content,
+                    }
+                },
+                
                 "while" => {
                     self.next()?;
                     
