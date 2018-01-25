@@ -35,11 +35,11 @@ impl ResponseNode {
             let line_number = if position.line == 0 {
                 position.line
             } else {
-                position.line
+                position.line - 1
             };
-            
+
             let prefix = format!("{:5} |  ", line_number + 1).blue().bold();
-            let line   = format!("{:5} {}\n{}{}", " ", "|".blue().bold(), prefix, lines.get(if line_number == 1 && lines.len() == 1 { 0 } else { line_number }).unwrap());
+            let line   = format!("{:5} {}\n{}{}", " ", "|".blue().bold(), prefix, lines.get(if line_number == 1 && lines.len() == 1 { 0 } else { line_number }).unwrap_or(lines.last().unwrap()));
 
             let indicator = format!(
                                 "{:6}{}{:offset$}{:^<count$}", " ", "|".bold().blue(), " ", " ".color(color).bold(),
@@ -50,7 +50,6 @@ impl ResponseNode {
             let path_line = format!("{:5}{}{}", " ", "--> ".blue().bold(), path);
 
             println!("{}{}\n{}\n{}", message, path_line, line, indicator)
-
         } else {
             if let ResponseType::Group(ref responses) = self.kind {
                 for response in responses {

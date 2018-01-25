@@ -3,6 +3,16 @@ a strongly typed language that transpiles to lua
 
 ---
 
+### usage
+
+```
+wu's transpiler
+
+usage:
+    wu <file>
+    wu <folder>
+```
+
 ### features
 
 #### currently

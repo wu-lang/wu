@@ -1,0 +1,20 @@
+module test {
+    struct point {
+        x: float
+        y: float
+    }
+
+    module inner_test {
+        struct point_inner {
+            x: float
+            y: float
+            z: float
+        }
+    }
+}
+
+test_point :=  point {
+    x: 1
+    y: 2
+    z: 3
+}
