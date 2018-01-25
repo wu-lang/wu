@@ -779,29 +779,31 @@ impl<'p> Parser<'p> {
     fn maybe_construct(&mut self, atom: Expression) -> Response<Expression> {
         use ExpressionNode::*;
 
-        if let Identifier(_) = atom.0 {
-            let backup_top = self.top;
+        match atom.0 {
+            Identifier(_) | Index(..) => {
+                let backup_top = self.top;
 
-            self.skip_types(vec![TokenType::Whitespace])?;
+                self.skip_types(vec![TokenType::Whitespace])?;
 
-            let node = match self.current_content().as_str() {
-                "{" => {
-                    let members = self.block_of(&mut Self::member_construct_, ("{", "}"))?;
+                let node = match self.current_content().as_str() {
+                    "{" => {
+                        let members = self.block_of(&mut Self::member_construct_, ("{", "}"))?;
 
-                    return Ok(Expression::new(
-                        ExpressionNode::Constructor(Rc::new(atom.clone()), members),
-                        atom.1.clone(),
-                    ));
-                },
+                        return Ok(Expression::new(
+                            ExpressionNode::Constructor(Rc::new(atom.clone()), members),
+                            atom.1.clone(),
+                        ));
+                    },
 
-                _ => atom.clone(),
-            };
+                    _ => atom.clone(),
+                };
 
-            self.top = backup_top;
+                self.top = backup_top;
 
-            Ok(node)
-        } else {
-            Ok(atom)
+                Ok(node)
+            },
+
+            _ => Ok(atom)
         }
     }
 

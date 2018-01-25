@@ -58,7 +58,22 @@ impl<'c> Codegen<'c> {
                 },
                 _ => format!("local {} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
             },
-            
+
+            Module { ref name, ref content } => {
+                let mut code = format!("local {} = {{\n", name);
+
+                match content.0 {
+                    ExpressionNode::Block(ref content) => for statement in content {
+                        code.push_str(&format!("{},\n", self.gen_statement(&statement.0)))
+                    },
+                    
+                    _ => (),
+                }
+
+                code.push('}');
+                code
+            },
+
             Struct {ref name, ref members} => {
                 let mut code = format!("local {} = {{\n", name);
 
@@ -113,11 +128,11 @@ impl<'c> Codegen<'c> {
             While { ref condition, ref body } => format!("while {} do\n{}\nend", self.gen_expression(&condition.0), self.gen_expression(&body.0)),
 
             Module { ref name, ref content } => {
-                let mut code = format!("local {} = {{\n", name);
+                let mut code = format!("{} = {{\n", name);
 
                 match content.0 {
                     ExpressionNode::Block(ref content) => for statement in content {
-                        code.push_str(&format!("{}\n", self.gen_statement(&statement.0)))
+                        code.push_str(&format!("{},\n", self.gen_statement(&statement.0)))
                     },
                     
                     _ => (),

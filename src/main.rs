@@ -14,22 +14,19 @@ module test {
         y: float
     }
 
-    point := point {
-        x: 100
-        y: 100
-    }
-
-    a: float = point x
-
     module inner_test {
         struct point_inner {
             x: float
             y: float
             z: float
         }
-
-        a: point_inner = point_inner {x: 10, y: 10, z: 10,}
     }
+}
+
+test_point := test inner_test point_inner {
+    x: 1
+    y: 2
+    z: 3
 }
 "#;
     let path = "test.wu";

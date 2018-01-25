@@ -16,6 +16,7 @@ pub enum TypeNode {
     Fun(Vec<Type>, Rc<Type>),
     Array(Rc<Type>),
     Struct(HashMap<String, TypeNode>),
+    Module(HashMap<String, Type>),
 }
 
 // this is for typechecking
@@ -49,7 +50,8 @@ impl Display for TypeNode {
             Bool  => write!(f, "bool"),
             Str   => write!(f, "string"),
             Nil   => write!(f, "nil"),
-            Struct(_)   => write!(f, "struct"),
+            Struct(_) => write!(f, "struct"),
+            Module(_) => write!(f, "module"),
             Array(ref content) => write!(f, "[{}]", content),
             Fun(ref params, ref return_type) => {
                 write!(f, "(")?;
@@ -256,6 +258,7 @@ impl<'v> Visitor<'v> {
             } else {
                 Ok(())
             },
+
             (&If(ref if_node), ref position) => self.visit_if(if_node, position),
             (&While { ref condition, ref body }, position) => {
                 let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
@@ -285,8 +288,16 @@ impl<'v> Visitor<'v> {
                     let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
                     visitor.visit_expression(&content)?;
+                    
+                    let mut hash_types = HashMap::new();
 
-                    self.typetab.set_type(index, 0, Type::nil())
+                    for (ref name, ref index) in visitor.symtab.names.borrow().clone() {
+                        hash_types.insert(name.clone(), visitor.typetab.get_type(*index, 0)?);
+                    }
+                    
+                    println!("{:#?}", hash_types);
+
+                    self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
                 }
             }
         }
@@ -385,6 +396,18 @@ impl<'v> Visitor<'v> {
                             }
                         },
                         _ => Err(make_error(Some(position), format!("indexing struct with non-key '{:?}'", index.0)))
+                    },
+
+                    TypeNode::Module(ref members) => match index.0 {
+                        Identifier(ref name) |
+                        Str(ref name)        => {
+                            if members.get(name).is_some() {
+                                Ok(())
+                            } else {
+                                Err(make_error(Some(position), format!("no field '{}'", name)))
+                            }
+                        },
+                        _ => Err(make_error(Some(position), format!("indexing module with non-key '{:?}'", index.0)))
                     },
 
                     _ => Err(make_error(Some(position), format!("can't index type '{}'", indexed_type)))
@@ -515,16 +538,28 @@ impl<'v> Visitor<'v> {
 
             (&Array(ref content), _) => Type::new(TypeNode::Array(Rc::new(self.type_expression(&content[0])?)), TypeMode::Just),
 
-            (&Index(ref indexed, ref index), _) => {
+            (&Index(ref indexed, ref index), position) => {
                 match self.type_expression(indexed)?.0 {
                     TypeNode::Array(ref content) => (**content).clone(),
                     TypeNode::Struct(ref members) => match index.0 {
                         Identifier(ref name) |
                         Str(ref name)        => Type::new(members.get(name).unwrap().clone(), TypeMode::Just),
                         _ => unreachable!(),
-                    }
+                    },
+                    
+                    TypeNode::Module(ref members) => match index.0 {
+                        Identifier(ref name) |
+                        Str(ref name)        => match members.get(name) {
+                            Some(a) => a.clone(),
+                            None    => {
+                                println!("{:#?}", members);
+                                return Err(make_error(Some(position), format!("undefined member '{}'", name)))
+                            }
+                        },
+                        _ => unreachable!(),
+                    },
 
-                    _ => unreachable!(),
+                    ref t => return Err(make_error(Some(position), format!("can't index '{}'", t))),
                 }
             }
 
