@@ -55,7 +55,7 @@ foo :: {
 
 if and match
 ```lua
-number := math.random(0, 100)
+number := math random(0, 100)
 
 if number % 2 == 0 {
   print("okok")
@@ -68,6 +68,16 @@ hmm := match number % 2 {
 }
 
 print(hmm)
+```
+
+while
+```lua
+i := 0
+
+while i < 1000 {
+ print("hey")
+ i += 1
+}
 ```
 
 ```lua
@@ -159,6 +169,20 @@ bob := frog {
 -- very innovative, doesn't have `.`
 bob position x = -100
 bob jump_height -= 10
+```
+
+compound assignments
+```lua
+a: float = 0
+a += 10
+a -= 10
+a %= 2
+a ^= 10
+a *= 2
+a /= 0.5
+
+s: string = "hello, "
+s ++= "world"
 ```
 
 ---
