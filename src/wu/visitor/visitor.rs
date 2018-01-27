@@ -312,7 +312,7 @@ impl<'v> Visitor<'v> {
                                         let index = self.symtab.add_name(&exposed);
                                         self.typetab.set_type(index, 0, (**member).clone())?;
                                     },
-                                    None    => return Err(make_error(Some(position), format!("can't expose non-existing member '{}'", exposed)))
+                                    None => return Err(make_error(Some(position), format!("can't expose non-existing member '{}'", exposed)))
                                 }
                             }
 

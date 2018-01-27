@@ -16,6 +16,26 @@ use std::path::Path;
 
 use std::io::prelude::*;
 
+pub fn path_ast(path: &str) -> Option<Vec<Statement>> {
+    let source = match file_content(path) {
+        Some(source) => source,
+        None         => return None,
+    };
+    
+    let lines = source.lines().map(|x| x.to_string()).collect();
+    let lexer = make_lexer(source.clone().chars().collect(), &lines, &path);
+
+    let mut parser = Parser::new(lexer.collect::<Vec<Token>>(), &lines, &path);
+    
+    match parser.parse() {
+        Ok(ast) => Some(ast),
+        Err(e)  => {
+            e.display(&lines, &path);
+            None
+        }
+    }
+}
+
 fn compile_path(path: &str) {
     let meta = metadata(path).unwrap();
 
@@ -59,7 +79,7 @@ fn file_content(path: &str) -> Option<String> {
 
 fn write(path: &str, data: &str) {
     let path = Path::new(path);
-    println!("{} {}", "compiling".green().bold(), path.display());
+    println!("{} {}", "compiled".green().bold(), path.display());
 
     let split_name = path.file_name().unwrap().to_str().unwrap().split(".");
     let split: Vec<&str> = split_name.collect();

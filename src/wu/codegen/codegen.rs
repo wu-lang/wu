@@ -60,17 +60,37 @@ impl<'c> Codegen<'c> {
             },
 
             Module { ref name, ref content } => {
-                let mut code = format!("local {} = {{\n", name);
+                let mut code = format!("local {} = (function()\n", name);
+                
+                let mut returns = Vec::new();
 
                 match content.0 {
-                    ExpressionNode::Block(ref content) => for statement in content {
-                        code.push_str(&format!("{},\n", self.gen_statement(&statement.0)))
+                    ExpressionNode::Block(ref content) => {
+                        for statement in content {
+                            match statement.0 {
+                                Definition { ref left, .. } | ConstDefinition { ref left, .. } => if let ExpressionNode::Identifier(ref name) = left.0 {
+                                    returns.push(name)
+                                },
+                                
+                                Struct { ref name, .. } | Module { ref name, .. } => returns.push(name),
+                                
+                                _ => (),
+                            }
+
+                            code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)))
+                        }
                     },
-                    
+
                     _ => (),
                 }
+                
+                code.push_str("return {\n");
+                
+                for ret in returns {
+                    code.push_str(&format!("{0} = {0},\n", ret))
+                }
 
-                code.push('}');
+                code.push_str("}\nend)()");
                 code
             },
 

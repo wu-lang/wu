@@ -2,6 +2,10 @@ module test {
   struct yes {
     content: string
   }
+  
+  a :: yes {
+    content: "heyheyheyyy"
+  }
 
   struct no {
     content: string
@@ -13,6 +17,8 @@ import test expose yes, no
 something := yes {
   content: "hello world"
 }
+
+b :: test a
 
 idk :: no {
   content: "yes ok"

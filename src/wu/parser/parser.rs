@@ -84,7 +84,12 @@ impl<'p> Parser<'p> {
                         let mut expose = Vec::new();
 
                         loop {
-                            expose.push(self.consume_type(Identifier)?);
+                            if self.current_type() == Identifier {
+                                expose.push(self.current_content());
+                                self.next()?
+                            } else {
+                                return Err(make_error(Some(self.position()), format!("can't expose '{}'", self.current_content())))
+                            }
                             self.skip_types(vec![Whitespace])?;
                             
                             if self.current_content() == "," {
