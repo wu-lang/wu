@@ -68,7 +68,6 @@ impl<'p> Parser<'p> {
                     self.next()?;
                     self.skip_types(vec![Whitespace])?;
                     
-
                     let position = self.position();
                     let origin   = Expression::new(ExpressionNode::Identifier(self.consume_type(Identifier)?), position);
                     
@@ -80,29 +79,46 @@ impl<'p> Parser<'p> {
 
                     let mut expose = Vec::new();
 
-                    loop {
-                        if self.current_type() == Identifier {
-                            expose.push(self.current_content());
-                            self.next()?
-                        } else {
-                            return Err(make_error(Some(self.position()), format!("can't expose '{}'", self.current_content())))
-                        }
+                    if self.current_content() == "*" {
+                        expose.push("*".to_string());
+
+                        self.next()?;
                         self.skip_types(vec![Whitespace])?;
                         
-                        if self.current_content() != "\n" {
-                            if self.current_content() == ")" {
-                                self.next()?;
-                                self.skip_types(vec![Whitespace])?;
-                                self.consume_content("\n")?;
+                        self.consume_content(")")?;
+                        self.skip_types(vec![Whitespace])?;
 
-                                break
-                            } else {
-                                self.consume_content(",")?;
-                                self.skip_types(vec![Whitespace])?;
+                        self.consume_content("\n")?;
+
+                    } else {
+                        loop {
+                            if self.current_content() == "*" {
+                                return Err(make_error(Some(self.position()), "'*' must be used alone".to_string()))
                             }
-                        } else {
-                            self.next()?;
-                            break
+                            
+                            if self.current_type() == Identifier {
+                                expose.push(self.current_content());
+                                self.next()?
+                            } else {
+                                return Err(make_error(Some(self.position()), format!("can't expose '{}'", self.current_content())))
+                            }
+                            self.skip_types(vec![Whitespace])?;
+                            
+                            if self.current_content() != "\n" {
+                                if self.current_content() == ")" {
+                                    self.next()?;
+                                    self.skip_types(vec![Whitespace])?;
+                                    self.consume_content("\n")?;
+                                    
+                                    break
+                                } else {
+                                    self.consume_content(",")?;
+                                    self.skip_types(vec![Whitespace])?;
+                                }
+                            } else {
+                                self.next()?;
+                                break
+                            }
                         }
                     }
 

@@ -1,20 +1,19 @@
 use super::*;
-use std::fmt::*;
 
 pub struct Codegen<'c> {
     pub ast:     &'c Vec<Statement>,
-    pub visitor: &'c Visitor<'c>,
+    pub visitor: &'c mut Visitor<'c>,
 }
 
 impl<'c> Codegen<'c> {
-    pub fn new(ast: &'c Vec<Statement>, visitor: &'c Visitor<'c>)-> Self {
+    pub fn new(ast: &'c Vec<Statement>, visitor: &'c mut Visitor<'c>)-> Self {
         Codegen {
             ast,
             visitor,
         }
     }
 
-    pub fn generate(&self) -> String {
+    pub fn generate(&mut self) -> String {
         let mut code = String::new();
 
         for statement in self.ast.iter() {
@@ -24,7 +23,7 @@ impl<'c> Codegen<'c> {
         code
     }
 
-    fn gen_statement_local(&self, statement: &StatementNode) -> String {
+    fn gen_statement_local(&mut self, statement: &StatementNode) -> String {
         use StatementNode::*;
 
         match *statement {
@@ -103,8 +102,17 @@ impl<'c> Codegen<'c> {
                 let mut code = String::new();
 
                 if let Some(ref expose) = *expose {
-                    for exposed in expose {
-                        code.push_str(&format!("local {0} = {1}.{0}\n", exposed, self.gen_expression(&origin.0)))
+                    if expose.contains(&"*".to_string()) {
+
+                        if let TypeNode::Module(ref members) = self.visitor.type_expression(&origin).unwrap().0 {
+                            for (name, _) in members {
+                                code.push_str(&format!("local {0} = {1}.{0}\n", name, self.gen_expression(&origin.0)))
+                            }
+                        }
+                    } else {
+                        for exposed in expose {
+                            code.push_str(&format!("local {0} = {1}.{0}\n", exposed, self.gen_expression(&origin.0)))
+                        }
                     }
                 } else {
                     code.push_str(&format!("local {0} = {0}\n", self.gen_expression(&origin.0)))
@@ -134,7 +142,7 @@ impl<'c> Codegen<'c> {
         }
     }
 
-    fn gen_statement(&self, statement: &StatementNode) -> String {
+    fn gen_statement(&mut self, statement: &StatementNode) -> String {
         use StatementNode::*;
 
         match *statement {
@@ -215,7 +223,7 @@ impl<'c> Codegen<'c> {
         }
     }
 
-    fn gen_if_node(&self, if_node: &IfNode) -> String {
+    fn gen_if_node(&mut self, if_node: &IfNode) -> String {
         let mut code = format!("if {} then\n{}", self.gen_expression(&if_node.condition.0), self.gen_expression(&if_node.body.0));
 
         if let Some(ref cases) = if_node.elses {
@@ -236,7 +244,7 @@ impl<'c> Codegen<'c> {
         code
     }
 
-    fn gen_if_node_return(&self, if_node: &IfNode) -> String {
+    fn gen_if_node_return(&mut self, if_node: &IfNode) -> String {
         let mut code = format!("if {} then\n{}", self.gen_expression(&if_node.condition.0), self.gen_block_return(&if_node.body.0));
         
         if let Some(ref cases) = if_node.elses {
@@ -257,7 +265,7 @@ impl<'c> Codegen<'c> {
         code
     }
     
-    fn gen_if_node_assignment(&self, if_node: &IfNode, left: &ExpressionNode) -> String {
+    fn gen_if_node_assignment(&mut self, if_node: &IfNode, left: &ExpressionNode) -> String {
         let mut code = format!("if {} then\n{}", self.gen_expression(&if_node.condition.0), self.gen_block_assignment(&if_node.body.0, left));
         
         if let Some(ref cases) = if_node.elses {
@@ -278,7 +286,7 @@ impl<'c> Codegen<'c> {
         code
     }
 
-    fn gen_statement_return(&self, statement: &StatementNode) -> String {
+    fn gen_statement_return(&mut self, statement: &StatementNode) -> String {
         use StatementNode::*;
 
         match *statement {
@@ -289,7 +297,7 @@ impl<'c> Codegen<'c> {
         }
     }
 
-    fn gen_statement_assignment(&self, statement: &StatementNode, left: &ExpressionNode) -> String {
+    fn gen_statement_assignment(&mut self, statement: &StatementNode, left: &ExpressionNode) -> String {
         use StatementNode::*;
 
         match *statement {
@@ -299,7 +307,7 @@ impl<'c> Codegen<'c> {
         }
     }
 
-    fn gen_expression(&self, expression: &ExpressionNode) -> String {
+    fn gen_expression(&mut self, expression: &ExpressionNode) -> String {
         use ExpressionNode::*;
 
         match *expression {
@@ -442,7 +450,7 @@ impl<'c> Codegen<'c> {
         }
     }
 
-    fn gen_operation(&self, left: &ExpressionNode, op: &Operator, right: &ExpressionNode) -> String {
+    fn gen_operation(&mut self, left: &ExpressionNode, op: &Operator, right: &ExpressionNode) -> String {
         use Operator::*;
         use ExpressionNode::*;
         
@@ -487,7 +495,7 @@ impl<'c> Codegen<'c> {
 
         c
     }
-    
+
     fn gen_operator(&self, op: &Operator) -> String {
         use Operator::*;
         
@@ -511,7 +519,7 @@ impl<'c> Codegen<'c> {
         c.to_owned()
     }
 
-    fn gen_block_assignment(&self, block: &ExpressionNode, left: &ExpressionNode) -> String {
+    fn gen_block_assignment(&mut self, block: &ExpressionNode, left: &ExpressionNode) -> String {
         use ExpressionNode::*;
 
         if let Block(ref statements) = *block {
@@ -541,7 +549,7 @@ impl<'c> Codegen<'c> {
         }
     }
     
-    fn gen_block_return(&self, block: &ExpressionNode) -> String {
+    fn gen_block_return(&mut self, block: &ExpressionNode) -> String {
         use ExpressionNode::*;
 
         if let Block(ref statements) = *block {
@@ -569,11 +577,5 @@ impl<'c> Codegen<'c> {
         } else {
             String::new()
         }
-    }
-}
-
-impl<'c> Display for Codegen<'c> {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{}", self.generate())
     }
 }

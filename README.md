@@ -223,8 +223,9 @@ jerry :: mouse {
 module - other file
 ```
 -- given another file named 'hello' exists
+-- will put content of hello into a module named 'hello'
 module hello
--- ^will put content of hello into a module named 'hello'
+expose hello (*) -- exposes everything
 ```
 
 ---

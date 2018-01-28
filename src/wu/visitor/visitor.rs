@@ -137,7 +137,7 @@ impl PartialEq for TypeMode {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Type(TypeNode, TypeMode);
+pub struct Type(pub TypeNode, pub TypeMode);
 
 impl Type {
     pub fn new(node: TypeNode, mode: TypeMode) -> Type {
@@ -330,14 +330,22 @@ impl<'v> Visitor<'v> {
                 match origin_type.0 {
                     TypeNode::Module(ref members) => {
                         if let Some(ref expose) = *expose {
-                            for exposed in expose {
-                                match members.get(exposed) {
-                                    Some(ref member) => {
-                                        self.typetab.grow();
-                                        let index = self.symtab.add_name(&exposed);
-                                        self.typetab.set_type(index, 0, (**member).clone())?;
-                                    },
-                                    None => return Err(make_error(Some(position), format!("can't expose non-existing member '{}'", exposed)))
+                            if expose.contains(&"*".to_string()) {
+                                for member in members {
+                                    self.typetab.grow();
+                                    let index = self.symtab.add_name(&member.0);
+                                    self.typetab.set_type(index, 0, member.1.clone())?;
+                                }
+                            } else {
+                                for exposed in expose {
+                                    match members.get(exposed) {
+                                        Some(ref member) => {
+                                            self.typetab.grow();
+                                            let index = self.symtab.add_name(&exposed);
+                                            self.typetab.set_type(index, 0, (**member).clone())?;
+                                        },
+                                        None => return Err(make_error(Some(position), format!("can't expose non-existing member '{}'", exposed)))
+                                    }
                                 }
                             }
 
@@ -571,7 +579,7 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    fn type_expression(&mut self, expression: &Expression) -> Response<Type> {
+    pub fn type_expression(&mut self, expression: &Expression) -> Response<Type> {
         use ExpressionNode::*;
 
         let t = match (&expression.0, expression.1) {
