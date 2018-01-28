@@ -195,6 +195,31 @@ s: string = "hello, "
 s ++= "world"
 ```
 
+modules
+```lua
+module animal {
+ struct colibri {
+  speed: float
+  name: string
+ }
+ 
+ struct mouse {
+  weight: int
+ }
+}
+
+expose animal (mouse)
+
+violetear :: animal colibri {
+ speed: 1000
+ name: "bob"
+}
+
+jerry :: mouse {
+ weight: 3
+}
+```
+
 ---
 
 ### inspiration
