@@ -1,0 +1,7 @@
+module graphics {
+  rectangle :: (mode: string, x: float, y: float, w: float, h: float) -> {}
+}
+
+load   := ()          -> {}
+update := (dt: float) -> {}
+draw   := ()          -> {}

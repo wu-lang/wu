@@ -137,6 +137,8 @@ impl<'c> Codegen<'c> {
                 code.push_str("\nend\n}");
                 code
             },
+            
+            Extern(_) => String::new(),
 
             ref other => self.gen_statement(other),
         }
@@ -292,8 +294,15 @@ impl<'c> Codegen<'c> {
         match *statement {
             If(ref if_node) => self.gen_if_node_return(if_node),
             Return(_)       => format!("{}\n", self.gen_statement_local(statement)),
-            Expression(_)   => format!("return {}", self.gen_statement_local(statement)),
-            _               => format!("{}\n", self.gen_statement_local(statement)),
+            Expression(ref expression) => match expression.0 {
+                ExpressionNode::Binary {ref op, ..} => match *op {
+                    Operator::Compound(_) => format!("{}\n", self.gen_statement_local(statement)),
+                    _                     => format!("return {}", self.gen_statement_local(statement))
+                }
+
+                _ => format!("return {}", self.gen_statement_local(statement))
+            }
+            _ => format!("{}\n", self.gen_statement_local(statement)),
         }
     }
 
@@ -303,7 +312,16 @@ impl<'c> Codegen<'c> {
         match *statement {
             If(ref if_node) => self.gen_if_node_assignment(if_node, left),
             Return(_)       => self.gen_statement_local(statement),
-            _               => format!("{} = {}\n", self.gen_expression(left), self.gen_statement_local(statement)),
+            Expression(ref expression) => match expression.0 {
+                ExpressionNode::Binary {ref op, ..} => match *op {
+                    Operator::Compound(_) => format!("{}\n", self.gen_statement_local(statement)),
+                    _                     => format!("{} = {}\n", self.gen_expression(left), self.gen_statement_local(statement)),
+                }
+
+                _ => format!("{} = {}\n", self.gen_expression(left), self.gen_statement_local(statement)),
+            }
+
+            _ => format!("{} = {}\n", self.gen_expression(left), self.gen_statement_local(statement)),
         }
     }
 
@@ -403,10 +421,8 @@ impl<'c> Codegen<'c> {
             }
 
             Function { ref params, ref body, .. } => {
-                let mut code = "(function(".to_string();
-
-                let mut acc = 1;
-
+                let mut code   = "(function(".to_string();
+                let mut acc    = 1;
                 let mut guards = Vec::new();
 
                 for param in params {
@@ -564,7 +580,7 @@ impl<'c> Codegen<'c> {
                     if acc == statements.len() {
                         code.push_str(&self.gen_statement_return(&statement.0))
                     } else {
-                        code.push_str(&format!("{}\n", self.gen_statement_return(&statement.0)));
+                        code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)));
                     }
 
                     acc += 1

@@ -63,6 +63,13 @@ impl<'p> Parser<'p> {
                         ret
                     }
                 },
+
+                "extern" => {
+                    self.next()?;
+                    self.skip_types(vec![Whitespace])?;
+
+                    StatementNode::Extern(Rc::new(self.statement()?))
+                },
                 
                 "expose" => {
                     self.next()?;

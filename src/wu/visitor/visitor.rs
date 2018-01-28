@@ -277,6 +277,8 @@ impl<'v> Visitor<'v> {
                 }
             },
 
+            (&Extern(ref statement), _) => self.visit_statement(statement),
+
             (&Module { ref name, ref content }, position) => {
                 if self.symtab.get_name(name).is_some() {
                     Err(make_error(Some(position), format!("module '{}' defined multiple times", name)))
@@ -476,19 +478,8 @@ impl<'v> Visitor<'v> {
 
             (&Block(ref statements), _) => {
                 let mut acc = 1;
+                
                 for statement in statements {
-                    if acc < statements.len() {
-                        match statement.0 {
-                            StatementNode::Expression(ref expr) => match expr.0 {
-                                ExpressionNode::Block(..) |
-                                ExpressionNode::Call(..)  => (),
-                                _                         => return Err(make_error(Some(statement.1), "a wild expression appeared".to_owned()))
-                            },
-
-                            _ => (),
-                        }
-                    }
-
                     self.visit_statement(&statement)?;
 
                     acc += 1

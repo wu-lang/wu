@@ -15,7 +15,7 @@ pub fn make_lexer<'l>(data: Vec<char>, lines: &'l Vec<String>, path: &'l str) ->
     lexer.matchers_mut().push(Rc::new(CommentMatcher));
 
     let key_matcher = KeyMatcher::new(TokenType::Keyword, &[
-        "return", "->", "if", "elif", "else", "match", "struct", "while", "module", "expose",
+        "return", "->", "if", "elif", "else", "match", "struct", "while", "module", "expose", "extern",
     ]);
     lexer.matchers_mut().push(Rc::new(key_matcher));
 

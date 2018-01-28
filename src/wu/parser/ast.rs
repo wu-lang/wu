@@ -46,6 +46,8 @@ pub enum StatementNode {
         expose: Option<Vec<String>>,
     },
 
+    Extern(Rc<Statement>),
+
     If(IfNode),
 }
 
