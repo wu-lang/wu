@@ -1,8 +1,10 @@
+module funny
+
 module test {
   struct yes {
     content: string
   }
-  
+
   a :: yes {
     content: "heyheyheyyy"
   }
@@ -12,7 +14,7 @@ module test {
   }
 }
 
-import test expose yes, no
+expose test (yes, no)
 
 something := yes {
   content: "hello world"

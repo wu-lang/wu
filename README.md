@@ -220,6 +220,13 @@ jerry :: mouse {
 }
 ```
 
+module - other file
+```
+-- given another file named 'hello' exists
+module hello
+-- ^will put content of hello into a module named 'hello'
+```
+
 ---
 
 ### inspiration

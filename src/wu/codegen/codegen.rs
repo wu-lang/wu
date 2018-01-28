@@ -1,15 +1,16 @@
 use super::*;
 use std::fmt::*;
 
-#[derive(Debug, Clone)]
 pub struct Codegen<'c> {
-    pub ast: &'c Vec<Statement>,
+    pub ast:     &'c Vec<Statement>,
+    pub visitor: &'c Visitor<'c>,
 }
 
 impl<'c> Codegen<'c> {
-    pub fn new(ast: &'c Vec<Statement>)-> Self {
+    pub fn new(ast: &'c Vec<Statement>, visitor: &'c Visitor<'c>)-> Self {
         Codegen {
             ast,
+            visitor,
         }
     }
 
@@ -60,41 +61,45 @@ impl<'c> Codegen<'c> {
             },
 
             Module { ref name, ref content } => {
-                let mut code = format!("local {} = (function()\n", name);
-                
-                let mut returns = Vec::new();
+                if let Some(ref content) = *content {
+                    let mut code = format!("local {} = (function()\n", name);
 
-                match content.0 {
-                    ExpressionNode::Block(ref content) => {
-                        for statement in content {
-                            match statement.0 {
-                                Definition { ref left, .. } | ConstDefinition { ref left, .. } => if let ExpressionNode::Identifier(ref name) = left.0 {
-                                    returns.push(name)
-                                },
+                    let mut returns = Vec::new();
+
+                    match *content {
+                        super::Expression(ExpressionNode::Block(ref content), _) => {
+                            for statement in content {
+                                match statement.0 {
+                                    Definition { ref left, .. } | ConstDefinition { ref left, .. } => if let ExpressionNode::Identifier(ref name) = left.0 {
+                                        returns.push(name)
+                                    },
+
+                                    Struct { ref name, .. } | Module { ref name, .. } => returns.push(name),
+                                    
+                                    _ => (),
+                                }
                                 
-                                Struct { ref name, .. } | Module { ref name, .. } => returns.push(name),
-                                
-                                _ => (),
+                                code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)))
                             }
+                        },
 
-                            code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)))
-                        }
-                    },
+                        _ => (),
+                    }
+                    
+                    code.push_str("return {\n");
 
-                    _ => (),
+                    for ret in returns {
+                        code.push_str(&format!("{0} = {0},\n", ret))
+                    }
+
+                    code.push_str("}\nend)()");
+                    code
+                } else {
+                    format!("local {0} = require('{0}')", name)
                 }
-                
-                code.push_str("return {\n");
-                
-                for ret in returns {
-                    code.push_str(&format!("{0} = {0},\n", ret))
-                }
-
-                code.push_str("}\nend)()");
-                code
             },
 
-            Import { ref origin, ref expose } => {
+            Expose { ref origin, ref expose } => {
                 let mut code = String::new();
 
                 if let Some(ref expose) = *expose {
@@ -161,22 +166,7 @@ impl<'c> Codegen<'c> {
 
             While { ref condition, ref body } => format!("while {} do\n{}\nend", self.gen_expression(&condition.0), self.gen_expression(&body.0)),
 
-            Module { ref name, ref content } => {
-                let mut code = format!("{} = {{\n", name);
-
-                match content.0 {
-                    ExpressionNode::Block(ref content) => for statement in content {
-                        code.push_str(&format!("{},\n", self.gen_statement(&statement.0)))
-                    },
-                    
-                    _ => (),
-                }
-
-                code.push('}');
-                code
-            },
-
-            Import { ref origin, ref expose } => {
+            Expose { ref origin, ref expose } => {
                 let mut code = String::new();
 
                 if let Some(ref expose) = *expose {
@@ -220,6 +210,8 @@ impl<'c> Codegen<'c> {
                 code.push_str("\nend\n}");
                 code
             },
+
+            _ => self.gen_statement_local(statement),
         }
     }
 

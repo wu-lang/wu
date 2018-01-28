@@ -64,49 +64,51 @@ impl<'p> Parser<'p> {
                     }
                 },
                 
-                "import" => {
+                "expose" => {
                     self.next()?;
                     self.skip_types(vec![Whitespace])?;
+                    
 
-                    let origin = self.atom()?;
+                    let position = self.position();
+                    let origin   = Expression::new(ExpressionNode::Identifier(self.consume_type(Identifier)?), position);
                     
                     self.skip_types(vec![Whitespace])?;
 
-                    if self.current_content() == "\n" {
-                        StatementNode::Import {
-                            origin,
-                            expose: None,
+                    self.consume_content("(")?;
+
+                    self.skip_types(vec![Whitespace])?;
+
+                    let mut expose = Vec::new();
+
+                    loop {
+                        if self.current_type() == Identifier {
+                            expose.push(self.current_content());
+                            self.next()?
+                        } else {
+                            return Err(make_error(Some(self.position()), format!("can't expose '{}'", self.current_content())))
                         }
-                    } else {
-                        self.consume_content("expose")?;
                         self.skip_types(vec![Whitespace])?;
-
-                        let mut expose = Vec::new();
-
-                        loop {
-                            if self.current_type() == Identifier {
-                                expose.push(self.current_content());
-                                self.next()?
-                            } else {
-                                return Err(make_error(Some(self.position()), format!("can't expose '{}'", self.current_content())))
-                            }
-                            self.skip_types(vec![Whitespace])?;
-                            
-                            if self.current_content() == "," {
+                        
+                        if self.current_content() != "\n" {
+                            if self.current_content() == ")" {
                                 self.next()?;
                                 self.skip_types(vec![Whitespace])?;
-                            } else {
+                                self.consume_content("\n")?;
+
                                 break
+                            } else {
+                                self.consume_content(",")?;
+                                self.skip_types(vec![Whitespace])?;
                             }
+                        } else {
+                            self.next()?;
+                            break
                         }
+                    }
 
-                        self.skip_types(vec![Whitespace])?;
-                        self.consume_content("\n")?;
-
-                        StatementNode::Import {
-                            origin,
-                            expose: Some(expose),
-                        }
+                    StatementNode::Expose {
+                        origin,
+                        expose: Some(expose),
                     }
                 }
                 
@@ -118,13 +120,20 @@ impl<'p> Parser<'p> {
 
                     self.skip_types(vec![Whitespace])?;
                     
-                    self.expect_content("{")?;
+                    if self.current_content() == "\n" {
+                        StatementNode::Module {
+                            name,
+                            content: None,
+                        }
+                    } else {
+                        self.expect_content("{")?;
 
-                    let content = self.atom()?;
+                        let content = self.atom()?;
 
-                    StatementNode::Module {
-                        name,
-                        content,
+                        StatementNode::Module {
+                            name,
+                            content: Some(content),
+                        }
                     }
                 },
                 

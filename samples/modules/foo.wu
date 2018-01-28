@@ -1,0 +1,7 @@
+struct something {
+    content: string
+}
+
+make_something :: (content: string) something -> something {
+  content: content
+}

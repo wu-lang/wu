@@ -5,6 +5,8 @@ use std::fmt::*;
 use std::rc::Rc;
 use std::collections::HashMap;
 
+use super::super::super::path_ast;
+
 #[derive(Debug, Clone)]
 pub enum TypeNode {
     Int,
@@ -285,21 +287,44 @@ impl<'v> Visitor<'v> {
                     let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
                     let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
 
-                    let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
+                    if let Some(ref content) = *content {
+                        let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
-                    visitor.visit_expression(&content)?;
-                    
-                    let mut hash_types = HashMap::new();
+                        visitor.visit_expression(&content)?;
 
-                    for (ref name, ref index) in visitor.symtab.names.borrow().clone() {
-                        hash_types.insert(name.clone(), visitor.typetab.get_type(*index, 0)?);
+                        let mut hash_types = HashMap::new();
+
+                        for (ref name, ref index) in visitor.symtab.names.borrow().clone() {
+                            hash_types.insert(name.clone(), visitor.typetab.get_type(*index, 0)?);
+                        }
+
+                        self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
+                    } else {
+                        let path_split = self.path.split("/").collect::<Vec<&str>>();
+                        let path = &format!("{}/{}.wu", path_split[0 .. path_split.len() - 1].join("/"), name);
+
+                        if let Some(statements) = path_ast(path) {
+                            let content = super::Expression::new(ExpressionNode::Block(statements.clone()), position);
+
+                            let mut visitor = Visitor::from(&statements, local_symtab, local_typetab, self.lines, self.path);
+
+                            visitor.visit_expression(&content)?;
+
+                            let mut hash_types = HashMap::new();
+
+                            for (ref name, ref index) in visitor.symtab.names.borrow().clone() {
+                                hash_types.insert(name.clone(), visitor.typetab.get_type(*index, 0)?);
+                            }
+
+                            self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
+                        } else {
+                            Err(make_error(Some(position), format!("couldn't find module '{}'", name)))
+                        }
                     }
-                    
-                    self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
                 }
             },
 
-            (&Import { ref origin, ref expose }, position) => {
+            (&Expose { ref origin, ref expose }, position) => {
                 let origin_type = self.type_expression(origin)?;
 
                 match origin_type.0 {
@@ -492,8 +517,8 @@ impl<'v> Visitor<'v> {
         visitor.visit_expression(body)?;
 
         let body_t = visitor.type_expression(body)?;
-        
-        let return_type = self.dealias(&Type::new(return_type.clone(), TypeMode::Just))?;
+
+        let return_type = Type::new(self.dealias(&Type::new(return_type.clone(), TypeMode::Just))?.0, TypeMode::Just);
 
         if return_type != body_t {
             Err(make_error(Some(body.1), format!("mismatched return type, expected '{}' .. found '{}'", return_type, body_t)))

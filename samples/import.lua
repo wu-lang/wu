@@ -1,3 +1,4 @@
+local funny = require('funny')
 local test = (function()
 local yes = {
 __construct__ = function(__constructor)
@@ -37,3 +38,5 @@ local b = test["a"]
 local idk = no.__construct__({
 content = "yes ok",
 })
+
+

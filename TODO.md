@@ -7,7 +7,7 @@ some stuff we need to do in no particular order, in order to make *wu* more cool
 - [x] match
 - [ ] for
 - [x] while
-- [ ] import
+- [x] import
 - [x] modules
 - [x] arrays
 - [x] unary operations

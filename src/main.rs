@@ -17,16 +17,23 @@ use std::path::Path;
 use std::io::prelude::*;
 
 pub fn path_ast(path: &str) -> Option<Vec<Statement>> {
-    let source = match file_content(path) {
-        Some(source) => source,
-        None         => return None,
+    let mut file = match File::open(&path) {
+        Err(why) => panic!("failed to open {}: {}", path, why),
+        Ok(file) => file,
     };
-    
+
+    let mut source = String::new();
+
+    match file.read_to_string(&mut source) {
+        Err(why) => panic!("failed to read {}: {}", path, why),
+        Ok(_)    => (),
+    }
+
     let lines = source.lines().map(|x| x.to_string()).collect();
     let lexer = make_lexer(source.clone().chars().collect(), &lines, &path);
 
     let mut parser = Parser::new(lexer.collect::<Vec<Token>>(), &lines, &path);
-    
+
     match parser.parse() {
         Ok(ast) => Some(ast),
         Err(e)  => {
@@ -63,7 +70,7 @@ fn compile_path(path: &str) {
 
 fn file_content(path: &str) -> Option<String> {
     let display = Path::new(path).display();
-    
+
     let mut file = match File::open(&path) {
         Err(why) => panic!("failed to open {}: {}", display, why),
         Ok(file) => file,
@@ -83,18 +90,11 @@ fn write(path: &str, data: &str) {
 
     let split_name = path.file_name().unwrap().to_str().unwrap().split(".");
     let split: Vec<&str> = split_name.collect();
-    
-    let parent_path = match path.parent() {
-        Some(p) => match p.file_name() {
-            Some(path) => path.to_str().unwrap(),
-            None       => ".",
-        },
-        None => ".",
-    };
 
-    let output_name = format!("{}/{}.lua", parent_path, split.get(0).unwrap());
+    let path_split = path.to_str().unwrap().split("/").collect::<Vec<&str>>();
+    let path_real  = &format!("{}/{}.lua", path_split[0 .. path_split.len() - 1].join("/"), split[0]);
 
-    let mut output_file = File::create(output_name).unwrap();
+    let mut output_file = File::create(path_real).unwrap();
     match output_file.write_all(data.as_bytes()) {
         Ok(_)    => (),
         Err(why) => println!("{}", why)
@@ -113,7 +113,7 @@ fn compile(source: &str, path: &str) -> Option<String> {
 
             match visitor.validate() {
                 Ok(_)         => {
-                    let codegen = Codegen::new(&ast);
+                    let codegen = Codegen::new(&ast, &visitor);
 
                     return Some(format!("{}", codegen))
                 },
@@ -160,7 +160,7 @@ fn test() {
 
             match visitor.validate() {
                 Ok(_)         => {
-                    let codegen = Codegen::new(&ast);
+                    let codegen = Codegen::new(&ast, &visitor);
 
                     println!("```lua\n{}```", codegen)
                 },

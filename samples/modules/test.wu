@@ -1,0 +1,6 @@
+module foo
+expose foo (something)
+
+booty := something {
+    content: "yes yes yes"
+}

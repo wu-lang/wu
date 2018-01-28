@@ -38,10 +38,10 @@ pub enum StatementNode {
 
     Module {
         name:    String,
-        content: Expression,
+        content: Option<Expression>,
     },
 
-    Import {
+    Expose {
         origin: Expression,
         expose: Option<Vec<String>>,
     },
