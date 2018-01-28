@@ -222,7 +222,7 @@ jerry :: mouse {
 
 module - other file
 ```
--- given another file named 'hello.wu' exists in the same folder
+-- given another file named 'hello.wu' exists in the same directory
 module hello
 -- ^will put content of hello into a module named 'hello'
 ```
