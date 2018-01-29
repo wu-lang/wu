@@ -45,11 +45,16 @@ pub fn path_ast(path: &str) -> Option<Vec<Statement>> {
 }
 
 fn compile_path(path: &str) {
-    let meta = metadata(path).unwrap();
+    let meta = metadata(path).unwrap();    
 
     if meta.is_file() {
-        if let Some(n) = file_content(path) {
-            write(path, &n);
+        let split: Vec<&str> = path.split('.').collect();
+        let path_lua = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
+
+        if !Path::new(&path_lua).is_file() {
+            if let Some(n) = file_content(path) {
+                write(path, &n);
+            }
         }
     } else {
         let paths = fs::read_dir(path).unwrap();
@@ -58,12 +63,54 @@ fn compile_path(path: &str) {
             let path = format!("{}", path.unwrap().path().display());
             let split: Vec<&str> = path.split('.').collect();
 
-            match split.last() {
-                Some(n) if *n == "wu" || Path::new(&path).is_dir() => (),
-                _                                                  => continue,
+            if Path::new(&path).is_dir() {
+                compile_path(&format!("{}", path))
             }
 
+            match split.last() {
+                Some(n) if *n == "wu" => {
+                    let path = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
+                    
+                    if Path::new(&path).is_file() {
+                        // miss me with that compiling twice shit
+                        continue
+                    }
+                },
+                _ => continue,
+            }
+            
             compile_path(&format!("{}", path))
+        }
+    }
+}
+
+// removes compiled lua files 
+fn clean_path(path: &str) {
+    let meta = metadata(path).unwrap();
+
+    if meta.is_dir() {
+        let paths = fs::read_dir(path).unwrap();
+
+        for path in paths {
+            let path = path.unwrap().path();
+            if path.is_dir() {
+                clean_path(&path.display().to_string())
+            } else {
+                let path = format!("{}", path.display());
+                let split: Vec<&str> = path.split('.').collect();
+                
+                // removes lua file if wu source exists
+                match split.last() {
+                    Some(n) if *n == "wu" => {
+                        let path = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
+                        
+                        if Path::new(&path).is_file() {
+                            fs::remove_file(&path).unwrap()
+                        }
+                    },
+                    _ => continue,
+                }
+            }
         }
     }
 }
@@ -130,13 +177,25 @@ fn compile(source: &str, path: &str) -> Option<String> {
 
 fn main() {
     match env::args().nth(1) {
-        Some(a) => compile_path(&a),
+        Some(a) => match a.as_str() {
+            "clean" => if env::args().len() > 2 {
+                clean_path(&env::args().nth(2).unwrap())
+            } else {
+                clean_path(".")
+            },
+
+            _ => {
+                clean_path(&a);
+                compile_path(&a)
+            }
+        }
         None    => println!("\
 wu's transpiler
 
 usage:
-    wu <file>
-    wu <folder>
+    wu <file>           -- compiles file
+    wu <folder>         -- recursively compiles every `.wu` file in folder
+    wu clean <folder>   -- recursively removes every compiled `.lua` file in folder
         "),
     }
 }
