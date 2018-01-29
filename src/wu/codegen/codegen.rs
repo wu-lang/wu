@@ -16,10 +16,19 @@ impl<'c> Codegen<'c> {
 
     pub fn generate(&mut self) -> String {
         let mut code = String::new();
+        
+        let ast_module = StatementNode::Module {
+            name:    "__mod__".to_string(),
+            content: Some(
+                    Expression::new(
+                    ExpressionNode::Block(self.ast.clone().to_vec()),
+                    TokenPosition::default(),
+                )
+            )
+        };
 
-        for statement in self.ast.iter() {
-            code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)))
-        }
+        code.push_str(&format!("{}\n", self.gen_statement_local(&ast_module)));
+        code.push_str("return __mod__");
 
         code
     }

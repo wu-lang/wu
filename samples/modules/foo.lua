@@ -1,3 +1,4 @@
+local __mod__ = (function()
 local something = {
 __construct__ = function(__constructor)
 return {
@@ -12,3 +13,9 @@ content = content,
 
 end)
 
+return {
+something = something,
+make_something = make_something,
+}
+end)()
+return __mod__
