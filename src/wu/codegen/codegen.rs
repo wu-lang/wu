@@ -24,7 +24,7 @@ impl<'c> Codegen<'c> {
     }
 
     fn gen_statement_local(&mut self, statement: &StatementNode) -> String {
-        use StatementNode::*;
+        use self::StatementNode::*;
 
         match *statement {
             Definition { ref left, ref right, .. } => {
@@ -145,7 +145,7 @@ impl<'c> Codegen<'c> {
     }
 
     fn gen_statement(&mut self, statement: &StatementNode) -> String {
-        use StatementNode::*;
+        use self::StatementNode::*;
 
         match *statement {
             Expression(ref expression) => format!("{}\n", self.gen_expression(&expression.0)),
@@ -289,7 +289,7 @@ impl<'c> Codegen<'c> {
     }
 
     fn gen_statement_return(&mut self, statement: &StatementNode) -> String {
-        use StatementNode::*;
+        use self::StatementNode::*;
 
         match *statement {
             If(ref if_node) => self.gen_if_node_return(if_node),
@@ -307,7 +307,7 @@ impl<'c> Codegen<'c> {
     }
 
     fn gen_statement_assignment(&mut self, statement: &StatementNode, left: &ExpressionNode) -> String {
-        use StatementNode::*;
+        use self::StatementNode::*;
 
         match *statement {
             If(ref if_node) => self.gen_if_node_assignment(if_node, left),
@@ -326,7 +326,7 @@ impl<'c> Codegen<'c> {
     }
 
     fn gen_expression(&mut self, expression: &ExpressionNode) -> String {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
 
         match *expression {
             Float(ref n)      => format!("{}", n),
@@ -467,8 +467,8 @@ impl<'c> Codegen<'c> {
     }
 
     fn gen_operation(&mut self, left: &ExpressionNode, op: &Operator, right: &ExpressionNode) -> String {
-        use Operator::*;
-        use ExpressionNode::*;
+        use self::Operator::*;
+        use self::ExpressionNode::*;
         
         let c = match *op {
             PipeRight => {
@@ -513,7 +513,7 @@ impl<'c> Codegen<'c> {
     }
 
     fn gen_operator(&self, op: &Operator) -> String {
-        use Operator::*;
+        use self::Operator::*;
         
         let c = match *op {
             Add     => "+",
@@ -536,7 +536,7 @@ impl<'c> Codegen<'c> {
     }
 
     fn gen_block_assignment(&mut self, block: &ExpressionNode, left: &ExpressionNode) -> String {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
 
         if let Block(ref statements) = *block {
             if statements.len() == 1 {
@@ -564,9 +564,9 @@ impl<'c> Codegen<'c> {
             String::new()
         }
     }
-    
+
     fn gen_block_return(&mut self, block: &ExpressionNode) -> String {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
 
         if let Block(ref statements) = *block {
             if statements.len() == 1 {

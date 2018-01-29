@@ -37,7 +37,7 @@ impl<'p> Parser<'p> {
     }
 
     fn statement(&mut self) -> Response<Statement> {
-        use TokenType::*;
+        use self::TokenType::*;
 
         self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
 
@@ -475,7 +475,7 @@ impl<'p> Parser<'p> {
     }
 
     fn type_node(&mut self) -> Response<TypeNode> {
-        use TypeNode::*;
+        use self::TypeNode::*;
 
         let t = match self.current_content().as_str() {
             "int"     => Int,
@@ -855,7 +855,7 @@ impl<'p> Parser<'p> {
     }
     
     fn maybe_construct(&mut self, atom: Expression) -> Response<Expression> {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
 
         match atom.0 {
             Identifier(_) | Index(..) => {
@@ -886,7 +886,7 @@ impl<'p> Parser<'p> {
     }
 
     fn maybe_call(&mut self, atom: Expression) -> Response<Expression> {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
 
         let backup_top = self.top;
 
@@ -907,9 +907,9 @@ impl<'p> Parser<'p> {
 
         Ok(node)
     }
-    
+
     fn maybe_index(&mut self, atom: Expression) -> Response<Expression> {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
 
         let backup_top = self.top;
 

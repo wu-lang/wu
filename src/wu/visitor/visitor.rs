@@ -24,7 +24,7 @@ pub enum TypeNode {
 // this is for typechecking
 impl PartialEq for TypeNode {
     fn eq(&self, other: &TypeNode) -> bool {
-        use TypeNode::*;
+        use self::TypeNode::*;
 
         match (self, other) {
             (&Float,     &Int)       => true,
@@ -44,7 +44,7 @@ impl PartialEq for TypeNode {
 
 impl Display for TypeNode {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        use TypeNode::*;
+        use self::TypeNode::*;
 
         match *self {
             Int   => write!(f, "int"),
@@ -89,7 +89,7 @@ pub enum TypeMode {
 impl TypeMode {
     // this is for actual, reliable checking
     pub fn check(&self, other: &TypeMode) -> bool {
-        use TypeMode::*;
+        use self::TypeMode::*;
 
         match (self, other) {
             (&Just,       &Just)       => true,
@@ -104,7 +104,7 @@ impl TypeMode {
 
 impl Display for TypeMode {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        use TypeMode::*;
+        use self::TypeMode::*;
 
         match *self {
             Just          => Ok(()),
@@ -119,7 +119,7 @@ impl Display for TypeMode {
 // this is for typechecking
 impl PartialEq for TypeMode {
     fn eq(&self, other: &TypeMode) -> bool {
-        use TypeMode::*;
+        use self::TypeMode::*;
 
         match (self, other) {
             (&Just,       &Just)          => true,
@@ -202,7 +202,7 @@ impl<'v> Visitor<'v> {
     }
 
     pub fn dealias(&mut self, alias: &Type) -> Response<Type> {
-        use TypeNode::*;
+        use self::TypeNode::*;
 
         let a = match alias.0 {
             Id(ref id)   => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), TokenPosition::default())),
@@ -231,7 +231,7 @@ impl<'v> Visitor<'v> {
     }
 
     fn visit_statement(&mut self, statement: &Statement) -> Response<()> {
-        use StatementNode::*;
+        use self::StatementNode::*;
 
         match (&statement.0, statement.1) {
             (&Expression(ref expr), _)                            => self.visit_expression(expr),
@@ -364,7 +364,7 @@ impl<'v> Visitor<'v> {
     }
 
     fn visit_expression(&mut self, expression: &Expression) -> Response<()> {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
 
         match (&expression.0, expression.1) {
             (&Identifier(ref name), position) => match self.symtab.get_name(&*name) {
@@ -394,8 +394,8 @@ impl<'v> Visitor<'v> {
             },
 
             (&Constructor(ref name, ref members), position) => {
-                use TypeNode::*;
-                
+                use self::TypeNode::*;
+
                 let name_type = self.type_expression(&name)?;
                 
                 match name_type.0 {
@@ -571,7 +571,7 @@ impl<'v> Visitor<'v> {
     }
 
     pub fn type_expression(&mut self, expression: &Expression) -> Response<Type> {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
 
         let t = match (&expression.0, expression.1) {
             (&Int(_), _)   => Type::int(),
@@ -622,10 +622,10 @@ impl<'v> Visitor<'v> {
                 TypeNode::Fun(_, ref retty) => (**retty).clone(),
                 ref t                       => return Err(make_error(Some(position), format!("can't call: {}", t))),
             },
-            
+
             (&Unary(ref op, ref expression), position) => {
-                use Operator::*;
-                use TypeNode::*;
+                use self::Operator::*;
+                use self::TypeNode::*;
 
                 match (op, &self.type_expression(&*expression)?) {
                     (&Sub, a) => if vec![Float, Int].contains(&a.0) {
@@ -645,8 +645,8 @@ impl<'v> Visitor<'v> {
             },
 
             (&Binary { ref left, ref op, ref right }, position) => {
-                use Operator::*;
-                use TypeNode::*;
+                use self::Operator::*;
+                use self::TypeNode::*;
 
                 match (self.type_expression(&*left)?, op, self.type_expression(&*right)?) {
                     (a, &Pow, b) => if vec![Float, Int].contains(&a.0) {
@@ -726,7 +726,7 @@ impl<'v> Visitor<'v> {
     }
 
     fn find_return_type(&mut self, statement: &StatementNode, is_last: bool) -> Response<Option<Type>> {
-        use StatementNode::*;
+        use self::StatementNode::*;
 
         let return_type = match *statement {
             Expression(ref expression) => if is_last {
@@ -750,7 +750,7 @@ impl<'v> Visitor<'v> {
     }
 
     fn visit_definition(&mut self, kind: &TypeNode, left: &Expression, right: &Option<Expression>) -> Response<()> {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
         
         let kind = self.dealias(&Type::new(kind.clone(), TypeMode::Constant))?.0;
 
@@ -804,7 +804,7 @@ impl<'v> Visitor<'v> {
     }
 
     fn visit_constant(&mut self, kind: &TypeNode, left: &Expression, right: &Expression) -> Response<()> {
-        use ExpressionNode::*;
+        use self::ExpressionNode::*;
 
         let kind = self.dealias(&Type::new(kind.clone(), TypeMode::Constant))?.0;
 
