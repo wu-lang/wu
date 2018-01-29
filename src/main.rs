@@ -27,6 +27,8 @@ pub fn path_ast(path: &str) -> Option<Vec<Statement>> {
     if let Err(why) = file.read_to_string(&mut source) {
         panic!("failed to read {}: {}", path, why);
     }
+    
+    compile_path(path);
 
     let lines: Vec<String> = source.lines().map(|x| x.to_string()).collect();
     let lexer = make_lexer(source.clone().chars().collect(), &lines, path);
@@ -58,7 +60,7 @@ fn compile_path(path: &str) {
 
             match split.last() {
                 Some(n) if *n == "wu" || Path::new(&path).is_dir() => (),
-                ref c => continue,
+                _                                                  => continue,
             }
 
             compile_path(&format!("{}", path))

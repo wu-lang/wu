@@ -1,7 +1,7 @@
 local __mod__ = (function()
 local foo = require('foo')
-local something = foo.something
 local make_something = foo.make_something
+local something = foo.something
 
 local bar = require('bar')
 local booty = something.__construct__({
