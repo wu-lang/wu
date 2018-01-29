@@ -86,7 +86,7 @@ fn file_content(path: &str) -> Option<String> {
 
 fn write(path: &str, data: &str) {
     let path = Path::new(path);
-    println!("{} {}", "compiled".green().bold(), path.display());
+    println!("{} {}", "compiled".green().bold(), path.display().to_string().replace("./", ""));
 
     let split_name = path.file_name().unwrap().to_str().unwrap().split('.');
     let split: Vec<&str> = split_name.collect();

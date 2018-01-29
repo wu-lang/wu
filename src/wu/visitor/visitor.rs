@@ -302,7 +302,7 @@ impl<'v> Visitor<'v> {
                         self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
                     } else {
                         let path_split = self.path.split('/').collect::<Vec<&str>>();
-                        let mut path = format!("{}/{}", path_split[0 .. path_split.len() - 1].join("/"), name);
+                        let mut path = format!("./{}/{}", path_split[0 .. path_split.len() - 1].join("/"), name);
 
                         if Path::new(&path).is_dir() {
                             path.push_str("/init.wu")
