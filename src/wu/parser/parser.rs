@@ -9,14 +9,14 @@ pub struct Parser<'p> {
     pub top:    usize,
 
     // for displaying pretty warnings without returning Err
-    pub lines:  &'p Vec<String>,
+    pub lines:  &'p [String],
     pub path:   &'p str,
 
     pub inside: String,
 }
 
 impl<'p> Parser<'p> {
-    pub fn new(tokens: Vec<Token>, lines: &'p Vec<String>, path: &'p str) -> Self {
+    pub fn new(tokens: Vec<Token>, lines: &'p [String], path: &'p str) -> Self {
         Parser {
             tokens,
             top: 0,
@@ -70,14 +70,14 @@ impl<'p> Parser<'p> {
 
                     StatementNode::Extern(Rc::new(self.statement()?))
                 },
-                
+
                 "expose" => {
                     self.next()?;
                     self.skip_types(vec![Whitespace])?;
-                    
+
                     let position = self.position();
                     let origin   = Expression::new(ExpressionNode::Identifier(self.consume_type(Identifier)?), position);
-                    
+
                     self.skip_types(vec![Whitespace])?;
 
                     self.consume_content("(")?;
@@ -91,7 +91,7 @@ impl<'p> Parser<'p> {
 
                         self.next()?;
                         self.skip_types(vec![Whitespace])?;
-                        
+
                         self.consume_content(")")?;
                         self.skip_types(vec![Whitespace])?;
 
@@ -102,7 +102,7 @@ impl<'p> Parser<'p> {
                             if self.current_content() == "*" {
                                 return Err(make_error(Some(self.position()), "'*' must be used alone".to_string()))
                             }
-                            
+
                             if self.current_type() == Identifier {
                                 expose.push(self.current_content());
                                 self.next()?
@@ -110,13 +110,13 @@ impl<'p> Parser<'p> {
                                 return Err(make_error(Some(self.position()), format!("can't expose '{}'", self.current_content())))
                             }
                             self.skip_types(vec![Whitespace])?;
-                            
+
                             if self.current_content() != "\n" {
                                 if self.current_content() == ")" {
                                     self.next()?;
                                     self.skip_types(vec![Whitespace])?;
                                     self.consume_content("\n")?;
-                                    
+
                                     break
                                 } else {
                                     self.consume_content(",")?;
@@ -134,7 +134,7 @@ impl<'p> Parser<'p> {
                         expose: Some(expose),
                     }
                 }
-                
+
                 "module" => {
                     self.next()?;
                     self.skip_types(vec![Whitespace])?;
@@ -142,7 +142,7 @@ impl<'p> Parser<'p> {
                     let name = self.consume_type(Identifier)?;
 
                     self.skip_types(vec![Whitespace])?;
-                    
+
                     if self.current_content() == "\n" {
                         StatementNode::Module {
                             name,
@@ -159,16 +159,16 @@ impl<'p> Parser<'p> {
                         }
                     }
                 },
-                
+
                 "while" => {
                     self.next()?;
-                    
+
                     self.skip_types(vec![Whitespace])?;
-                    
+
                     let condition = self.expression()?;
-                    
+
                     self.skip_types(vec![Whitespace])?;
-                    
+
                     self.expect_content("{")?;
 
                     let body = self.atom()?;
@@ -188,7 +188,7 @@ impl<'p> Parser<'p> {
 
                     self.skip_types(vec![Whitespace])?;
 
-                    let members = self.block_of(&mut Self::member_, ("{", "}"))?;
+                    let members = self.block_of(&Self::member_, ("{", "}"))?;
 
                     StatementNode::Struct {
                         name,
@@ -219,7 +219,7 @@ impl<'p> Parser<'p> {
                             self.next()?;
 
                             let right = self.expression()?;
-                            
+
                             self.skip_types(vec![TokenType::Whitespace])?;
                             self.consume_content("\n")?;
 
@@ -229,9 +229,29 @@ impl<'p> Parser<'p> {
                                 right: right,
                             }
 
+                        } else if self.current_content() == "=" {
+                            self.consume_content("=")?;
+
+                            let right = self.expression()?;
+
+                            self.skip_types(vec![TokenType::Whitespace])?;
+                            self.consume_content("\n")?;
+
+                            StatementNode::Definition {
+                                kind:  TypeNode::Nil,
+                                left:  identifier_node,
+                                right: Some(right),
+                            }
+
                         } else {
+                            self.skip_types(vec![TokenType::Whitespace])?;
+
+                            let kind = self.type_node()?;
+
+                            self.skip_types(vec![TokenType::Whitespace])?;
+
                             if self.current_content() == "=" {
-                                self.consume_content("=")?;
+                                self.next()?;
 
                                 let right = self.expression()?;
 
@@ -239,53 +259,31 @@ impl<'p> Parser<'p> {
                                 self.consume_content("\n")?;
 
                                 StatementNode::Definition {
-                                    kind:  TypeNode::Nil,
+                                    kind,
                                     left:  identifier_node,
                                     right: Some(right),
                                 }
+                            } else if self.current_content() == ":" {
+                                self.next()?;
+
+                                let right = self.expression()?;
+
+                                self.skip_types(vec![TokenType::Whitespace])?;
+                                self.consume_content("\n")?;
+
+                                StatementNode::ConstDefinition {
+                                    kind,
+                                    left: identifier_node,
+                                    right,
+                                }
 
                             } else {
-                                self.skip_types(vec![TokenType::Whitespace])?;
+                                self.consume_content("\n")?;
 
-                                let kind = self.type_node()?;
-
-                                self.skip_types(vec![TokenType::Whitespace])?;
-
-                                if self.current_content() == "=" {
-                                    self.next()?;
-
-                                    let right = self.expression()?;
-
-                                    self.skip_types(vec![TokenType::Whitespace])?;
-                                    self.consume_content("\n")?;
-
-                                    StatementNode::Definition {
-                                        kind,
-                                        left:  identifier_node,
-                                        right: Some(right),
-                                    }
-                                } else if self.current_content() == ":" {
-                                    self.next()?;
-
-                                    let right = self.expression()?;
-
-                                    self.skip_types(vec![TokenType::Whitespace])?;
-                                    self.consume_content("\n")?;
-
-                                    StatementNode::ConstDefinition {
-                                        kind,
-                                        left: identifier_node,
-                                        right,
-                                    }
-
-                                } else {
-                                    self.consume_content("\n")?;
-
-                                    StatementNode::Definition {
-                                        kind,
-                                        left:  identifier_node,
-                                        right: None,
-                                    }
+                                StatementNode::Definition {
+                                    kind,
+                                    left:  identifier_node,
+                                    right: None,
                                 }
                             }
                         }
@@ -437,7 +435,7 @@ impl<'p> Parser<'p> {
                     left: (*right).clone(),
                     right: (*left).clone(),
                 }, right.1)),
-                
+
                 _ => Vec::new(),
             };
 
@@ -448,21 +446,19 @@ impl<'p> Parser<'p> {
             let arm_body = Expression::new(ExpressionNode::Block([&else_binding[..], &vec![self.statement()?][..]].concat()), position);
 
             if found {
-                if else_binding.len() > 0 {
+                if !else_binding.is_empty() {
                     elses.push((None, arm_body, position))
                 } else {
-                    elses.push((Some(Expression::new(ExpressionNode::Binary {left: left.clone(), op: Operator::Equal, right}, left.1)), arm_body, position))
+                    elses.push((Some(Expression::new(ExpressionNode::Binary {left: Rc::clone(&left), op: Operator::Equal, right}, left.1)), arm_body, position))
                 }
+            } else if !else_binding.is_empty() {
+                condition = Expression::new(ExpressionNode::Bool(true), left.1);
+                body      = arm_body;
+                found = true
             } else {
-                if else_binding.len() > 0 {
-                    condition = Expression::new(ExpressionNode::Bool(true), left.1);
-                    body      = arm_body;
-                    found = true
-                } else {
-                    condition = Expression::new(ExpressionNode::Binary {left: left.clone(), op: Operator::Equal, right}, left.1);
-                    body      = arm_body;
-                    found = true
-                }
+                condition = Expression::new(ExpressionNode::Binary {left: Rc::clone(&left), op: Operator::Equal, right}, left.1);
+                body      = arm_body;
+                found = true
             }
 
             self.next()?;
@@ -484,9 +480,9 @@ impl<'p> Parser<'p> {
             "bool"    => Bool,
             "["       => {
                 self.next()?;
-                
+
                 self.skip_types(vec![TokenType::Whitespace])?;
-                
+
                 let content = Type::new(self.type_node()?, TypeMode::Just);
 
                 self.skip_types(vec![TokenType::Whitespace])?;
@@ -581,7 +577,7 @@ impl<'p> Parser<'p> {
 
             TokenType::Operator => {
                 let (op, _) = Operator::from(&self.consume_type(TokenType::Operator)?).unwrap();
-                
+
                 self.skip_types(vec![TokenType::Whitespace])?;
 
                 Unary(op, Rc::new(self.atom()?))
@@ -634,17 +630,17 @@ impl<'p> Parser<'p> {
                         let content = self.block_of(&Self::expression_, ("(", ")"))?;
 
                         if content.len() > 1 {
-                            return Err(make_error(Some(content.get(0).unwrap().1), format!("claused expression can only contain one item")))
+                            return Err(make_error(Some(content[0].1), "claused expression can only contain one item".to_string()))
                         }
 
-                        content.get(0).unwrap().clone().0
+                        content[0].clone().0
                     } else {
                         self.top = backup_top;
                         self.function()?
                     }
                 },
 
-                ref t => return Err(make_error(Some(self.position()), format!("unexpected symbol: {}", t)))
+                t => return Err(make_error(Some(self.position()), format!("unexpected symbol: {}", t)))
             },
 
             TokenType::Whitespace | TokenType::EOL => {
@@ -653,8 +649,7 @@ impl<'p> Parser<'p> {
             },
 
             TokenType::Keyword => match self.current_content().as_str() {
-                "if"    => Block(vec![self.statement()?]),
-                "match" => Block(vec![self.statement()?]),
+                "if" | "match" => Block(vec![self.statement()?]),
                 key  => return Err(make_error(Some(position), format!("unexpected keyword '{}'", key)))
             },
 
@@ -834,7 +829,7 @@ impl<'p> Parser<'p> {
 
         self.next()?;
 
-        if stack.len() > 0 {
+        if !stack.is_empty() {
             let mut parser  = Parser::new(stack, self.lines, self.path);
             parser.inside   = self.inside.clone();
 
@@ -853,7 +848,7 @@ impl<'p> Parser<'p> {
         }
 
     }
-    
+
     fn maybe_construct(&mut self, atom: Expression) -> Response<Expression> {
         use self::ExpressionNode::*;
 
@@ -865,11 +860,11 @@ impl<'p> Parser<'p> {
 
                 let node = match self.current_content().as_str() {
                     "{" => {
-                        let members = self.block_of(&mut Self::member_construct_, ("{", "}"))?;
+                        let members = self.block_of(&Self::member_construct_, ("{", "}"))?;
 
                         return Ok(Expression::new(
                             ExpressionNode::Constructor(Rc::new(atom.clone()), members),
-                            atom.1.clone(),
+                            atom.1,
                         ));
                     },
 
@@ -894,8 +889,8 @@ impl<'p> Parser<'p> {
 
         let node = match self.current_content().as_str() {
             "(" => {
-                let args = self.block_of(&mut Self::arg_, ("(", ")"))?;
-                let pos  = atom.1.clone();
+                let args = self.block_of(&Self::arg_, ("(", ")"))?;
+                let pos  = atom.1;
 
                 return self.maybe_index(Expression(Call(Rc::new(atom), args), pos))
             },
@@ -914,45 +909,45 @@ impl<'p> Parser<'p> {
         let backup_top = self.top;
 
         self.skip_types(vec![TokenType::Whitespace])?;
-        
+
         if self.remaining() > 1 {
             let node = match self.current_type() {
                 TokenType::Identifier => {
                     let position = self.position();
                     let indexing = Expression(Str(self.consume_type(TokenType::Identifier)?), position);
-                    
+
                     self.skip_types(vec![TokenType::Whitespace])?;
-                    
+
                     return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing)), position))
                 }
                 _ => match self.current_content().as_str() {
                     "[" => {
                         let position = self.position();
-                        let indexing = self.block_of(&mut Self::expression_, ("[", "]"))?;
-                        
+                        let indexing = self.block_of(&Self::expression_, ("[", "]"))?;
+
                         if indexing.len() > 1 {
                             return Err(make_error(Some(atom.1), "indexing with multiple expressions".to_owned()))
-                        } else if indexing.len() == 0 {
+                        } else if indexing.is_empty() {
                             return Err(make_error(Some(atom.1), "indexing with nothing".to_owned()))
                         }
-                        
+
                         self.skip_types(vec![TokenType::Whitespace])?;
-                        
+
                         return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing[0].clone())), position))
                     },
-                    
+
                     _ => atom,
                 }
             };
-            
+
             self.top = backup_top;
-            
+
             let maybe_call = self.maybe_call(node)?;
 
             self.maybe_construct(maybe_call)
         } else {
             self.top = backup_top;
-            return Ok(atom)
+            Ok(atom)
         }
     }
 
@@ -980,7 +975,7 @@ impl<'p> Parser<'p> {
 
         // covering bad case
         if self.current_content() == "\n" {
-            return Err(make_error(Some(position), format!("EOL is not good")))
+            return Err(make_error(Some(position), "EOL is not good".to_string()))
         }
 
         // the right hand of operation
@@ -990,7 +985,7 @@ impl<'p> Parser<'p> {
             // pushing right hand of operation onto the stack
             ex_stack.push(atom)
         } else {
-            return Err(make_error(Some(atom.1), format!("EOF is not good")))
+            return Err(make_error(Some(atom.1), "EOF is not good".to_string()))
         }
 
         let mut done = false;
@@ -1034,7 +1029,7 @@ impl<'p> Parser<'p> {
                     let atom = self.atom()?;
 
                     if atom.0 == ExpressionNode::EOF {
-                        return Err(make_error(Some(atom.1), format!("EOF is not good")))
+                        return Err(make_error(Some(atom.1), "EOF is not good".to_string()))
                     }
 
                     ex_stack.push(atom); // and is pushed onto the stack

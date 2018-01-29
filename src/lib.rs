@@ -21,7 +21,7 @@ pub fn path_ast(path: &str) -> Option<Vec<wu::parser::Statement>> {
         Ok(_)    => (),
     }
 
-    let lines = source.lines().map(|x| x.to_string()).collect();
+    let lines = source.lines().map(|x| x.to_string()).collect::<Vec<String>>();
     let lexer = make_lexer(source.clone().chars().collect(), &lines, &path);
 
     let mut parser = Parser::new(lexer.collect::<Vec<Token>>(), &lines, &path);

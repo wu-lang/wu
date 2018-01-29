@@ -2,7 +2,7 @@ use super::*;
 
 use std::rc::Rc;
 
-pub fn make_lexer<'l>(data: Vec<char>, lines: &'l Vec<String>, path: &'l str) -> Lexer<'l> {
+pub fn make_lexer<'l>(data: Vec<char>, lines: &'l [String], path: &'l str) -> Lexer<'l> {
     let tokenizer = Tokenizer::new(data);
     let mut lexer = Lexer::new(tokenizer, lines, path);
 
@@ -45,12 +45,12 @@ pub fn make_lexer<'l>(data: Vec<char>, lines: &'l Vec<String>, path: &'l str) ->
 pub struct Lexer<'l> {
     tokenizer: Tokenizer,
     matchers:  Vec<Rc<Matcher>>,
-    lines:     &'l Vec<String>,
+    lines:     &'l [String],
     path:      &'l str,
 }
 
 impl<'t> Lexer<'t> {
-    pub fn new(tokenizer: Tokenizer, lines: &'t Vec<String>, path: &'t str) -> Self {
+    pub fn new(tokenizer: Tokenizer, lines: &'t [String], path: &'t str) -> Self {
         Self {
             tokenizer,
             matchers: Vec::new(),

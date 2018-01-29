@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 // a simple symbol table for keeping track of scopes
-// 
+//
 #[derive(Clone)]
 pub struct SymTab {
     pub parent: Option<Rc<SymTab>>,

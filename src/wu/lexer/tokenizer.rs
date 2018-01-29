@@ -60,11 +60,11 @@ impl Tokenizer {
         self.items.get(self.index..self.index + n).map(|chars| chars.iter().collect::<String>())
     }
 
-    pub fn peek_n(&self, n: usize) -> Option<&char> {
-        self.items.get(self.index + n)
+    pub fn peek_n(&self, n: usize) -> Option<char> {
+        self.items.get(self.index + n).cloned()
     }
 
-    pub fn peek(&self) -> Option<&char> {
+    pub fn peek(&self) -> Option<char> {
         self.peek_n(0)
     }
 
@@ -111,15 +111,11 @@ impl Tokenizer {
         }
     }
 
-    pub fn collect_if(&mut self, func: fn(&char) -> bool) -> String {
+    pub fn collect_if(&mut self, func: fn(char) -> bool) -> String {
         let mut accum = String::new();
-        loop {
-            if let Some(c) = self.peek() {
-                if func(c) {
-                    accum.push(*c);
-                } else {
-                    break
-                }
+        while let Some(c) = self.peek() {
+            if func(c) {
+                accum.push(c);
             } else {
                 break
             }
