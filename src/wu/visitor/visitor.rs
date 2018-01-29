@@ -382,7 +382,6 @@ impl<'v> Visitor<'v> {
                 Err(err) => Err(err),
             },
 
-
             (&Function {ref params, ref return_type, ref body}, _) => self.visit_function(params, return_type, body),
 
             (&Array(ref content), position) => {

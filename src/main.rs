@@ -57,8 +57,8 @@ fn compile_path(path: &str) {
             let split: Vec<&str> = path.split('.').collect();
 
             match split.last() {
-                Some(n) if *n == "wu" => (),
-                _ => continue,
+                Some(n) if *n == "wu" || Path::new(&path).is_dir() => (),
+                ref c => continue,
             }
 
             compile_path(&format!("{}", path))

@@ -1,3 +1,4 @@
+local __mod__ = (function()
 
 
 local point = {
@@ -25,3 +26,9 @@ end)
 love["draw"] = (function()
 return love["graphics"]["rectangle"]("fill",position["x"],position["y"],200,200)
 end)
+return {
+point = point,
+position = position,
+}
+end)()
+return __mod__

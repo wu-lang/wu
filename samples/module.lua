@@ -1,3 +1,4 @@
+local __mod__ = (function()
 local test = (function()
 local point = {
 __construct__ = function(__constructor)
@@ -33,3 +34,9 @@ z = 3,
 })
 
 
+return {
+test = test,
+test_point = test_point,
+}
+end)()
+return __mod__

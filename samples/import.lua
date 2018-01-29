@@ -1,3 +1,4 @@
+local __mod__ = (function()
 local funny = require('funny')
 local test = (function()
 local yes = {
@@ -40,3 +41,12 @@ content = "yes ok",
 })
 
 
+return {
+funny = funny,
+test = test,
+something = something,
+b = b,
+idk = idk,
+}
+end)()
+return __mod__
