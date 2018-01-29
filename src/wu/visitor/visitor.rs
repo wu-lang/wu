@@ -172,16 +172,16 @@ impl Display for Type {
 }
 
 pub struct Visitor<'v> {
-    pub ast:     &'v Vec<Statement>,
+    pub ast:     &'v [Statement],
     pub symtab:  SymTab,
     pub typetab: TypeTab,
 
-    pub lines: &'v Vec<String>,
+    pub lines: &'v [String],
     pub path:  &'v str,
 }
 
 impl<'v> Visitor<'v> {
-    pub fn new(ast: &'v Vec<Statement>, lines: &'v Vec<String>, path: &'v str) -> Self {
+    pub fn new(ast: &'v [Statement], lines: &'v [String], path: &'v str) -> Self {
         Visitor {
             ast,
             symtab:  SymTab::global(),
@@ -191,7 +191,7 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    pub fn from(ast: &'v Vec<Statement>, symtab: SymTab, typetab: TypeTab, lines: &'v Vec<String>, path: &'v str) -> Self {
+    pub fn from(ast: &'v [Statement], symtab: SymTab, typetab: TypeTab, lines: &'v [String], path: &'v str) -> Self {
         Visitor {
             ast,
             symtab,
@@ -204,26 +204,23 @@ impl<'v> Visitor<'v> {
     pub fn dealias(&mut self, alias: &Type) -> Response<Type> {
         use TypeNode::*;
 
-        let a = match alias.0 {
+        match alias.0 {
             Id(ref id)   => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), TokenPosition::default())),
             Array(ref t) => Ok(Type::new(Array(Rc::new(self.dealias(&*t)?)), alias.1.clone())),
             _            => Ok(alias.clone()),
-        };
-
-        a
+        }
     }
 
     pub fn validate(&mut self) -> Response<()> {
         let mut responses = Vec::new();
 
         for statement in self.ast.iter() {
-            match self.visit_statement(statement) {
-                Err(response) => responses.push(response),
-                Ok(_)         => (),
+            if let Err(response) = self.visit_statement(statement) {
+                responses.push(response)
             }
         }
 
-        if responses.len() > 0 {
+        if !responses.is_empty() {
             Err(ResponseNode { kind: ResponseType::Group(responses), position: None, message: "fix the errors above, or consequences".to_owned() } )
         } else {
             Ok(())
@@ -243,7 +240,7 @@ impl<'v> Visitor<'v> {
                     Err(make_error(Some(position), format!("struct '{}' defined multiple times", name)))
                 } else {
                     self.typetab.grow();
-                    let index = self.symtab.add_name(&name);
+                    let index = self.symtab.add_name(name);
 
                     let mut hash_members = HashMap::new();
 
@@ -268,10 +265,10 @@ impl<'v> Visitor<'v> {
 
                 let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
-                self.visit_expression(&condition)?;
+                self.visit_expression(condition)?;
 
-                if self.type_expression(&condition)? != Type::boolean() {
-                    Err(make_error(Some(position.clone()), "non-boolean condition".to_owned()))
+                if self.type_expression(condition)? != Type::boolean() {
+                    Err(make_error(Some(position), "non-boolean condition".to_owned()))
                 } else {
                     visitor.visit_expression(body)
                 }
@@ -284,7 +281,7 @@ impl<'v> Visitor<'v> {
                     Err(make_error(Some(position), format!("module '{}' defined multiple times", name)))
                 } else {
                     self.typetab.grow();
-                    let index = self.symtab.add_name(&name);
+                    let index = self.symtab.add_name(name);
 
                     let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
                     let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
@@ -292,7 +289,7 @@ impl<'v> Visitor<'v> {
                     if let Some(ref content) = *content {
                         let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
-                        visitor.visit_expression(&content)?;
+                        visitor.visit_expression(content)?;
 
                         let mut hash_types = HashMap::new();
 
@@ -302,7 +299,7 @@ impl<'v> Visitor<'v> {
 
                         self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
                     } else {
-                        let path_split = self.path.split("/").collect::<Vec<&str>>();
+                        let path_split = self.path.split('/').collect::<Vec<&str>>();
                         let path = &format!("{}/{}.wu", path_split[0 .. path_split.len() - 1].join("/"), name);
 
                         if let Some(statements) = path_ast(path) {
@@ -335,16 +332,16 @@ impl<'v> Visitor<'v> {
                             if expose.contains(&"*".to_string()) {
                                 for member in members {
                                     self.typetab.grow();
-                                    let index = self.symtab.add_name(&member.0);
+                                    let index = self.symtab.add_name(member.0);
                                     self.typetab.set_type(index, 0, member.1.clone())?;
                                 }
                             } else {
                                 for exposed in expose {
                                     match members.get(exposed) {
-                                        Some(ref member) => {
+                                        Some(member) => {
                                             self.typetab.grow();
-                                            let index = self.symtab.add_name(&exposed);
-                                            self.typetab.set_type(index, 0, (**member).clone())?;
+                                            let index = self.symtab.add_name(exposed);
+                                            self.typetab.set_type(index, 0, (*member).clone())?;
                                         },
                                         None => return Err(make_error(Some(position), format!("can't expose non-existing member '{}'", exposed)))
                                     }
@@ -372,10 +369,11 @@ impl<'v> Visitor<'v> {
                 None    => Err(make_error(Some(position), format!("undefined '{}'", name)))
             },
 
-            (&Binary { .. }, _) => match self.type_expression(&expression) {
+            (&Binary { .. }, _) => match self.type_expression(expression) {
                 Ok(_)    => Ok(()),
                 Err(err) => Err(err),
             },
+
 
             (&Function {ref params, ref return_type, ref body}, _) => self.visit_function(params, return_type, body),
 
@@ -395,18 +393,16 @@ impl<'v> Visitor<'v> {
 
             (&Constructor(ref name, ref members), position) => {
                 use TypeNode::*;
-                
-                let name_type = self.type_expression(&name)?;
-                
+
+                let name_type = self.type_expression(name)?;
+
                 match name_type.0 {
                     Struct(ref types) => {
                         if !name_type.1.check(&TypeMode::Unconstructed) {
                             return Err(make_error(Some(position), format!("expected unconstructed struct, found '{}'", name_type)))
                         }
 
-                        let mut acc = 0;
-
-                        for (member_name, member_type) in types {
+                        for (acc, (member_name, member_type)) in types.iter().enumerate() {
                             let con_member = match members.get(acc) {
                                 Some(member) => member,
                                 None         => return Err(make_error(Some(position), format!("missing initialization '{}'", member_name)))
@@ -418,8 +414,6 @@ impl<'v> Visitor<'v> {
                             if *member_type != con_type.0 {
                                 return Err(make_error(Some(position), format!("mismatching member '{}': expected '{}', found '{}'", member_name, member_type, con_type)))
                             }
-
-                            acc += 1
                         }
 
                         Ok(())
@@ -429,8 +423,8 @@ impl<'v> Visitor<'v> {
             },
 
             (&Index(ref indexed, ref index), position) => {
-                let indexed_type = self.type_expression(&indexed)?;
-                
+                let indexed_type = self.type_expression(indexed)?;
+
                 if indexed_type.1.check(&TypeMode::Undeclared) || indexed_type.1.check(&TypeMode::Unconstructed) {
                     return Err(make_error(Some(position), format!("can't index '{}'", indexed_type)))
                 }
@@ -477,12 +471,8 @@ impl<'v> Visitor<'v> {
             (&Call(ref callee, ref args), _) => self.visit_call(callee, args),
 
             (&Block(ref statements), _) => {
-                let mut acc = 1;
-                
                 for statement in statements {
-                    self.visit_statement(&statement)?;
-
-                    acc += 1
+                    self.visit_statement(statement)?;
                 }
 
                 Ok(())
@@ -492,7 +482,7 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    fn visit_function(&mut self, params: &Vec<(String, TypeNode, Option<Rc<Expression>>)>, return_type: &TypeNode, body: &Expression) -> Response<()> {
+    fn visit_function(&mut self, params: &[(String, TypeNode, Option<Rc<Expression>>)], return_type: &TypeNode, body: &Expression) -> Response<()> {
         let mut param_names = Vec::new();
         let mut param_types = Vec::new();
 
@@ -508,7 +498,7 @@ impl<'v> Visitor<'v> {
             }
         }
 
-        let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &param_names.as_slice());
+        let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), param_names.as_slice());
         let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &param_types, &HashMap::new());
 
         let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
@@ -526,7 +516,7 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    fn visit_call(&mut self, callee: &Rc<Expression>, args: &Vec<Expression>) -> Response<()> {
+    fn visit_call(&mut self, callee: &Rc<Expression>, args: &[Expression]) -> Response<()> {
         let callee_t = self.type_expression(&**callee)?;
 
         if callee_t.1 == TypeMode::Undeclared {
@@ -542,7 +532,7 @@ impl<'v> Visitor<'v> {
                         } else {
                             for param in &params[args.len() .. params.len()] {
                                 if !param.1.check(&TypeMode::Optional) {
-                                    return Err(make_error(Some(callee.1), format!("can't ommit non-optional argument")))
+                                    return Err(make_error(Some(callee.1), "can't ommit non-optional argument".to_string()))
                                 }
                             }
 
@@ -554,7 +544,7 @@ impl<'v> Visitor<'v> {
                                 TypeNode::Id(ref id) => self.type_expression(&Expression::new(ExpressionNode::Identifier(id.clone()), args[acc].1))?,
                                 _                    => param.clone(),
                             };
-                            
+
                             if param != self.type_expression(&args[acc])? {
                                 return Err(make_error(Some(args[acc].1), format!("mismatched argument type: '{}', expected: '{}'", self.type_expression(&args[acc])?, param)))
                             }
@@ -595,7 +585,7 @@ impl<'v> Visitor<'v> {
                         Str(ref name)        => Type::new(members.get(name).unwrap().clone(), TypeMode::Just),
                         _ => unreachable!(),
                     },
-                    
+
                     TypeNode::Module(ref members) => match index.0 {
                         Identifier(ref name) |
                         Str(ref name)        => match members.get(name) {
@@ -613,7 +603,7 @@ impl<'v> Visitor<'v> {
 
             (&Function {ref params, ref return_type, ..}, _) => {
                 Type::new(TypeNode::Fun(
-                    params.iter().map(|x| Type::new(x.1.clone(), if let Some(_) = x.2 { TypeMode::Optional } else { TypeMode::Just })).collect::<Vec<Type>>(),
+                    params.iter().map(|x| Type::new(x.1.clone(), if x.2.is_some() { TypeMode::Optional } else { TypeMode::Just })).collect::<Vec<Type>>(),
                     Rc::new(self.dealias(&Type::new(return_type.clone(), TypeMode::Just))?),
                 ), TypeMode::Just)
             },
@@ -622,7 +612,7 @@ impl<'v> Visitor<'v> {
                 TypeNode::Fun(_, ref retty) => (**retty).clone(),
                 ref t                       => return Err(make_error(Some(position), format!("can't call: {}", t))),
             },
-            
+
             (&Unary(ref op, ref expression), position) => {
                 use Operator::*;
                 use TypeNode::*;
@@ -675,13 +665,13 @@ impl<'v> Visitor<'v> {
                     (_, &LtEqual, _) |
                     (_, &GtEqual, _) => Type::new(Bool, TypeMode::Just),
 
-                    (_, &Not, _) => return Err(make_error(Some(position), format!("can't use '~' as a binary operation"))),
+                    (_, &Not, _) => return Err(make_error(Some(position), "can't use '~' as a binary operation".to_string())),
 
                     (ref left_type, &Compound(ref op), _) => {
                         if left_type.1.check(&TypeMode::Constant) {
                             return Err(make_error(Some(position), "can't reassign immutable".to_owned()))
                         } else {
-                            match self.type_expression(&Expression::new(Binary { left: left.clone(), op: (**op).clone(), right: right.clone() }, position)) {
+                            match self.type_expression(&Expression::new(Binary { left: Rc::clone(left), op: (**op).clone(), right: Rc::clone(right) }, position)) {
                                 Ok(_)      => Type::nil(),
                                 e @ Err(_) => return e,
                             }
@@ -704,7 +694,7 @@ impl<'v> Visitor<'v> {
 
                 for statement in statements {
                     if acc != statements.len() {
-                        visitor.visit_statement(&statement)?
+                        visitor.visit_statement(statement)?
                     }
 
                     if return_type == None {
@@ -716,7 +706,7 @@ impl<'v> Visitor<'v> {
                     acc += 1
                 }
 
-                return_type.unwrap_or(Type::nil())
+                return_type.unwrap_or_else(Type::nil)
             },
 
             _ => Type::nil(),
@@ -751,7 +741,7 @@ impl<'v> Visitor<'v> {
 
     fn visit_definition(&mut self, kind: &TypeNode, left: &Expression, right: &Option<Expression>) -> Response<()> {
         use ExpressionNode::*;
-        
+
         let kind = self.dealias(&Type::new(kind.clone(), TypeMode::Constant))?.0;
 
         let var_type = Type::new(kind.clone(), TypeMode::Just);
@@ -761,17 +751,17 @@ impl<'v> Visitor<'v> {
                 Function { .. } | Block(_) => (),
                 _                          => self.visit_expression(right)?,
             }
-            
-            let right_kind = self.type_expression(&right)?;
-            
+
+            let right_kind = self.type_expression(right)?;
+
             let index = match left.0 {
                 Identifier(ref name) => {
                     self.typetab.grow();
-                    self.symtab.add_name(&name)
+                    self.symtab.add_name(name)
                 },
 
                 Index(..) => return Ok(()),
-                _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
+                _         => return Err(make_error(Some(left.1), "can't define anything but identifiers".to_string())),
             };
 
             if kind != TypeNode::Nil {
@@ -780,7 +770,7 @@ impl<'v> Visitor<'v> {
                 } else {
                     self.typetab.set_type(index, 0, var_type)?;
                 }
-            } else {                
+            } else {
                 self.typetab.set_type(index, 0, right_kind)?;
             }
 
@@ -792,11 +782,11 @@ impl<'v> Visitor<'v> {
             let index = match left.0 {
                 Identifier(ref name) => {
                     self.typetab.grow();
-                    self.symtab.add_name(&name)
+                    self.symtab.add_name(name)
                 },
 
                 Index(..) => return Ok(()),
-                _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
+                _         => return Err(make_error(Some(left.1), "can't define anything but identifiers".to_string())),
             };
 
             self.typetab.set_type(index, 0, Type::new(kind.clone(), TypeMode::Undeclared))
@@ -811,10 +801,10 @@ impl<'v> Visitor<'v> {
         let index = match left.0 {
             Identifier(ref name) => {
                 self.typetab.grow();
-                self.symtab.add_name(&name)
+                self.symtab.add_name(name)
             },
             Index(..) => return Ok(()),
-            _         => return Err(make_error(Some(left.1), format!("can't define anything but identifiers"))),
+            _         => return Err(make_error(Some(left.1), "can't define anything but identifiers".to_string())),
         };
 
         let const_type = Type::new(kind.clone(), TypeMode::Constant);
@@ -824,10 +814,10 @@ impl<'v> Visitor<'v> {
             _                          => self.visit_expression(right)?,
         }
 
-        let right_kind = Type::new(self.type_expression(&right)?.0, TypeMode::Constant);
+        let right_kind = Type::new(self.type_expression(right)?.0, TypeMode::Constant);
 
         if right_kind.0 == TypeNode::Nil {
-            return Err(make_error(Some(right.1), format!("expected non-nil")))
+            return Err(make_error(Some(right.1), "expected non-nil".to_string()))
         }
 
         if kind != TypeNode::Nil {
@@ -854,13 +844,11 @@ impl<'v> Visitor<'v> {
         let right_type = self.type_expression(right)?;
 
         if left_type.1.check(&TypeMode::Constant) {
-            Err(make_error(Some(left.1), format!("can't reassign constant")))
+            Err(make_error(Some(left.1), "can't reassign constant".to_string()))
+        } else if left_type != right_type {
+            Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", left_type, right_type)))
         } else {
-            if left_type != right_type {
-                Err(make_error(Some(right.1), format!("mismatched types: expected '{}', found '{}'", left_type, right_type)))
-            } else {
-                Ok(())
-            }
+            Ok(())
         }
     }
 
@@ -873,7 +861,7 @@ impl<'v> Visitor<'v> {
         let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
         if self.type_expression(&if_node.condition)? != Type::boolean() {
-            Err(make_error(Some(position.clone()), "non-boolean condition".to_owned()))
+            Err(make_error(Some(*position), "non-boolean condition".to_owned()))
         } else {
             visitor.visit_expression(&if_node.body)?;
 
@@ -884,8 +872,8 @@ impl<'v> Visitor<'v> {
                     if let Some(ref condition) = case.0 {
                         self.visit_expression(condition)?;
 
-                        if self.type_expression(&condition)? != Type::boolean() {
-                            return Err(make_error(Some(position.clone()), "non-boolean condition".to_owned()))
+                        if self.type_expression(condition)? != Type::boolean() {
+                            return Err(make_error(Some(*position), "non-boolean condition".to_owned()))
                         }
                     }
 
@@ -899,7 +887,7 @@ impl<'v> Visitor<'v> {
                     let case_t = visitor.type_expression(&case.1)?;
 
                     if return_type != case_t {
-                        return Err(make_error(Some(case.2.clone()), format!("mismatched types: expected '{}', found '{}'", return_type, case_t)))
+                        return Err(make_error(Some(case.2), format!("mismatched types: expected '{}', found '{}'", return_type, case_t)))
                     }
                 }
 

@@ -30,7 +30,7 @@ pub enum StatementNode {
         name:    String,
         members: Vec<(String, TypeNode)>
     },
-    
+
     While {
         condition: Expression,
         body:      Expression,

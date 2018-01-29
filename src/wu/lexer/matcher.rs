@@ -31,7 +31,7 @@ impl Matcher for FloatLiteralMatcher {
         }
 
         while !tokenizer.end() {
-            let current = *tokenizer.peek().unwrap();
+            let current = tokenizer.peek().unwrap();
             if !current.is_whitespace() && current.is_digit(10) || current == '.' {
                 if current == '.' && accum.contains('.') {
                     return Err(make_error(Some(tokenizer.last_position()), "extra decimal point".to_owned()))
@@ -42,7 +42,7 @@ impl Matcher for FloatLiteralMatcher {
             }
         }
 
-        if accum == "0.".to_owned() {
+        if &accum == "0." {
             Ok(None)
         } else if accum.contains('.') {
 
@@ -71,12 +71,12 @@ impl Matcher for StringLiteralMatcher {
 
         //Check which delimeter this string is using
         //If it's not using a delimeter, then it's not a string
-        let delimeter  = match *tokenizer.peek().unwrap() {
+        let delimeter  = match tokenizer.peek().unwrap() {
             '"'  => '"',
             '\'' => '\'',
             //Used for raw strings
             'r' => {
-                if tokenizer.peek_n(1) == Some(&'"') {
+                if tokenizer.peek_n(1) == Some('"') {
                     raw_marker = true;
                     tokenizer.advance();
 
@@ -103,7 +103,7 @@ impl Matcher for StringLiteralMatcher {
             }
 
             if raw_marker {
-                if tokenizer.peek().unwrap() == &'"' {
+                if tokenizer.peek().unwrap() == '"' {
                     break
                 }
 
@@ -120,7 +120,7 @@ impl Matcher for StringLiteralMatcher {
                 );
                 found_escape = false
             } else {
-                match *tokenizer.peek().unwrap() {
+                match tokenizer.peek().unwrap() {
                     '\\' => {
                         tokenizer.next();
                         found_escape = true
@@ -140,11 +140,11 @@ pub struct IdentifierMatcher;
 impl Matcher for IdentifierMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         //Make sure the first character is alphabetic or '_' if not it's not an identifier
-        if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == &'_') {
+        if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == '_') {
             return Ok(None)
         }
 
-        let string = tokenizer.collect_if(|c| c.is_alphanumeric() || "_!?".contains(*c));
+        let string = tokenizer.collect_if(|c| c.is_alphanumeric() || "_!?".contains(c));
 
         if string.is_empty() {
             Ok(None)
@@ -158,8 +158,8 @@ pub struct CommentMatcher;
 
 impl Matcher for CommentMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
-        if tokenizer.peek_range(2).unwrap_or(String::new()) == "--" {
-            while !tokenizer.end() && tokenizer.peek().unwrap() != &'\n' {
+        if tokenizer.peek_range(2).unwrap_or_else(String::new) == "--" {
+            while !tokenizer.end() && tokenizer.peek().unwrap() != '\n' {
                 tokenizer.advance();
             }
             Ok(Some(token!(tokenizer, EOL, "\n".into())))
@@ -173,9 +173,9 @@ pub struct WhitespaceMatcher;
 
 impl Matcher for WhitespaceMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
-        let string = tokenizer.collect_if(|c| c.is_whitespace() && c != &'\n');
+        let string = tokenizer.collect_if(|c| c.is_whitespace() && c != '\n');
 
-        if string.len() > 0 {
+        if !string.is_empty() {
             Ok(Some(token!(tokenizer, Whitespace, string)))
         } else {
             Ok(None)
@@ -199,7 +199,7 @@ impl ConstantCharMatcher {
 
 impl Matcher for ConstantCharMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
-        let c = tokenizer.peek().unwrap().clone();
+        let c = tokenizer.peek().unwrap();
         for constant in self.constants {
             if c == *constant {
                 tokenizer.advance();
@@ -258,7 +258,7 @@ impl Matcher for KeyMatcher {
             if let Some(s) = tokenizer.peek_range(constant.len()) {
                 if s == *constant {
                     if let Some(c) = tokenizer.peek_n(constant.len()) {
-                        if "_!?".contains(*c) || c.is_alphanumeric() {
+                        if "_!?".contains(c) || c.is_alphanumeric() {
                             return Ok(None)
                         }
                     }

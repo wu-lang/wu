@@ -1,12 +1,13 @@
+use std::rc::Rc;
 use super::*;
 
 pub struct Codegen<'c> {
-    pub ast:     &'c Vec<Statement>,
+    pub ast:     &'c [Statement],
     pub visitor: &'c mut Visitor<'c>,
 }
 
 impl<'c> Codegen<'c> {
-    pub fn new(ast: &'c Vec<Statement>, visitor: &'c mut Visitor<'c>)-> Self {
+    pub fn new(ast: &'c [Statement], visitor: &'c mut Visitor<'c>)-> Self {
         Codegen {
             ast,
             visitor,
@@ -19,7 +20,7 @@ impl<'c> Codegen<'c> {
         for statement in self.ast.iter() {
             code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)))
         }
-        
+
         code
     }
 
@@ -32,12 +33,12 @@ impl<'c> Codegen<'c> {
                     Some(ref right) => match right.0 {
                         ref block @ ExpressionNode::Block(_) => {
                             if let ExpressionNode::Identifier(_) = left.0 {
-                                format!("local {}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                                format!("local {}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(block, &left.0))
                             } else {
-                                format!("{}\n", self.gen_block_assignment(&block, &left.0))
+                                format!("{}\n", self.gen_block_assignment(block, &left.0))
                             }
                         },
-                        _ => format!("local {} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+                        _ => format!("local {} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0))
                     }
 
                     None => if let ExpressionNode::Identifier(_) = left.0 {
@@ -51,12 +52,12 @@ impl<'c> Codegen<'c> {
             ConstDefinition { ref left, ref right, .. } => match right.0 {
                 ref block @ ExpressionNode::Block(_) => {
                     if let ExpressionNode::Identifier(_) = left.0 {
-                        format!("local {}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                        format!("local {}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(block, &left.0))
                     } else {
                         format!("{}\n", self.gen_block_assignment(&block, &left.0))
                     }
                 },
-                _ => format!("local {} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+                _ => format!("local {} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0))
             },
 
             Module { ref name, ref content } => {
@@ -65,26 +66,22 @@ impl<'c> Codegen<'c> {
 
                     let mut returns = Vec::new();
 
-                    match *content {
-                        super::Expression(ExpressionNode::Block(ref content), _) => {
-                            for statement in content {
-                                match statement.0 {
-                                    Definition { ref left, .. } | ConstDefinition { ref left, .. } => if let ExpressionNode::Identifier(ref name) = left.0 {
-                                        returns.push(name)
-                                    },
+                    if let super::Expression(ExpressionNode::Block(ref content), _) = *content {
+                        for statement in content {
+                            match statement.0 {
+                                Definition { ref left, .. } | ConstDefinition { ref left, .. } => if let ExpressionNode::Identifier(ref name) = left.0 {
+                                    returns.push(name)
+                                },
 
-                                    Struct { ref name, .. } | Module { ref name, .. } => returns.push(name),
-                                    
-                                    _ => (),
-                                }
-                                
-                                code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)))
+                                Struct { ref name, .. } | Module { ref name, .. } => returns.push(name),
+
+                                _ => (),
                             }
-                        },
 
-                        _ => (),
+                            code.push_str(&format!("{}\n", self.gen_statement_local(&statement.0)))
+                        }
                     }
-                    
+
                     code.push_str("return {\n");
 
                     for ret in returns {
@@ -104,8 +101,8 @@ impl<'c> Codegen<'c> {
                 if let Some(ref expose) = *expose {
                     if expose.contains(&"*".to_string()) {
 
-                        if let TypeNode::Module(ref members) = self.visitor.type_expression(&origin).unwrap().0 {
-                            for (name, _) in members {
+                        if let TypeNode::Module(ref members) = self.visitor.type_expression(origin).unwrap().0 {
+                            for name in members.keys() {
                                 code.push_str(&format!("local {0} = {1}.{0}\n", name, self.gen_expression(&origin.0)))
                             }
                         }
@@ -124,7 +121,7 @@ impl<'c> Codegen<'c> {
             Struct {ref name, ref members} => {
                 let mut code = format!("local {} = {{\n", name);
 
-                code.push_str(&format!("__construct__ = function(__constructor)\n"));
+                code.push_str("__construct__ = function(__constructor)\n");
 
                 code.push_str("return {\n");
 
@@ -137,7 +134,7 @@ impl<'c> Codegen<'c> {
                 code.push_str("\nend\n}");
                 code
             },
-            
+
             Extern(_) => String::new(),
 
             ref other => self.gen_statement(other),
@@ -158,12 +155,12 @@ impl<'c> Codegen<'c> {
                     Some(ref right) => match right.0 {
                         ref block @ ExpressionNode::Block(_) => {
                             if let ExpressionNode::Identifier(_) = left.0 {
-                                format!("{}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                                format!("{}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(block, &left.0))
                             } else {
-                                format!("{}\n", self.gen_block_assignment(&block, &left.0))
+                                format!("{}\n", self.gen_block_assignment(block, &left.0))
                             }
                         },
-                        _ => format!("{} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+                        _ => format!("{} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0))
                     }
 
                     None => if let ExpressionNode::Identifier(_) = left.0 {
@@ -193,12 +190,12 @@ impl<'c> Codegen<'c> {
             ConstDefinition { ref left, ref right, .. } => match right.0 {
                 ref block @ ExpressionNode::Block(_) => {
                     if let ExpressionNode::Identifier(_) = left.0 {
-                        format!("{}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(&block, &left.0))
+                        format!("{}\n{}\n", self.gen_expression(&left.0), self.gen_block_assignment(block, &left.0))
                     } else {
-                        format!("{}\n", self.gen_block_assignment(&block, &left.0))
+                        format!("{}\n", self.gen_block_assignment(block, &left.0))
                     }
                 },
-                _ => format!("{} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0)) 
+                _ => format!("{} = {}\n", self.gen_expression(&left.0), self.gen_expression(&right.0))
             },
 
             Assignment { ref left, ref right, .. } => format!("{} = {}", self.gen_expression(&left.0), self.gen_expression(&right.0)),
@@ -207,7 +204,7 @@ impl<'c> Codegen<'c> {
             Struct {ref name, ref members} => {
                 let mut code = format!("{} = {{\n", name);
 
-                code.push_str(&format!("__construct__ = function(__constructor)\n"));
+                code.push_str("__construct__ = function(__constructor)\n");
 
                 code.push_str("return {\n");
 
@@ -248,7 +245,7 @@ impl<'c> Codegen<'c> {
 
     fn gen_if_node_return(&mut self, if_node: &IfNode) -> String {
         let mut code = format!("if {} then\n{}", self.gen_expression(&if_node.condition.0), self.gen_block_return(&if_node.body.0));
-        
+
         if let Some(ref cases) = if_node.elses {
             for case in cases {
                 let case_code = match *case {
@@ -266,10 +263,10 @@ impl<'c> Codegen<'c> {
 
         code
     }
-    
+
     fn gen_if_node_assignment(&mut self, if_node: &IfNode, left: &ExpressionNode) -> String {
         let mut code = format!("if {} then\n{}", self.gen_expression(&if_node.condition.0), self.gen_block_assignment(&if_node.body.0, left));
-        
+
         if let Some(ref cases) = if_node.elses {
             for case in cases {
                 let case_code = match *case {
@@ -293,7 +290,6 @@ impl<'c> Codegen<'c> {
 
         match *statement {
             If(ref if_node) => self.gen_if_node_return(if_node),
-            Return(_)       => format!("{}\n", self.gen_statement_local(statement)),
             Expression(ref expression) => match expression.0 {
                 ExpressionNode::Binary {ref op, ..} => match *op {
                     Operator::Compound(_) => format!("{}\n", self.gen_statement_local(statement)),
@@ -362,17 +358,14 @@ impl<'c> Codegen<'c> {
 
                 code.push_str("{\n");
 
-                let mut acc = 0;
-
-                for element in content {
+                for (acc, element) in content.iter().enumerate() {
                     let right = match element.0 {
                         Block(_) => format!("(function()\n{}end)()", self.gen_block_return(&element.0)),
                         _        => self.gen_expression(&element.0),
-                    }; 
-                    
+                    };
+
                     code.push_str(&format!("[{}] = {}", acc, right));
                     code.push_str(",\n");
-                    acc += 1
                 }
 
                 code.push('}');
@@ -427,9 +420,9 @@ impl<'c> Codegen<'c> {
 
                 for param in params {
                     if let Some(ref value) = param.2 {
-                        guards.push((param.0.clone(), value.clone()))
+                        guards.push((param.0.clone(), Rc::clone(value)))
                     }
-                    
+
                     code.push_str(&param.0);
 
                     if acc != params.len() {
@@ -469,15 +462,15 @@ impl<'c> Codegen<'c> {
     fn gen_operation(&mut self, left: &ExpressionNode, op: &Operator, right: &ExpressionNode) -> String {
         use Operator::*;
         use ExpressionNode::*;
-        
-        let c = match *op {
+
+        match *op {
             PipeRight => {
                 let compiled_left  = self.gen_expression(left);
                 let compiled_right = self.gen_expression(right);
 
                 format!("{}({})", compiled_right, compiled_left)
             },
-            
+
             PipeLeft => {
                 let compiled_left  = self.gen_expression(left);
                 let compiled_right = self.gen_expression(right);
@@ -507,14 +500,12 @@ impl<'c> Codegen<'c> {
                     _             => format!("{}{}({})", compiled_left, compiled_op, compiled_right),
                 }
             }
-        };
-
-        c
+        }
     }
 
     fn gen_operator(&self, op: &Operator) -> String {
         use Operator::*;
-        
+
         let c = match *op {
             Add     => "+",
             Sub     => "-",
@@ -564,7 +555,7 @@ impl<'c> Codegen<'c> {
             String::new()
         }
     }
-    
+
     fn gen_block_return(&mut self, block: &ExpressionNode) -> String {
         use ExpressionNode::*;
 

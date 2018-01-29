@@ -24,20 +24,19 @@ pub fn path_ast(path: &str) -> Option<Vec<Statement>> {
 
     let mut source = String::new();
 
-    match file.read_to_string(&mut source) {
-        Err(why) => panic!("failed to read {}: {}", path, why),
-        Ok(_)    => (),
+    if let Err(why) = file.read_to_string(&mut source) {
+        panic!("failed to read {}: {}", path, why);
     }
 
-    let lines = source.lines().map(|x| x.to_string()).collect();
-    let lexer = make_lexer(source.clone().chars().collect(), &lines, &path);
+    let lines: Vec<String> = source.lines().map(|x| x.to_string()).collect();
+    let lexer = make_lexer(source.clone().chars().collect(), &lines, path);
 
-    let mut parser = Parser::new(lexer.collect::<Vec<Token>>(), &lines, &path);
+    let mut parser = Parser::new(lexer.collect::<Vec<Token>>(), &lines, path);
 
     match parser.parse() {
         Ok(ast) => Some(ast),
         Err(e)  => {
-            e.display(&lines, &path);
+            e.display(&lines, path);
             None
         }
     }
@@ -47,18 +46,17 @@ fn compile_path(path: &str) {
     let meta = metadata(path).unwrap();
 
     if meta.is_file() {
-        match file_content(path) {
-            Some(n) => write(path, &n),
-            None    => (),
+        if let Some(n) = file_content(path) {
+            write(path, &n);
         }
     } else {
         let paths = fs::read_dir(path).unwrap();
 
         for path in paths {
             let path = format!("{}", path.unwrap().path().display());
-            let split: Vec<&str> = path.split(".").collect();
+            let split: Vec<&str> = path.split('.').collect();
 
-            match split.get(1) {
+            match split.last() {
                 Some(n) if *n == "wu" => (),
                 _ => continue,
             }
@@ -88,10 +86,10 @@ fn write(path: &str, data: &str) {
     let path = Path::new(path);
     println!("{} {}", "compiled".green().bold(), path.display());
 
-    let split_name = path.file_name().unwrap().to_str().unwrap().split(".");
+    let split_name = path.file_name().unwrap().to_str().unwrap().split('.');
     let split: Vec<&str> = split_name.collect();
 
-    let path_split = path.to_str().unwrap().split("/").collect::<Vec<&str>>();
+    let path_split = path.to_str().unwrap().split('/').collect::<Vec<&str>>();
     let path_real  = &format!("{}/{}.lua", path_split[0 .. path_split.len() - 1].join("/"), split[0]);
 
     let mut output_file = File::create(path_real).unwrap();
@@ -101,15 +99,15 @@ fn write(path: &str, data: &str) {
     }
 }
 
-fn compile(source: &str, path: &str) -> Option<String> {    
-    let lines = source.lines().map(|x| x.to_string()).collect();
-    let lexer = make_lexer(source.clone().chars().collect(), &lines, &path);
+fn compile(source: &str, path: &str) -> Option<String> {
+    let lines: Vec<String> = source.lines().map(|x| x.to_string()).collect();
+    let lexer = make_lexer(source.clone().chars().collect(), &lines, path);
 
-    let mut parser = Parser::new(lexer.collect::<Vec<Token>>(), &lines, &path);
+    let mut parser = Parser::new(lexer.collect::<Vec<Token>>(), &lines, path);
 
     match parser.parse() {
         Ok(ast)       => {
-            let mut visitor = Visitor::new(&ast, &lines, &path);
+            let mut visitor = Visitor::new(&ast, &lines, path);
 
             match visitor.validate() {
                 Ok(_)         => {
@@ -118,13 +116,13 @@ fn compile(source: &str, path: &str) -> Option<String> {
                     return Some(format!("{}", codegen.generate()))
                 },
 
-                Err(response) => response.display(&lines, &path),
+                Err(response) => response.display(&lines, path),
             }
         },
 
-        Err(response) => response.display(&lines, &path),
+        Err(response) => response.display(&lines, path),
     }
-    
+
     None
 }
 

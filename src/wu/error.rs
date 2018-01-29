@@ -16,7 +16,7 @@ pub struct ResponseNode {
 }
 
 impl ResponseNode {
-    pub fn display(&self, lines: &Vec<String>, path: &str) {
+    pub fn display(&self, lines: &[String], path: &str) {
         let (color, kind) = match self.kind {
             ResponseType::Wrong => ("red",    "wrong"),
             ResponseType::Weird => ("yellow", "weird"),
@@ -55,7 +55,7 @@ impl ResponseNode {
                 for response in responses {
                     response.display(lines, path)
                 }
-                
+
                 println!()
             }
 

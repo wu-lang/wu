@@ -15,10 +15,10 @@ pub struct TypeTab {
 }
 
 impl TypeTab {
-    pub fn new(parent: Rc<TypeTab>, types: &Vec<Type>, aliases: &HashMap<String, Type>) -> TypeTab {
+    pub fn new(parent: Rc<TypeTab>, types: &[Type], aliases: &HashMap<String, Type>) -> TypeTab {
         TypeTab {
             parent:  Some(parent),
-            types:   RefCell::new(types.clone()),
+            types:   RefCell::new(types.to_owned()),
             aliases: RefCell::new(aliases.clone()),
         }
     }
@@ -61,7 +61,7 @@ impl TypeTab {
             }
         }
     }
-    
+
     pub fn set_alias(&self, env_index: usize, name: &str, t: Type) -> Response<()> {
         if env_index == 0 {
             let mut aliases = self.aliases.borrow_mut();
