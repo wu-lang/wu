@@ -1,0 +1,3 @@
+struct inside_bar {
+  yes: float
+}

@@ -5,6 +5,8 @@ use std::fmt::*;
 use std::rc::Rc;
 use std::collections::HashMap;
 
+use std::path::Path;
+
 use super::super::super::path_ast;
 
 #[derive(Debug, Clone)]
@@ -300,9 +302,15 @@ impl<'v> Visitor<'v> {
                         self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
                     } else {
                         let path_split = self.path.split('/').collect::<Vec<&str>>();
-                        let path = &format!("{}/{}.wu", path_split[0 .. path_split.len() - 1].join("/"), name);
+                        let mut path = format!("{}/{}", path_split[0 .. path_split.len() - 1].join("/"), name);
 
-                        if let Some(statements) = path_ast(path) {
+                        if Path::new(&path).is_dir() {
+                            path.push_str("/init.wu")
+                        } else {
+                            path.push_str(".wu")
+                        }
+
+                        if let Some(statements) = path_ast(&path) {
                             let content = super::Expression::new(ExpressionNode::Block(statements.clone()), position);
 
                             let mut visitor = Visitor::from(&statements, local_symtab, local_typetab, self.lines, self.path);

@@ -1,6 +1,12 @@
 module foo
 expose foo (*)
 
+module bar
+
 booty := something {
     content: "yes yes yes"
+}
+
+bass :: bar inside_bar {
+  yes: 123214.123
 }
