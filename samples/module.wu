@@ -1,3 +1,5 @@
+module modules
+
 module test {
     struct point {
         x: float

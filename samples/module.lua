@@ -1,4 +1,5 @@
 local __mod__ = (function()
+local modules = require('modules')
 local test = (function()
 local point = {
 __construct__ = function(__constructor)
@@ -35,6 +36,7 @@ z = 3,
 
 
 return {
+modules = modules,
 test = test,
 test_point = test_point,
 }
