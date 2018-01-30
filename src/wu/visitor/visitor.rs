@@ -279,19 +279,40 @@ impl<'v> Visitor<'v> {
             (&Extern(ref statement), _) => self.visit_statement(statement),
 
             (&Module { ref name, ref content }, position) => {
-                if self.symtab.get_name(name).is_some() {
-                    Err(make_error(Some(position), format!("module '{}' defined multiple times", name)))
+                self.typetab.grow();
+                let index = self.symtab.add_name(name);
+
+                let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
+                let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+
+                if let Some(ref content) = *content {
+                    let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
+
+                    visitor.visit_expression(content)?;
+
+                    let mut hash_types = HashMap::new();
+
+                    for (ref name, ref index) in visitor.symtab.names.borrow().clone() {
+                        hash_types.insert(name.clone(), visitor.typetab.get_type(*index, 0)?);
+                    }
+
+                    self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
                 } else {
-                    self.typetab.grow();
-                    let index = self.symtab.add_name(name);
+                    let path_split = self.path.split('/').collect::<Vec<&str>>();
+                    let mut path = format!("./{}/{}", path_split[0 .. path_split.len() - 1].join("/"), name);
 
-                    let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
-                    let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+                    if Path::new(&path).is_dir() {
+                        path.push_str("/init.wu")
+                    } else {
+                        path.push_str(".wu")
+                    }
 
-                    if let Some(ref content) = *content {
-                        let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
+                    if let Some(statements) = path_ast(&path) {
+                        let content = super::Expression::new(ExpressionNode::Block(statements.clone()), position);
 
-                        visitor.visit_expression(content)?;
+                        let mut visitor = Visitor::from(&statements, local_symtab, local_typetab, self.lines, &path);
+
+                        visitor.visit_expression(&content)?;
 
                         let mut hash_types = HashMap::new();
 
@@ -301,32 +322,7 @@ impl<'v> Visitor<'v> {
 
                         self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
                     } else {
-                        let path_split = self.path.split('/').collect::<Vec<&str>>();
-                        let mut path = format!("./{}/{}", path_split[0 .. path_split.len() - 1].join("/"), name);
-
-                        if Path::new(&path).is_dir() {
-                            path.push_str("/init.wu")
-                        } else {
-                            path.push_str(".wu")
-                        }
-
-                        if let Some(statements) = path_ast(&path) {
-                            let content = super::Expression::new(ExpressionNode::Block(statements.clone()), position);
-
-                            let mut visitor = Visitor::from(&statements, local_symtab, local_typetab, self.lines, &path);
-
-                            visitor.visit_expression(&content)?;
-
-                            let mut hash_types = HashMap::new();
-
-                            for (ref name, ref index) in visitor.symtab.names.borrow().clone() {
-                                hash_types.insert(name.clone(), visitor.typetab.get_type(*index, 0)?);
-                            }
-
-                            self.typetab.set_type(index, 0, Type::new(TypeNode::Module(hash_types), TypeMode::Just))
-                        } else {
-                            Err(make_error(Some(position), format!("couldn't find module '{}'", name)))
-                        }
+                        Err(make_error(Some(position), format!("couldn't find module '{}'", name)))
                     }
                 }
             },
