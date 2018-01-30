@@ -1,6 +1,8 @@
 use std::rc::Rc;
 use super::*;
 
+use std::path::Path;
+
 pub struct Codegen<'c> {
     pub ast:     &'c [Statement],
     pub visitor: &'c mut Visitor<'c>,
@@ -100,7 +102,7 @@ impl<'c> Codegen<'c> {
                     code.push_str("}\nend)()");
                     code
                 } else {
-                    format!("local {0} = require('{0}')", name)
+                    format!("local {} = require('{}')", name, format!("{}/{}", Path::new(self.visitor.path).parent().unwrap().display(), name))
                 }
             },
 
