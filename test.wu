@@ -1,0 +1,8 @@
+local __mod__ = (function()
+
+print("hey world")
+
+return {
+}
+end)()
+return __mod__

@@ -1,0 +1,23 @@
+struct point {
+  x: float
+  y: float
+}
+
+struct player {
+  position: point
+  size:     point
+}
+
+bob: player = player {
+  position: point {
+    x: 100
+    y: 100
+  }
+
+  size: point {
+    x: 32
+    y: 32
+  }
+}
+
+b: float: bob position x

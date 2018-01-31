@@ -141,7 +141,7 @@ fn write(path: &str, data: &str) {
     let path_split = path.to_str().unwrap().split('/').collect::<Vec<&str>>();
     let path_real  = &format!("{}/{}.lua", path_split[0 .. path_split.len() - 1].join("/"), split[0]);
 
-    let mut output_file = File::create(path_real).unwrap();
+    let mut output_file = File::create(if path_split.len() > 1 { path_real } else { path_split[0] }).unwrap();
     match output_file.write_all(data.as_bytes()) {
         Ok(_)    => (),
         Err(why) => println!("{}", why)
