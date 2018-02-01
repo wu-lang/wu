@@ -13,7 +13,7 @@ usage:
     wu <folder>
 ```
 
-a full language guide and general documentation can be found over at [wu-lang docs](https://wu-lang.github.io)
+a full language guide and general documentation can be found over at [wu-lang docs](https://wu-lang.github.io/wu.html)
 
 
 ### features
