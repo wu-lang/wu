@@ -1,4 +1,6 @@
-## wu
+## wu 
+[![Foo](https://user-images.githubusercontent.com/7288322/34429152-141689f8-ecb9-11e7-8003-b5a10a5fcb29.png)](https://discord.gg/qm92sPP)
+
 a strongly typed language that transpiles to lua
 
 ---
@@ -14,7 +16,6 @@ usage:
 ```
 
 a full language guide and general documentation can be found over at [wu-lang docs](https://wu-lang.github.io/wu.html)
-
 
 ### features
 
