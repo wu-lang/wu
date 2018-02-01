@@ -263,7 +263,7 @@ impl<'v> Visitor<'v> {
             (&If(ref if_node), ref position) => self.visit_if(if_node, position),
             (&While { ref condition, ref body }, position) => {
                 let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
-                let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+                let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new());
 
                 let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
@@ -283,7 +283,7 @@ impl<'v> Visitor<'v> {
                 let index = self.symtab.add_name(name);
 
                 let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
-                let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+                let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new());
 
                 if let Some(ref content) = *content {
                     let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
@@ -414,7 +414,7 @@ impl<'v> Visitor<'v> {
                             self.visit_expression(&con_member.1)?;
                             let con_type = self.type_expression(&con_member.1)?;
 
-                            if *member_type != con_type.0 {
+                            if self.dealias(&Type::new(member_type.clone(), TypeMode::Just))?.0 != self.dealias(&Type::new(con_type.0.clone(), TypeMode::Just))?.0 {
                                 return Err(make_error(Some(position), format!("mismatching member '{}': expected '{}', found '{}'", member_name, member_type, con_type)))
                             }
                         }
@@ -502,7 +502,7 @@ impl<'v> Visitor<'v> {
         }
 
         let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), param_names.as_slice());
-        let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &param_types, &HashMap::new());
+        let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &param_types);
 
         let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
@@ -585,7 +585,10 @@ impl<'v> Visitor<'v> {
                     TypeNode::Array(ref content) => (**content).clone(),
                     TypeNode::Struct(ref members) => match index.0 {
                         Identifier(ref name) |
-                        Str(ref name)        => Type::new(members.get(name).unwrap().clone(), TypeMode::Just),
+                        Str(ref name)        => {
+                            Type::new(self.dealias(&Type::new(members.get(name).unwrap().clone(), TypeMode::Just))?.0, TypeMode::Just)
+                        },
+
                         _ => unreachable!(),
                     },
 
@@ -691,7 +694,7 @@ impl<'v> Visitor<'v> {
                 let mut acc = 1;
 
                 let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
-                let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+                let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new());
 
                 let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
@@ -816,6 +819,7 @@ impl<'v> Visitor<'v> {
             Function { .. } | Block(_) => (),
             _                          => self.visit_expression(right)?,
         }
+        
 
         let right_kind = Type::new(self.type_expression(right)?.0, TypeMode::Constant);
 
@@ -859,7 +863,7 @@ impl<'v> Visitor<'v> {
         self.visit_expression(&if_node.condition)?;
 
         let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
-        let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+        let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new());
 
         let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 
@@ -881,7 +885,7 @@ impl<'v> Visitor<'v> {
                     }
 
                     let local_symtab  = SymTab::new(Rc::new(self.symtab.clone()), &[]);
-                    let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new(), &HashMap::new());
+                    let local_typetab = TypeTab::new(Rc::new(self.typetab.clone()), &Vec::new());
 
                     let mut visitor = Visitor::from(self.ast, local_symtab, local_typetab, self.lines, self.path);
 

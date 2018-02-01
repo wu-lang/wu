@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt;
-use std::collections::HashMap;
 
 use super::*;
 
@@ -11,15 +10,15 @@ use super::*;
 pub struct TypeTab {
     pub parent:  Option<Rc<TypeTab>>,
     pub types:   RefCell<Vec<Type>>,
-    pub aliases: RefCell<HashMap<String, Type>>,
+    pub acc: usize,
 }
 
 impl TypeTab {
-    pub fn new(parent: Rc<TypeTab>, types: &[Type], aliases: &HashMap<String, Type>) -> TypeTab {
+    pub fn new(parent: Rc<TypeTab>, types: &[Type]) -> TypeTab {
         TypeTab {
             parent:  Some(parent),
             types:   RefCell::new(types.to_owned()),
-            aliases: RefCell::new(aliases.clone()),
+            acc: 0
         }
     }
 
@@ -27,11 +26,11 @@ impl TypeTab {
         TypeTab {
             parent:  None,
             types:   RefCell::new(Vec::new()),
-            aliases: RefCell::new(HashMap::new()),
+            acc: 0
         }
     }
 
-    pub fn set_type(&self, index: usize, env_index: usize, t: Type) -> Response<()> {
+    pub fn set_type(&self, index: usize, env_index: usize, t: Type) -> Response<()> {        
         if env_index == 0usize {
             match self.types.borrow_mut().get_mut(index) {
                 Some(v) => {
@@ -52,48 +51,12 @@ impl TypeTab {
         if env_index == 0 {
             match self.types.borrow().get(index) {
                 Some(v) => Ok(v.clone()),
-                None => Err(make_error(None, format!("invalid type index: {}", index)))
+                None    => Err(make_error(None, format!("invalid type index: {}", index)))
             }
         } else {
             match self.parent {
                 Some(ref p) => p.get_type(index, env_index - 1),
-                None => Err(make_error(None, format!("invalid type index: {}", index)))
-            }
-        }
-    }
-
-    pub fn set_alias(&self, env_index: usize, name: &str, t: Type) -> Response<()> {
-        if env_index == 0 {
-            let mut aliases = self.aliases.borrow_mut();
-            aliases.insert(name.to_owned(), t);
-
-            Ok(())
-        } else {
-            match self.parent {
-                Some(ref p) => p.set_alias(env_index - 1, name, t),
-                None        => {
-                    let mut aliases = self.aliases.borrow_mut();
-                    aliases.insert(name.to_owned(), t);
-
-                    Ok(())
-                }
-            }
-        }
-    }
-
-    pub fn get_alias(&self, name: &str, env_index: usize) -> Response<Type> {
-        if env_index == 0 {
-            match self.aliases.borrow().get(&name.to_owned()) {
-                Some(v) => Ok(v.clone()),
-                None => Err(make_error(None, format!("invalid type: {}", name))),
-            }
-        } else {
-            match self.parent {
-                Some(ref p) => p.get_alias(name, env_index - 1),
-                None        => match self.aliases.borrow().get(&name.to_owned()) {
-                    Some(v) => Ok(v.clone()),
-                    None => Err(make_error(None, format!("invalid type: {}", name))),
-                }
+                None        => Err(make_error(None, format!("invalid type index: {}", index)))
             }
         }
     }
