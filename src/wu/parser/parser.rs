@@ -910,7 +910,7 @@ impl<'p> Parser<'p> {
 
         self.skip_types(vec![TokenType::Whitespace])?;
 
-        if self.remaining() > 1 {
+        if self.remaining() > 0 {
             let node = match self.current_type() {
                 TokenType::Identifier => {
                     let position = self.position();
@@ -953,7 +953,7 @@ impl<'p> Parser<'p> {
 
     fn arg_(self: &mut Self) -> Response<Option<Expression>> {
         let expression = Self::expression_(self);
-
+        
         self.skip_types(vec![TokenType::Whitespace])?;
 
         if self.remaining() > 1 || self.current_content() == "," {

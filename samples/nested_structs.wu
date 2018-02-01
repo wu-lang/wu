@@ -20,4 +20,9 @@ bob: player = player {
   }
 }
 
+a :: (b: string, c: float, d: float, e: float, f: float) -> {}
+
+
+a("hey", bob position x, bob position y, bob size x, bob size y)
+
 b: float: bob position x

@@ -529,7 +529,7 @@ impl<'v> Visitor<'v> {
                 TypeNode::Fun(ref params, _) => {
                     let mut acc = 0;
 
-                    if params.len() != args.len() {
+                    if params.len() != args.len() - 1 {
                         if params.len() < args.len() {
                             Err(make_error(Some(args[acc].1), format!("function expected {} arg{}, got {}", params.len(), if params.len() != 1 { "s" } else { "" }, args.len())))
                         } else {

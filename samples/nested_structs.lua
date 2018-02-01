@@ -29,12 +29,20 @@ y = 32,
 })
 
 
+local a = (function(b,c,d,e,f)
+do
+end
+end)
+
+a("hey",bob["position"]["x"],bob["position"]["y"],bob["size"]["x"],bob["size"]["y"])
+
 local b = bob["position"]["x"]
 
 return {
 point = point,
 player = player,
 bob = bob,
+a = a,
 b = b,
 }
 end)()
