@@ -1,5 +1,5 @@
 ## wu
-[![discord](https://seeklogo.com/images/D/discord-logo-134E148657-seeklogo.com.png)
+[!discord](https://seeklogo.com/images/D/discord-logo-134E148657-seeklogo.com.png)
 a strongly typed language that transpiles to lua
 
 ---
