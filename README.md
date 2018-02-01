@@ -118,7 +118,7 @@ functions
 -- functions also implicitly return
 add_5 :: (a: int) int -> a + 5
 
-apply :: (fun: (int) int, a: int) -> fun(a)
+apply :: (fun: (int) int, a: int) int -> fun(a)
 
 ten: int = apply(add_5, 15)
 
