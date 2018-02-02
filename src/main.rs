@@ -45,7 +45,10 @@ pub fn path_ast(path: &str) -> Option<Vec<Statement>> {
 }
 
 fn compile_path(path: &str) {
-    let meta = metadata(path).unwrap();
+    let meta = match metadata(path) {
+        Ok(m) => m,
+        Err(why) => panic!("{}", why),
+    };
 
     if meta.is_file() {
         let split: Vec<&str> = path.split('.').collect();
@@ -86,7 +89,10 @@ fn compile_path(path: &str) {
 
 // removes compiled lua files
 fn clean_path(path: &str) {
-    let meta = metadata(path).unwrap();
+    let meta = match metadata(path) {
+        Ok(m) => m,
+        Err(why) => panic!("{}", why),
+    };
 
     if meta.is_dir() {
         let paths = fs::read_dir(path).unwrap();
@@ -105,7 +111,10 @@ fn clean_path(path: &str) {
                         let path = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
 
                         if Path::new(&path).is_file() {
-                            fs::remove_file(&path).unwrap()
+                            match fs::remove_file(&path) {
+                                Ok(_) => println!("{} {}", "removed".red().bold(), path.replace("./", "")),
+                                Err(why) => panic!("{}", why)
+                            }
                         }
                     },
                     _ => continue,
