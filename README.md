@@ -13,8 +13,9 @@ a strongly typed language that transpiles to lua
 wu's transpiler
 
 usage:
-    wu <file>
-    wu <folder>
+    wu <file>...           -- compiles file
+    wu <folder>...         -- recursively compiles every `.wu` file in folder
+    wu clean <folder>...   -- recursively removes every compiled `.lua` file in folder
 ```
 
 a full language guide and general documentation can be found over at [wu-lang docs](https://wu-lang.github.io/wu.html)

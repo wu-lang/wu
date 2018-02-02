@@ -1,5 +1,5 @@
 local __mod__ = (function()
-local funny = require('samples/funny')
+local funny = require('./samples/funny')
 local test = (function()
 local yes = {
 __construct__ = function(__constructor)

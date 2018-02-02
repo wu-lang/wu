@@ -121,6 +121,17 @@ fn clean_path(path: &str) {
                 }
             }
         }
+    } else {
+        let split: Vec<&str> = path.split('.').collect();
+
+        let path = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
+
+        if Path::new(&path).is_file() {
+            match fs::remove_file(&path) {
+                Ok(_)    => println!("{} {}", "removed".red().bold(), path.replace("./", "")),
+                Err(why) => panic!("{}", why)
+            }
+        }
     }
 }
 
@@ -148,9 +159,13 @@ fn write(path: &str, data: &str) {
     let split: Vec<&str> = split_name.collect();
 
     let path_split = path.to_str().unwrap().split('/').collect::<Vec<&str>>();
-    let path_real  = &format!("{}/{}.lua", path_split[0 .. path_split.len() - 1].join("/"), split[0]);
+    let path_real  = if path_split.len() > 1 {
+        format!("{}/{}.lua", path_split[0 .. path_split.len() - 1].join("/"), split[0])
+    } else {
+        format!("{}.lua", split[0])
+    };
 
-    let mut output_file = File::create(if path_split.len() > 1 { path_real } else { path_split[0] }).unwrap();
+    let mut output_file = File::create(&path_real).unwrap();
     match output_file.write_all(data.as_bytes()) {
         Ok(_)    => (),
         Err(why) => println!("{}", why)
@@ -189,10 +204,11 @@ fn usage() {
 wu's transpiler
 
 usage:
-wu <file>...           -- compiles file
-wu <folder>...         -- recursively compiles every `.wu` file in folder
-wu clean <folder>...   -- recursively removes every compiled `.lua` file in folder
+    wu <file>...           -- compiles file
+    wu <folder>...         -- recursively compiles every `.wu` file in folder
+    wu clean <folder>...   -- recursively removes every compiled `.lua` file in folder
     ");
+
     ::std::process::exit(0);
 }
 
@@ -211,7 +227,7 @@ fn main() {
             match arg.as_ref() {
                 "--help" | "-h" => usage(),
                 "--ast" => ast = true,
-                _ => args_trim.push(arg),
+                _       => args_trim.push(arg),
             }
         }
 
@@ -226,7 +242,6 @@ fn main() {
             },
             None => usage(),
         }
-
 
         if clean {
             //Remove the first argument "clean"
@@ -243,6 +258,7 @@ fn main() {
             for path in &args_trim {
                 clean_path(&path);
             }
+
             for path in &args_trim {
                 compile_path(&path);
             }

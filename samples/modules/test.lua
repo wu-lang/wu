@@ -1,9 +1,9 @@
 local __mod__ = (function()
-local foo = require('././samples/modules/foo')
-local something = foo.something
+local foo = require('./././samples/modules/foo')
 local make_something = foo.make_something
+local something = foo.something
 
-local bar = require('././samples/modules/bar')
+local bar = require('./././samples/modules/bar')
 local booty = something.__construct__({
 content = "yes yes yes",
 })

@@ -1,5 +1,5 @@
 local __mod__ = (function()
-local modules = require('samples/modules')
+local modules = require('./samples/modules')
 local test = (function()
 local point = {
 __construct__ = function(__constructor)

@@ -221,7 +221,9 @@ impl<'p> Parser<'p> {
                             let right = self.expression()?;
 
                             self.skip_types(vec![TokenType::Whitespace])?;
-                            self.consume_content("\n")?;
+                            if self.remaining() > 0 {
+                                self.consume_content("\n")?;
+                            }
 
                             StatementNode::ConstDefinition {
                                 kind:  TypeNode::Nil,
@@ -235,7 +237,9 @@ impl<'p> Parser<'p> {
                             let right = self.expression()?;
 
                             self.skip_types(vec![TokenType::Whitespace])?;
-                            self.consume_content("\n")?;
+                            if self.remaining() > 0 {
+                                self.consume_content("\n")?;
+                            }
 
                             StatementNode::Definition {
                                 kind:  TypeNode::Nil,
@@ -256,7 +260,9 @@ impl<'p> Parser<'p> {
                                 let right = self.expression()?;
 
                                 self.skip_types(vec![TokenType::Whitespace])?;
-                                self.consume_content("\n")?;
+                                if self.remaining() > 0 {
+                                    self.consume_content("\n")?;
+                                }
 
                                 StatementNode::Definition {
                                     kind,
@@ -269,7 +275,9 @@ impl<'p> Parser<'p> {
                                 let right = self.expression()?;
 
                                 self.skip_types(vec![TokenType::Whitespace])?;
-                                self.consume_content("\n")?;
+                                if self.remaining() > 0 {
+                                    self.consume_content("\n")?;
+                                }
 
                                 StatementNode::ConstDefinition {
                                     kind,
@@ -278,7 +286,9 @@ impl<'p> Parser<'p> {
                                 }
 
                             } else {
-                                self.consume_content("\n")?;
+                                if self.remaining() > 0 {
+                                    self.consume_content("\n")?;
+                                }
 
                                 StatementNode::Definition {
                                     kind,
