@@ -531,6 +531,7 @@ impl<'c> Codegen<'c> {
             Gt      => ">",
             GtEqual => ">=",
             Concat  => "..",
+            Len     => "#",
             _       => "",
         }.to_owned()
     }

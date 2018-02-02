@@ -648,7 +648,9 @@ impl<'v> Visitor<'v> {
                         a.clone()
                     } else {
                         return Err(make_error(Some(position), format!("can't negate non-bool '{}'", a)))
-                    }
+                    },
+
+                    (&Len, _) => Type::int(),
 
                     _ => Type::nil(),
                 }
@@ -697,6 +699,8 @@ impl<'v> Visitor<'v> {
                             }
                         }
                     },
+
+                    (_, &Len, _) => return Err(make_error(Some(position), "lenghth operator can't be binary".to_string())),
 
                     _ => Type::nil(),
                 }

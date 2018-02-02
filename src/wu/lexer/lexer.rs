@@ -26,7 +26,7 @@ pub fn make_lexer<'l>(data: Vec<char>, lines: &'l [String], path: &'l str) -> Le
 
     let operator_matcher = ConstantStringMatcher::new(TokenType::Operator, &[
         "+=", "-=", "*=", "/=", "%=", "^=", "++=",
-        "++", "+", "-", "*", "/", "^", ">=", "<=", "==", "!=", "<|", "|>", "<", ">", "%", "!",
+        "++", "+", "-", "*", "/", "^", ">=", "<=", "==", "!=", "<|", "|>", "<", ">", "%", "!", "#",
     ]);
 
     lexer.matchers_mut().push(Rc::new(operator_matcher));

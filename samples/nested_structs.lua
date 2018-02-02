@@ -36,6 +36,13 @@ do
 end
 end)
 
+local c = #({
+[0] = 1,
+[1] = 2,
+[2] = 3,
+[3] = 4,
+})
+
 a("hey",bob["position"]["x"],bob["position"]["y"],bob["size"]["x"],bob["size"]["y"])
 
 local b = bob["position"]["x"]
@@ -45,6 +52,7 @@ point = point,
 player = player,
 bob = bob,
 a = a,
+c = c,
 b = b,
 }
 end)()

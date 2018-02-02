@@ -112,6 +112,7 @@ pub enum Operator {
     PipeLeft,
     PipeRight,
     Compound(Rc<Operator>),
+    Len,
     Not,
 }
 
@@ -121,6 +122,7 @@ impl Operator {
 
         match v {
             "^"   => Some((Pow, 0)),
+            "#"   => Some((Len, 0)),
             "!"   => Some((Not, 0)),
             "*"   => Some((Mul, 1)),
             "/"   => Some((Div, 1)),
