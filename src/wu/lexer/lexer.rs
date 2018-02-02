@@ -96,6 +96,7 @@ impl<'t> Iterator for Lexer<'t> {
 
         match token.token_type {
             TokenType::EOF => None,
+            TokenType::Whitespace => self.next(),
             _ => Some(token),
         }
     }
