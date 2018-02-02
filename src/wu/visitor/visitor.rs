@@ -404,18 +404,32 @@ impl<'v> Visitor<'v> {
                         if !name_type.1.check(&TypeMode::Unconstructed) {
                             return Err(make_error(Some(position), format!("expected unconstructed struct, found '{}'", name_type)))
                         }
+                        
+                        let mut constructed_members = Vec::new();
 
-                        for (acc, (member_name, member_type)) in types.iter().enumerate() {
-                            let con_member = match members.get(acc) {
-                                Some(member) => member,
-                                None         => return Err(make_error(Some(position), format!("missing initialization '{}'", member_name)))
-                            };
+                        for &(ref con_member_name, ref con_member_expr) in members.iter() {
+                            for member in types {
+                                if member.0 == con_member_name {
+                                    if constructed_members.contains(&con_member_name) {
+                                        return Err(make_error(Some(position), format!("constructed member '{}' twice", member.0)))
+                                    }
 
-                            self.visit_expression(&con_member.1)?;
-                            let con_type = self.type_expression(&con_member.1)?;
+                                    self.visit_expression(&con_member_expr)?;
+                                    let con_member_type_node = self.type_expression(&con_member_expr)?.0;
+                                    let con_member_type      = self.dealias(&Type::new(con_member_type_node, TypeMode::Just))?.0;
 
-                            if self.dealias(&Type::new(member_type.clone(), TypeMode::Just))?.0 != self.dealias(&Type::new(con_type.0.clone(), TypeMode::Just))?.0 {
-                                return Err(make_error(Some(position), format!("mismatching member '{}': expected '{}', found '{}'", member_name, member_type, con_type)))
+                                    if self.dealias(&Type::new(member.1.clone(), TypeMode::Just))?.0 != con_member_type {
+                                        return Err(make_error(Some(position), format!("mismatching member '{}': expected '{}', found '{}'", member.0, member.1, con_member_type)))
+                                    } else {
+                                        constructed_members.push(member.0)
+                                    }
+                                }
+                            }
+                        }
+
+                        for (member_name, _) in types {
+                            if !constructed_members.contains(&member_name) {
+                                return Err(make_error(Some(position), format!("missing construction of '{}'", member_name)))
                             }
                         }
 

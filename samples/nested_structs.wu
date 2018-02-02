@@ -6,6 +6,7 @@ struct point {
 struct player {
   position: point
   size:     point
+  speed:    float
 }
 
 bob: player = player {
@@ -13,6 +14,8 @@ bob: player = player {
     x: 100
     y: 100
   }
+
+  speed: 200.0
 
   size: point {
     x: 32

@@ -12,6 +12,7 @@ __construct__ = function(__constructor)
 return {
 position = __constructor.position,
 size = __constructor.size,
+speed = __constructor.speed,
 }
 end
 }
@@ -21,6 +22,7 @@ x = 100,
 y = 100,
 })
 ,
+speed = 200,
 size = point.__construct__({
 x = 32,
 y = 32,
