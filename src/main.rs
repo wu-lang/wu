@@ -27,7 +27,7 @@ pub fn path_ast(path: &str) -> Option<Vec<Statement>> {
     if let Err(why) = file.read_to_string(&mut source) {
         panic!("failed to read {}: {}", path, why);
     }
-    
+
     compile_path(path);
 
     let lines: Vec<String> = source.lines().map(|x| x.to_string()).collect();
@@ -45,7 +45,7 @@ pub fn path_ast(path: &str) -> Option<Vec<Statement>> {
 }
 
 fn compile_path(path: &str) {
-    let meta = metadata(path).unwrap();    
+    let meta = metadata(path).unwrap();
 
     if meta.is_file() {
         let split: Vec<&str> = path.split('.').collect();
@@ -70,7 +70,7 @@ fn compile_path(path: &str) {
             match split.last() {
                 Some(n) if *n == "wu" => {
                     let path = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
-                    
+
                     if Path::new(&path).is_file() {
                         // miss me with that compiling twice shit
                         continue
@@ -78,13 +78,13 @@ fn compile_path(path: &str) {
                 },
                 _ => continue,
             }
-            
+
             compile_path(&format!("{}", path))
         }
     }
 }
 
-// removes compiled lua files 
+// removes compiled lua files
 fn clean_path(path: &str) {
     let meta = metadata(path).unwrap();
 
@@ -98,12 +98,12 @@ fn clean_path(path: &str) {
             } else {
                 let path = format!("{}", path.display());
                 let split: Vec<&str> = path.split('.').collect();
-                
+
                 // removes lua file if wu source exists
                 match split.last() {
                     Some(n) if *n == "wu" => {
                         let path = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
-                        
+
                         if Path::new(&path).is_file() {
                             fs::remove_file(&path).unwrap()
                         }
@@ -175,27 +175,68 @@ fn compile(source: &str, path: &str) -> Option<String> {
     None
 }
 
-fn main() {
-    match env::args().nth(1) {
-        Some(a) => match a.as_str() {
-            "clean" => if env::args().len() > 2 {
-                clean_path(&env::args().nth(2).unwrap())
-            } else {
-                clean_path(".")
-            },
-
-            _ => {
-                clean_path(&a);
-                compile_path(&a)
-            }
-        }
-        None    => println!("\
+fn usage() {
+    println!("\
 wu's transpiler
 
 usage:
-    wu <file>           -- compiles file
-    wu <folder>         -- recursively compiles every `.wu` file in folder
-    wu clean <folder>   -- recursively removes every compiled `.lua` file in folder
-        "),
+wu <file>...           -- compiles file
+wu <folder>...         -- recursively compiles every `.wu` file in folder
+wu clean <folder>...   -- recursively removes every compiled `.lua` file in folder
+    ");
+    ::std::process::exit(0);
+}
+
+fn main() {
+    let args = &env::args().collect::<Vec<String>>()[1..];
+    if args.len() < 1 {
+        //No arguments print help
+        usage();
+    } else {
+        //print AST
+        let mut ast = false;
+        let mut args_trim = Vec::new();
+
+        //Find all -- things
+        for arg in args {
+            match arg.as_ref() {
+                "--help" | "-h" => usage(),
+                "--ast" => ast = true,
+                _ => args_trim.push(arg),
+            }
+        }
+
+        let mut clean = false;
+        //See if we have to just clean
+        match args_trim.first() {
+            Some(arg) => match arg.as_ref() {
+                "clean" => {
+                    clean = true;
+                },
+                _ => (),
+            },
+            None => usage(),
+        }
+
+
+        if clean {
+            //Remove the first argument "clean"
+            //the rest are taken as paths
+            args_trim.remove(0);
+            if args_trim.is_empty() {
+                clean_path(".");
+            } else {
+                for path in &args_trim {
+                    clean_path(&path);
+                }
+            }
+        } else {
+            for path in &args_trim {
+                clean_path(&path);
+            }
+            for path in &args_trim {
+                compile_path(&path);
+            }
+        }
     }
 }
