@@ -41,10 +41,8 @@ a full language guide and general documentation can be found over at [wu-lang do
 
 - the thing about transpiling to lua, from moonscript
 
-- the weird argument type order, from go
+- the slight lack of inconsistency, not from javascript
 
-- the lack of inconsistency, not from javascript
-
-- ~~function calls and~~ *the* operators, from haskell/elm etc.
+- ~~function calls and~~ *the* pipe operators, from haskell/elm etc.
 
 - low-level feel and control, from kai/rust
