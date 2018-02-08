@@ -1,51 +1,39 @@
-## wu 
+## the wu lang
 [![Foo](https://user-images.githubusercontent.com/7288322/34429152-141689f8-ecb9-11e7-8003-b5a10a5fcb29.png)](https://discord.gg/qm92sPP)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/wu-lang/wu/blob/master/LICENSE)
 
+A strongly typed programming language for a happy workflow.
 
-a strongly typed language that transpiles to lua
+### syntax
 
----
+A full walk-through of the language can be found over at the [wu-lang documentation](https://wu-lang.github.io).
 
-### usage
+#### taster
 
+```=
+fib :: (a: int) int -> match a {
+    | 0 -> 0
+    | 1 -> 1
+    | _ -> fib(a - 1) + fib(a - 2)
+}
+
+fibs := list new()
+
+for i, 100 {
+    fibs push(fib(i))
+}
+
+println(fibs)
 ```
-wu's transpiler
 
-usage:
-    wu <file>...           -- compiles file
-    wu <folder>...         -- recursively compiles every `.wu` file in folder
-    wu clean <folder>...   -- recursively removes every compiled `.lua` file in folder
-```
+### bla bla
 
-a full language guide and general documentation can be found over at [wu-lang docs](https://wu-lang.github.io/wu.html)
+The language strives to be easy to use on a syntax- as w[](https://)ell as a code structure level. It is a smooth mix of what we've found to be the neatest and lovliest qualities of the languages we're used to; Rust, MoonScript, Elm(*and the function family*), ~~Java~~ *Python* and Nim. This with weight on the making design choices like Data Oriented Design and functional program composition feel somewhat natural to use, coming from any alternative.
 
-### features
+### contributors
 
-- transpilation to lua
+nilq: https://github.com/nilq
+FuzzyLitchi: https://github.com/FuzzyLitchi
 
-- type safety
-
-- powerful
-
-- being the language of the future
-
-#### in the future
-
-- function variants
-
-- partial application, currying
-
-- an interpreter
-
----
-
-### inspiration
-
-- the thing about transpiling to lua, from moonscript
-
-- the slight lack of inconsistency, not from javascript
-
-- ~~function calls and~~ *the* pipe operators, from haskell/elm etc.
-
-- low-level feel and control, from kai/rust
+### license
+MIT
