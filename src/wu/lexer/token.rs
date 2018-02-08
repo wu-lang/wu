@@ -153,20 +153,16 @@ pub struct Token<'t> {
   pub token_type: TokenType,
   pub line:       (usize, &'t str),
   pub slice:      (usize, usize),
-  pub lexeme:     Option<String>,
+  pub lexeme:     String,
 }
 
 impl<'t> Token<'t> {
-  pub fn new(token_type: TokenType, line: (usize, &'t str), slice: (usize, usize), lexeme: Option<&str>) -> Self {
+  pub fn new(token_type: TokenType, line: (usize, &'t str), slice: (usize, usize), lexeme: &str) -> Self {
     Token {
       token_type,
       line,
       slice,
-      lexeme: if let Some(content) = lexeme {
-        Some(content.into())
-      } else {
-        None
-      }
+      lexeme: lexeme.to_string()
     }
   }
 }
@@ -175,8 +171,8 @@ impl<'t> PartialEq<TokenElement<'t>> for Token<'t> {
     fn eq (&self, rhs: &TokenElement<'t>) -> bool {
         match *rhs {
             Type (ref t)        => self.token_type == *t,
-            Lexeme (ref l)      => self.lexeme     == Some((*l).into()),
-            Pair (ref t, ref l) => self.lexeme     == Some((*l).into()) && self.token_type == *t,
+            Lexeme (ref l)      => self.lexeme     == *l,
+            Pair (ref t, ref l) => self.lexeme     == *l && self.token_type == *t,
             Ref (ref t)         => self            == *t,
             _                   => false
         }
