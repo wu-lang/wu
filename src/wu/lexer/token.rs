@@ -3,39 +3,43 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
-  String,
-  Identifier,
-  Keyword,
-  Symbol,
-  EOL,
-  EOF,
+    Int,
+    Float,
+    String,
+    Identifier,
+    Keyword,
+    Symbol,
+    EOL,
+    EOF,
 }
 
 impl fmt::Display for TokenType {
     fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
-      use self::TokenType::*;
+        use self::TokenType::*;
 
-      match *self {
-        String     => write!(f, "String"),
-        Identifier => write!(f, "Identifier"),
-        Symbol     => write!(f, "Symbol"),
-        Keyword    => write!(f, "Symbol"),
-        EOL        => write!(f, "EOL"),
-        EOF        => write!(f, "EOF"),
-      }
+        match *self {
+            Int        => write!(f, "Int"),
+            Float      => write!(f, "Float"),
+            String     => write!(f, "String"),
+            Identifier => write!(f, "Identifier"),
+            Symbol     => write!(f, "Symbol"),
+            Keyword    => write!(f, "Symbol"),
+            EOL        => write!(f, "EOL"),
+            EOF        => write!(f, "EOF"),
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenElement<'e> {
-  Type(TokenType),
-  Lexeme(&'e str),
-  Pair(TokenType, &'e str),
-  Ref(&'e Token<'e>),
-  Line((usize, &'e str)),
-  Pos((usize, &'e str), (usize, usize)),
-  Row(&'e [&'e Token<'e>]),
-  Block(&'e [TokenElement<'e>]),
+    Type(TokenType),
+    Lexeme(&'e str),
+    Pair(TokenType, &'e str),
+    Ref(&'e Token<'e>),
+    Line((usize, &'e str)),
+    Pos((usize, &'e str), (usize, usize)),
+    Row(&'e [&'e Token<'e>]),
+    Block(&'e [TokenElement<'e>]),
 }
 
 use self::TokenElement::*;
@@ -150,19 +154,19 @@ impl<'s> fmt::Display for TokenElement<'s> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token<'t> {
-  pub token_type: TokenType,
-  pub line:       (usize, &'t str),
-  pub slice:      (usize, usize),
-  pub lexeme:     String,
+    pub token_type: TokenType,
+    pub line:       (usize, &'t str),
+    pub slice:      (usize, usize),
+    pub lexeme:     String,
 }
 
 impl<'t> Token<'t> {
   pub fn new(token_type: TokenType, line: (usize, &'t str), slice: (usize, usize), lexeme: &str) -> Self {
     Token {
-      token_type,
-      line,
-      slice,
-      lexeme: lexeme.to_string()
+        token_type,
+        line,
+        slice,
+        lexeme: lexeme.to_string()
     }
   }
 }

@@ -1,5 +1,4 @@
 use std::fs::File;
-use std::io::BufReader;
 use std::io::prelude::*;
 
 use std::fmt;
@@ -32,6 +31,13 @@ impl Source {
         Source {
             file:  FilePath(path),
             lines: content.lines().map(|x| x.to_string()).collect()
+        }
+    }
+
+    pub fn from(path: &str, lines: Vec<String>) -> Self {
+        Source {
+            file: FilePath(path.into()),
+            lines,
         }
     }
 }

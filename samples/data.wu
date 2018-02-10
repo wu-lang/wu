@@ -1,0 +1,9 @@
+ball :: struct {
+  x: float
+  y: float
+}
+
+a := ball {
+  x: 100
+  y: 100
+}

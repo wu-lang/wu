@@ -23,7 +23,7 @@ for i, 100 {
     fibs push(fib(i))
 }
 
-println(fibs)
+print(fibs)
 ```
 
 ### manifest bla bla
