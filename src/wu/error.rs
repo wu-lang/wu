@@ -17,8 +17,6 @@ macro_rules! response {
         )*
         println!("");
     }};
-
-    () => { compile_error!("expected atleast 1 Response") }
 }
 
 impl<T: fmt::Display> fmt::Display for Response<T> {

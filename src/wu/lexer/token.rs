@@ -9,6 +9,7 @@ pub enum TokenType {
     Identifier,
     Keyword,
     Symbol,
+    Whitespace,
     EOL,
     EOF,
 }
@@ -24,6 +25,7 @@ impl fmt::Display for TokenType {
             Identifier => write!(f, "Identifier"),
             Symbol     => write!(f, "Symbol"),
             Keyword    => write!(f, "Symbol"),
+            Whitespace => write!(f, "Whitespace"),
             EOL        => write!(f, "EOL"),
             EOF        => write!(f, "EOF"),
         }

@@ -21,18 +21,18 @@ pub struct Tokenizer<'t> {
   pub pos: (usize, usize),
 
   pub index:     usize,
-  pub source:    &'t Source,
   pub items:     Vec<char>,
+  pub source:    &'t Source,
   pub snapshots: Vec<Snapshot>
 }
 
 impl<'t> Tokenizer<'t> {
-  pub fn new(source: &'t Source, items: Vec<char>) -> Self {
+  pub fn new(items: Vec<char>, source: &'t Source) -> Self {
     Tokenizer {
       pos: (0, 0),
 
-      source,
       items,
+      source,
       index:     0,
       snapshots: Vec::new(),
     }
@@ -94,7 +94,7 @@ impl<'t> Tokenizer<'t> {
   }
 
   pub fn last_position(&self) -> (usize, usize) {
-    self.peek_snapshot().unwrap().pos
+    self.peek_snapshot().unwrap_or(&Snapshot::new(0, (0, 0))).pos
   }
 
   pub fn try_match_token(&mut self, matcher: &Matcher<'t>) -> Result<Option<Token<'t>>, ()> {
@@ -115,6 +115,20 @@ impl<'t> Tokenizer<'t> {
         Ok(None)
       }
     }
+  }
+
+  pub fn collect_while(&mut self, func: fn(char) -> bool) -> String {
+    let mut accum = String::new();
+    while let Some(c) = self.peek() {
+      if func(c) {
+        accum.push(c);
+      } else {
+        break
+      }
+      self.advance();
+    }
+
+    accum
   }
 }
 
