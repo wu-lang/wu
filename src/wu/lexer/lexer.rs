@@ -28,6 +28,7 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(Rc::new(WhitespaceMatcher));
     lexer.matchers.push(Rc::new(ConstantCharMatcher::new(EOL, &['\n'])));
     lexer.matchers.push(Rc::new(CommentMatcher));
+    lexer.matchers.push(Rc::new(StringLiteralMatcher));
 
     lexer.matchers.push(
       Rc::new(
