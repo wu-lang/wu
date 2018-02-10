@@ -21,6 +21,12 @@ impl Matcher for FloatLiteralMatcher {
     fn try_match(&self, tokenizer: &mut Tokenizer) -> Response<Option<Token>> {
         let mut accum = String::new();
 
+        let negative = tokenizer.peek() == Some('-');
+
+        if negative {
+            tokenizer.advance_n(1)
+        }
+
         let curr = tokenizer.next().unwrap();
         if curr.is_digit(10) {
             accum.push(curr)
@@ -47,14 +53,24 @@ impl Matcher for FloatLiteralMatcher {
         } else if accum.contains('.') {
 
             let literal: String = match accum.parse::<f64>() {
-                Ok(result) => result.to_string(),
+                Ok(result) => if negative {
+                    format!("-{}", result)
+                } else {
+                    result.to_string()
+                },
+
                 Err(error) => panic!("unable to parse float: {}", error)
             };
 
             Ok(Some(token!(tokenizer, Float, literal)))
         } else {
             let literal: String = match u64::from_str_radix(accum.as_str(), 10) {
-                Ok(result) => result.to_string(),
+                Ok(result) => if negative {
+                    format!("-{}", result)
+                } else {
+                    result.to_string()
+                },
+
                 Err(error) => panic!("unable to parse int: {}", error)
             };
 
