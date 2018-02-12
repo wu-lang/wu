@@ -3,8 +3,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
-    Int,
-    Float,
+    Number,
     String,
     Char,
     Identifier,
@@ -20,8 +19,7 @@ impl fmt::Display for TokenType {
         use self::TokenType::*;
 
         match *self {
-            Int        => write!(f, "Int"),
-            Float      => write!(f, "Float"),
+            Number     => write!(f, "Number"),
             String     => write!(f, "String"),
             Char       => write!(f, "Char"),
             Identifier => write!(f, "Identifier"),

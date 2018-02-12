@@ -30,6 +30,7 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(Rc::new(CommentMatcher));
     lexer.matchers.push(Rc::new(StringLiteralMatcher));
     lexer.matchers.push(Rc::new(IdentifierMatcher));
+    lexer.matchers.push(Rc::new(NumberLiteralMatcher));
 
     lexer.matchers.push(
       Rc::new(

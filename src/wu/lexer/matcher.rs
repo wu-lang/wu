@@ -216,3 +216,61 @@ impl<'t> Matcher<'t> for IdentifierMatcher {
         }
     }
 }
+
+
+pub struct NumberLiteralMatcher;
+
+impl<'t> Matcher<'t> for NumberLiteralMatcher {
+    fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+        let mut accum = String::new();
+
+        let negative = tokenizer.peek() == Some('-');
+
+        if negative {
+            tokenizer.advance_n(1)
+        }
+
+        let curr = tokenizer.next().unwrap();
+        if curr.is_digit(10) {
+            accum.push(curr)
+        } else if curr == '.' {
+            accum.push_str("0.")
+        } else {
+            return Ok(None)
+        }
+
+        while !tokenizer.end() {
+            let current = tokenizer.peek().unwrap();
+            if !current.is_whitespace() && current.is_digit(10) || current == '.' {
+                if current == '.' && accum.contains('.') {
+                  let pos = tokenizer.pos;
+
+                  return Err(
+                    response!(
+                      Wrong("unexpected extra decimal point"),
+                      tokenizer.source.file,
+                      TokenElement::Pos(
+                        (pos.0, &tokenizer.source.lines[pos.0 + 1]),
+                        (pos.1 - 1, pos.1 + accum.len() + 1),
+                      )
+                    )
+                  )
+                }
+                accum.push(tokenizer.next().unwrap())
+            } else {
+                break
+            }
+        }
+
+        if &accum == "0." {
+            Ok(None)
+        } else {
+            let literal: String = match accum.parse::<f64>() {
+                Ok(result) => result.to_string(),
+                Err(error) => panic!("unable to parse float: {}", error)
+            };
+
+            Ok(Some(token!(tokenizer, Number, literal)))
+        }
+    }
+}
