@@ -124,7 +124,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
       if tokenizer.end() {
         return Err(
           response!(
-            Wrong(format!("missing closing delimeter ´{}´ to close literal", delimeter)),
+            Wrong(format!("missing closing delimeter ´{}´ to close literal here", delimeter)),
             tokenizer.source.file,
             TokenElement::Pos(
               (pos.0 + 1, &tokenizer.source.lines[pos.0 + 1]),
@@ -195,4 +195,24 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
       }
     }
   }
+}
+
+
+
+pub struct IdentifierMatcher;
+
+impl<'t> Matcher<'t> for IdentifierMatcher {
+    fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+        if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == '_') {
+            return Ok(None)
+        }
+
+        let accum = tokenizer.collect_while(|c| c.is_alphanumeric() || "_!?".contains(c));
+
+        if accum.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(token!(tokenizer, Identifier, accum)))
+        }
+    }
 }

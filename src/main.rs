@@ -6,8 +6,12 @@ use wu::lexer::Lexer;
 
 fn main() {
   let mut content = r#"
-  "hey"
-a
+jumping?
+jump!
+
+jump_height
+
+_123!?!?
 "#;
 
   let source = Source::from("main.rs/testing", content.lines().map(|x| x.into()).collect::<Vec<String>>());
