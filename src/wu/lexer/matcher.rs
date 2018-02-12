@@ -29,9 +29,23 @@ pub struct CommentMatcher;
 
 impl<'t> Matcher<'t> for CommentMatcher {
   fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
-    if tokenizer.peek_range(2).unwrap_or_else(String::new) == "--" {
-      while !tokenizer.end() && tokenizer.peek().unwrap() != '\n' {
-        tokenizer.advance();
+    if tokenizer.peek_range(3).unwrap_or_else(String::new) == "---" {
+      tokenizer.advance_n(3);
+
+      while !tokenizer.end() {
+        if tokenizer.peek_range(3).unwrap_or_else(String::new) == "---" {
+          tokenizer.advance_n(3);
+          break
+        }
+
+        tokenizer.advance()
+      }
+
+      Ok(Some(token!(tokenizer, EOL, "\n".into())))
+
+    } else if tokenizer.peek_range(2).unwrap_or_else(String::new) == "--" {
+      while !tokenizer.end() && tokenizer.peek() != Some('\n') {
+        tokenizer.advance()
       }
 
       Ok(Some(token!(tokenizer, EOL, "\n".into())))

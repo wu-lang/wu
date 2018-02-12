@@ -1,0 +1,22 @@
+Vector2 :: struct {
+  x: float = 0
+  y: float = 0
+}
+
+implement Vector2 {
+  __add :: (self, rhs: Vector2) Vector2 -> Vector2 {
+    x: self x + rhs x
+    y: self y + rhs y
+  }
+
+  __sub :: (self, rhs: Vector2) Vector2 -> Vector2 {
+    x: self x - rhs x
+    y: self y - rhs y
+  }
+}
+
+a := Vector2 {}
+b := Vector2 { 100, 100 }
+
+c := a + b -- summed
+d := c - a -- equal to `b`

@@ -25,9 +25,10 @@ impl<'l> Lexer<'l> {
     let tokenizer = Tokenizer::new(data, source);
     let mut lexer = Self::new(tokenizer, source);
 
+    lexer.matchers.push(Rc::new(CommentMatcher));  
+
     lexer.matchers.push(Rc::new(WhitespaceMatcher));
     lexer.matchers.push(Rc::new(ConstantCharMatcher::new(EOL, &['\n'])));
-    lexer.matchers.push(Rc::new(CommentMatcher));
     lexer.matchers.push(Rc::new(StringLiteralMatcher));
 
     lexer.matchers.push(
