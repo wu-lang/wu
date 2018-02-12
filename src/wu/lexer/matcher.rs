@@ -108,6 +108,17 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
           pos = tokenizer.pos;
 
           '"'
+        } else if tokenizer.peek_n(1) == Some('\'') {
+          return Err(
+            response!(
+              Wrong("no such thing as a raw character literal"),
+              tokenizer.source.file,
+              TokenElement::Pos(
+                (pos.0 + 1, &tokenizer.source.lines[pos.0 + 1]),
+                (pos.1 - 1, pos.1),
+              )
+            )
+          )
         } else {
           return Ok(None)
         }
@@ -124,7 +135,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
       if tokenizer.end() {
         return Err(
           response!(
-            Wrong(format!("missing closing delimeter ´{}´ to close literal here", delimeter)),
+            Wrong(format!("missing closing delimeter `{}` to close literal here", delimeter)),
             tokenizer.source.file,
             TokenElement::Pos(
               (pos.0 + 1, &tokenizer.source.lines[pos.0 + 1]),
@@ -159,6 +170,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
             ),
           }
         );
+
         found_escape = false
       } else {
         match tokenizer.peek().unwrap() {
@@ -166,8 +178,17 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
             tokenizer.next();
             found_escape = true
           },
-          c if c == delimeter => break,
-          _ => string.push(tokenizer.next().unwrap()),
+
+          // check for valid closing delimeter and alternative
+          c => if c == delimeter || (c.is_whitespace() && delimeter == '\'') {
+            if string.len() > 0 && string != " " {
+              break
+            } else {
+              string.push(tokenizer.next().unwrap())
+            }
+          } else {
+            string.push(tokenizer.next().unwrap())
+          },
         }
       }
     }
@@ -182,11 +203,11 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
 
         Err(
           response!(
-            Wrong(format!("character literal may not contain more than one codepoint: '{}'", string)),
+            Wrong("character literal may not contain more than one codepoint"),
             tokenizer.source.file,
             TokenElement::Pos(
               (pos.0, &tokenizer.source.lines[pos.0 + 1]),
-              (pos.1 - 1, pos.1 + string.len() + 1),
+              (pos.1, pos.1 + string.len()),
             )
           )
         )
@@ -202,75 +223,110 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
 pub struct IdentifierMatcher;
 
 impl<'t> Matcher<'t> for IdentifierMatcher {
-    fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
-        if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == '_') {
-            return Ok(None)
-        }
-
-        let accum = tokenizer.collect_while(|c| c.is_alphanumeric() || "_!?".contains(c));
-
-        if accum.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(token!(tokenizer, Identifier, accum)))
-        }
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+    if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == '_') {
+      return Ok(None)
     }
+
+    let accum = tokenizer.collect_while(|c| c.is_alphanumeric() || "_!?".contains(c));
+
+    if accum.is_empty() {
+      Ok(None)
+    } else {
+      Ok(Some(token!(tokenizer, Identifier, accum)))
+    }
+  }
 }
 
 
 pub struct NumberLiteralMatcher;
 
 impl<'t> Matcher<'t> for NumberLiteralMatcher {
-    fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
-        let mut accum = String::new();
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+    let mut accum = String::new();
 
-        let negative = tokenizer.peek() == Some('-');
+    let negative = tokenizer.peek() == Some('-');
 
-        if negative {
-            tokenizer.advance_n(1)
-        }
-
-        let curr = tokenizer.next().unwrap();
-        if curr.is_digit(10) {
-            accum.push(curr)
-        } else if curr == '.' {
-            accum.push_str("0.")
-        } else {
-            return Ok(None)
-        }
-
-        while !tokenizer.end() {
-            let current = tokenizer.peek().unwrap();
-            if !current.is_whitespace() && current.is_digit(10) || current == '.' {
-                if current == '.' && accum.contains('.') {
-                  let pos = tokenizer.pos;
-
-                  return Err(
-                    response!(
-                      Wrong("unexpected extra decimal point"),
-                      tokenizer.source.file,
-                      TokenElement::Pos(
-                        (pos.0, &tokenizer.source.lines[pos.0 + 1]),
-                        (pos.1 - 1, pos.1 + accum.len() + 1),
-                      )
-                    )
-                  )
-                }
-                accum.push(tokenizer.next().unwrap())
-            } else {
-                break
-            }
-        }
-
-        if &accum == "0." {
-            Ok(None)
-        } else {
-            let literal: String = match accum.parse::<f64>() {
-                Ok(result) => result.to_string(),
-                Err(error) => panic!("unable to parse float: {}", error)
-            };
-
-            Ok(Some(token!(tokenizer, Number, literal)))
-        }
+    if negative {
+      tokenizer.advance_n(1)
     }
+
+    let curr = tokenizer.next().unwrap();
+    if curr.is_digit(10) {
+      accum.push(curr)
+    } else if curr == '.' {
+      accum.push_str("0.")
+    } else {
+      return Ok(None)
+    }
+
+    while !tokenizer.end() {
+      let current = tokenizer.peek().unwrap();
+      if !current.is_whitespace() && current.is_digit(10) || current == '.' {
+        if current == '.' && accum.contains('.') {
+          let pos = tokenizer.pos;
+
+          return Err(
+            response!(
+              Wrong("unexpected extra decimal point"),
+              tokenizer.source.file,
+              TokenElement::Pos(
+                (pos.0, &tokenizer.source.lines[pos.0 + 1]),
+                (pos.1 - 1, pos.1 + accum.len() + 1),
+              )
+            )
+          )
+        }
+        accum.push(tokenizer.next().unwrap())
+      } else {
+        break
+      }
+    }
+
+    if &accum == "0." {
+      Ok(None)
+    } else {
+      let literal: String = match accum.parse::<f64>() {
+        Ok(result) => result.to_string(),
+        Err(error) => panic!("unable to parse float: {}", error)
+      };
+
+      Ok(Some(token!(tokenizer, Number, literal)))
+    }
+  }
+}
+
+pub struct KeyMatcher {
+  token_type: TokenType,
+  constants: &'static [&'static str],
+}
+
+impl KeyMatcher {
+  pub fn new(token_type: TokenType, constants:  &'static [&'static str]) -> Self {
+    KeyMatcher {
+      token_type,
+      constants,
+    }
+  }
+}
+
+impl<'t> Matcher<'t> for KeyMatcher {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+    for constant in self.constants {
+      if let Some(s) = tokenizer.peek_range(constant.len()) {
+        if s == *constant {
+          if let Some(c) = tokenizer.peek_n(constant.len()) {
+            if "_!?".contains(c) || c.is_alphanumeric() {
+                return Ok(None)
+            }
+          }
+
+          tokenizer.advance_n(constant.len());
+          return Ok(Some(token!(tokenizer, self.token_type.clone(), constant.to_string())))
+        }
+      }
+    }
+
+    Ok(None)
+  }
 }
