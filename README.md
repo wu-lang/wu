@@ -26,7 +26,7 @@ for i, 100 {
 print(fibs)
 ```
 
-### manifest bla bla
+### manifest
 
 The language strives to be easy to use on a syntax- as well as a code structure level. It is a smooth mix of what we've found to be the neatest and lovliest qualities of the languages we're used to; Rust, MoonScript, Elm(*and the function family*), ~~Java~~ *Python* and Nim. This with weight on the making design choices like Data Oriented Design and functional program composition feel somewhat natural to use, coming from any alternative.
 
