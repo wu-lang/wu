@@ -47,7 +47,7 @@ impl<'t> Tokenizer<'t> {
       match *item {
         '\n' => {
           self.pos.0 += 1;
-          self.pos.1 += 0;
+          self.pos.1 = 0;
         },
 
         _ => self.pos.1 += 1,

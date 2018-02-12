@@ -67,7 +67,7 @@ impl<'l> Iterator for Lexer<'l> {
             Wrong("bumped into weird character"),
             self.source.file,
             TokenElement::Pos(
-              (pos.0, &self.source.lines[pos.0 + 1]),
+              (pos.0 + 1, &self.source.lines[pos.0 + 1]),
               (pos.1 - 1, pos.1),
             )
           );

@@ -95,22 +95,23 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
   fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     let mut raw_marker = false;
 
+    let mut pos = tokenizer.pos;
+
     let delimeter  = match tokenizer.peek().unwrap() {
       '"'  => '"',
       '\'' => '\'',
-      //Used for raw strings
       'r' => {
         if tokenizer.peek_n(1) == Some('"') {
           raw_marker = true;
           tokenizer.advance();
 
+          pos = tokenizer.pos;
+
           '"'
         } else {
-          //It's not actually a raw string, it's just something that starts with an r
           return Ok(None)
         }
       },
-      //Not using a delimeter so it's not a string
       _ => return Ok(None),
     };
 
@@ -121,14 +122,12 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
 
     loop {
       if tokenizer.end() {
-        let pos = tokenizer.pos;
-
         return Err(
           response!(
-            Wrong(format!("expected closing delimeter '{}' found end", delimeter)),
+            Wrong(format!("missing closing delimeter ´{}´ to close literal", delimeter)),
             tokenizer.source.file,
             TokenElement::Pos(
-              (pos.0, &tokenizer.source.lines[pos.0 + 1]),
+              (pos.0 + 1, &tokenizer.source.lines[pos.0 + 1]),
               (pos.1 - 1, pos.1),
             )
           )

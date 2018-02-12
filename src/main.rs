@@ -6,9 +6,8 @@ use wu::lexer::Lexer;
 
 fn main() {
   let mut content = r#"
-'\n'
-"heyhey"
-r"\n rawr xd"
+  "hey"
+a
 "#;
 
   let source = Source::from("main.rs/testing", content.lines().map(|x| x.into()).collect::<Vec<String>>());
