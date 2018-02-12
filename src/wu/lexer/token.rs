@@ -46,7 +46,7 @@ pub enum TokenElement<'e> {
     Block(&'e [TokenElement<'e>]),
 }
 
-use self::TokenElement::*;
+use self::TokenElement::{ Row, Line, Pair, Type, Pos, Block, Ref, Lexeme, };
 
 impl<'t> PartialEq<Token<'t>> for TokenElement<'t> {
     fn eq (&self, rhs: &Token<'t>) -> bool {
@@ -80,7 +80,7 @@ impl<'s> fmt::Display for TokenElement<'s> {
             Pos(line, slice) => {
                 let linepad = format!("{:5} │", " ").blue().bold();
                 let lineno = format!("{:5} │ ", line.0).blue().bold();
-                let mut mark = line.1[slice.0..slice.1].to_string();
+                let mut mark = line.1[slice.0.saturating_sub(1) .. slice.1].to_string();
 
                 if mark.split_whitespace().count() == 0 {
                     mark = format!("{:─>count$}", ">".bold().red(), count=mark.len());
@@ -90,7 +90,7 @@ impl<'s> fmt::Display for TokenElement<'s> {
 
                 write!(f, "\n{}\n{}{}{}{}\n{}",
                     linepad,
-                    lineno, &line.1[..slice.0], mark, &line.1[slice.1..],
+                    lineno, &line.1[..slice.0.saturating_sub(1)], mark, &line.1[slice.1..],
                     linepad
                 )
             },

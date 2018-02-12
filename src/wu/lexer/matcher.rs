@@ -13,7 +13,10 @@ macro_rules! token {
     let accum: String = $accum;
     let pos           = tokenizer.last_position();
 
-    Token::new(token_type, (pos.0, &tokenizer.source.lines[pos.0]), (pos.1, accum.len()), &accum)
+
+    let line = tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap());
+
+    Token::new(token_type, (pos.0, &line), (pos.1, pos.1 + accum.len()), &accum)
   }};
 }
 
@@ -78,7 +81,15 @@ impl<'t> Matcher<'t> for ConstantCharMatcher {
     for constant in self.constants {
       if c == *constant {
         tokenizer.advance();
-        return Ok(Some(token!(tokenizer, self.token_type.clone(), constant.to_string())))
+
+        let token = token!(tokenizer, self.token_type.clone(), constant.to_string());
+
+        if c == '\n' {
+          tokenizer.pos.0 += 1;
+          tokenizer.pos.1 = 0;
+        }
+
+        return Ok(Some(token))
       }
     }
     Ok(None)
@@ -128,7 +139,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
               Wrong("no such thing as a raw character literal"),
               tokenizer.source.file,
               TokenElement::Pos(
-                (pos.0 + 1, &tokenizer.source.lines[pos.0 + 1]),
+                (pos.0, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
                 (pos.1 - 1, pos.1),
               )
             )
@@ -152,8 +163,8 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
             Wrong(format!("missing closing delimeter `{}` to close literal here", delimeter)),
             tokenizer.source.file,
             TokenElement::Pos(
-              (pos.0 + 1, &tokenizer.source.lines[pos.0 + 1]),
-              (pos.1 - 1, pos.1),
+              (pos.0 + 1, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
+              (pos.1.saturating_sub(1), pos.1 + 1),
             )
           )
         )
@@ -177,7 +188,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
                 Wrong(format!("unexpected escape character: {}", escaped)),
                 tokenizer.source.file,
                 TokenElement::Pos(
-                  (tokenizer.pos.0, &tokenizer.source.lines[tokenizer.pos.0 + 1]),
+                  (tokenizer.pos.0, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
                   (tokenizer.pos.1 - 1, tokenizer.pos.1),
                 )
               )
@@ -220,8 +231,8 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
             Wrong("character literal may not contain more than one codepoint"),
             tokenizer.source.file,
             TokenElement::Pos(
-              (pos.0, &tokenizer.source.lines[pos.0 + 1]),
-              (pos.1, pos.1 + string.len()),
+              (pos.0, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
+              (pos.1 + 2, pos.1 + string.len() + 1),
             )
           )
         )
@@ -285,8 +296,8 @@ impl<'t> Matcher<'t> for NumberLiteralMatcher {
               Wrong("unexpected extra decimal point"),
               tokenizer.source.file,
               TokenElement::Pos(
-                (pos.0, &tokenizer.source.lines[pos.0 + 1]),
-                (pos.1 - 1, pos.1 + accum.len() + 1),
+                (pos.0, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
+                (pos.1 + 1, pos.1 + 1),
               )
             )
           )
@@ -342,5 +353,23 @@ impl<'t> Matcher<'t> for KeyMatcher {
     }
 
     Ok(None)
+  }
+}
+
+
+
+pub struct EOLMatcher;
+
+impl<'t> Matcher<'t> for EOLMatcher {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+    if tokenizer.peek() == Some('\n') {
+      tokenizer.pos.0 += 1;
+      tokenizer.pos.1 = 0;
+      tokenizer.index += 1;
+
+      Ok(Some(token!(tokenizer, TokenType::EOL, String::from("\n"))))
+    } else {
+      Ok(None)
+    }
   }
 }

@@ -1,5 +1,5 @@
 use super::token::*;
-use super::{ Source, Matcher };
+use super::{ Source, Matcher, };
 
 pub struct Snapshot {
   pub index: usize,
@@ -29,7 +29,7 @@ pub struct Tokenizer<'t> {
 impl<'t> Tokenizer<'t> {
   pub fn new(items: Vec<char>, source: &'t Source) -> Self {
     Tokenizer {
-      pos: (0, 0),
+      pos: (1, 0),
 
       items,
       source,
@@ -45,10 +45,10 @@ impl<'t> Tokenizer<'t> {
   pub fn advance(&mut self) {
     if let Some(item) = self.items.get(self.index + 1) {
       match *item {
-        '\n' => {
+        /*'\n' => {
           self.pos.0 += 1;
           self.pos.1 = 0;
-        },
+        },*/
 
         _ => self.pos.1 += 1,
       }
@@ -99,7 +99,7 @@ impl<'t> Tokenizer<'t> {
 
   pub fn try_match_token(&mut self, matcher: &Matcher<'t>) -> Result<Option<Token<'t>>, ()> {
     if self.end() {
-      return Ok(Some(Token::new(TokenType::EOF, (self.pos.0, &self.source.lines[self.pos.0]), (self.pos.1, 0), "")));
+      return Ok(Some(Token::new(TokenType::EOF, (self.pos.0, &self.source.lines.get(self.pos.0).unwrap_or(self.source.lines.last().unwrap())), (self.pos.1, 0), "")));
     }
 
     self.take_snapshot();
@@ -125,6 +125,7 @@ impl<'t> Tokenizer<'t> {
       } else {
         break
       }
+
       self.advance();
     }
 
