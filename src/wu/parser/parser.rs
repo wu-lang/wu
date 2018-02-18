@@ -1,6 +1,8 @@
 use super::*;
 use super::super::error::Response::Wrong;
 
+use std::rc::Rc;
+
 pub struct Parser<'p> {
   index:  usize,
   tokens: Vec<Token<'p>>,
@@ -21,7 +23,7 @@ impl<'p> Parser<'p> {
   pub fn parse(&mut self) -> Result<Vec<Statement<'p>>, ()> {
     let mut ast = Vec::new();
 
-    while self.remaining() > 1 {
+    while self.remaining() > 0 {
       ast.push(self.parse_statement()?)
     }
 
@@ -31,19 +33,135 @@ impl<'p> Parser<'p> {
   fn parse_statement(&mut self) -> Result<Statement<'p>, ()> {
     use self::TokenType::*;
 
-    while self.current_type() == &EOL {
+    while self.current_type() == &EOL && self.remaining() != 0 {
       self.next()?
     }
 
-    match *self.current_type() {
-      ref token_type => Err(
-        response!(
-          Wrong(format!("unexpected token `{}`", token_type)),
-          self.source.file,
-          TokenElement::Ref(self.current())
+    let statement = match *self.current_type() {
+      _ => Statement::new(
+        StatementNode::Expression(self.parse_expression(None)?),
+        self.current_position(),
+      ),
+    };
+
+    Ok(statement)
+  }
+
+  fn parse_expression(&mut self, min_precedence: Option<u8>) -> Result<Expression<'p>, ()> {
+    let atom = self.parse_atom()?;
+
+    if self.current_type() == &TokenType::Operator {
+      self.parse_binary(atom, min_precedence.unwrap_or(0))
+    } else {
+      Ok(atom)
+    }
+  }
+
+  fn parse_atom(&mut self) -> Result<Expression<'p>, ()> {
+    use self::TokenType::*;
+
+    if self.remaining() == 0 {
+      Ok(
+        Expression::new(
+          ExpressionNode::EOF,
+          self.current_position()
         )
       )
+    } else {
+      let token_type = self.current_type().clone();
+
+      let expression = match token_type {
+        Number => Expression::new(
+          ExpressionNode::Number(self.eat()?.parse::<f64>().unwrap()),
+          self.current_position()
+        ),
+
+        Char => Expression::new(
+          ExpressionNode::Char(self.eat()?.chars().last().unwrap()),
+          self.current_position()
+        ),
+
+        String => Expression::new(
+          ExpressionNode::String(self.eat()?),
+          self.current_position()
+        ),
+
+        Identifier => Expression::new(
+          ExpressionNode::Identifier(self.eat()?),
+          self.current_position()
+        ),
+
+        Bool => Expression::new(
+          ExpressionNode::Bool(self.eat()? == "true"),
+          self.current_position()
+        ),
+
+        ref token_type => return Err(
+          response!(
+            Wrong(format!("unexpected token `{}`", token_type)),
+            self.source.file,
+            TokenElement::Ref(self.current())
+          )
+        )
+      };
+    
+      Ok(expression)
     }
+  }
+
+  // basic precedence climbing
+  fn parse_binary(&mut self, left: Expression<'p>, min_precedence: u8) -> Result<Expression<'p>, ()> {
+    let mut expression_stack = vec!(left);
+    let mut operator_stack   = vec!(Operator::from_str(&self.eat()?).unwrap());
+
+    expression_stack.push(self.parse_atom()?);
+
+    while operator_stack.len() > 0 {
+      while self.current_type() == &TokenType::Operator {
+        let position               = self.current_position();
+        let (operator, precedence) = Operator::from_str(&self.eat()?).unwrap();
+
+        if precedence < operator_stack.last().unwrap().1 {
+          let right = expression_stack.pop().unwrap();
+          let left  = expression_stack.pop().unwrap();
+
+          expression_stack.push(
+            Expression::new(
+              ExpressionNode::Binary(Rc::new(left), operator_stack.pop().unwrap().0, Rc::new(right)),
+              self.current_position(),
+            )
+          );
+
+          if self.remaining() > 0 {
+            expression_stack.push(self.parse_atom()?);
+            operator_stack.push((operator, precedence))
+          } else {
+            return Err(
+              response!(
+                Wrong("reached EOF in operation"),
+                self.source.file,
+                position
+              )
+            )
+          }
+        } else {
+          expression_stack.push(self.parse_atom()?);
+          operator_stack.push((operator, precedence))
+        }
+      }
+
+      let right = expression_stack.pop().unwrap();
+      let left  = expression_stack.pop().unwrap();
+
+      expression_stack.push(
+        Expression::new(
+          ExpressionNode::Binary(Rc::new(left), operator_stack.pop().unwrap().0, Rc::new(right)),
+          self.current_position(),
+        )
+      );
+    }
+
+    Ok(expression_stack.pop().unwrap())
   }
 
 
@@ -66,19 +184,48 @@ impl<'p> Parser<'p> {
     self.tokens.len() - self.index
   }
 
-  pub fn current(&self) -> &Token {
-    if self.index > self.tokens.len() - 1 {
-      return &self.tokens[self.tokens.len() - 1];
-    }
+  fn current_position(&self) -> TokenElement<'p> {
+    let current = self.current();
 
-    &self.tokens[self.index]
+    TokenElement::Pos(
+      current.line,
+      current.slice
+    )
   }
 
-  pub fn current_lexeme(&self) -> String {
+  fn current(&self) -> &Token<'p> {
+    if self.index > self.tokens.len() - 1 {
+      &self.tokens[self.tokens.len() - 1]
+    } else {
+      &self.tokens[self.index]
+    }
+  }
+
+  fn eat(&mut self) -> Result<String, ()> {
+    let lexeme = self.current().lexeme.clone();
+    self.next()?;
+
+    Ok(lexeme)
+  }
+
+  fn current_lexeme(&self) -> String {
     self.current().lexeme.clone()
   }
 
-  pub fn current_type(&self) -> &TokenType {
+  fn current_type(&self) -> &TokenType {
     &self.current().token_type
+  }
+
+  fn expect_type(&self, token_type: TokenType) -> Result<(), ()> {
+    if self.current_type() == &token_type {
+      Ok(())
+    } else {
+      Err(
+        response!(
+          Wrong(format!("expected `{}`, found `{}`", token_type, self.current_type())),
+          self.source.file
+        )
+      )
+    }
   }
 }

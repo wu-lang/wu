@@ -8,7 +8,7 @@ use wu::parser::Parser;
 fn main() {
   let mut content = r#"
 
-"#;
+  "#;
 
   let source = Source::from("main.rs/testing.wu", content.lines().map(|x| x.into()).collect::<Vec<String>>());
   let lexer  = Lexer::default(content.chars().collect(), &source);
@@ -17,5 +17,7 @@ fn main() {
 
   let mut parser = Parser::new(tokens, &source);
 
-  println!("{:#?}", parser.parse());
+  for statement in parser.parse().unwrap() {
+    println!("{:#?}", statement.node)
+  }
 }

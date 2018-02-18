@@ -2,37 +2,57 @@ use std::rc::Rc;
 
 use super::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StatementNode<'s> {
   Expression(Expression<'s>)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Statement<'s> {
   pub node: StatementNode<'s>,
-  pub pos:  &'s TokenElement<'s>,
+  pub pos:  TokenElement<'s>,
+}
+
+impl<'s> Statement<'s> {
+  pub fn new(node: StatementNode<'s>, pos: TokenElement<'s>) -> Self {
+    Statement {
+      node,
+      pos,
+    }
+  }
 }
 
 
-
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionNode<'e> {
   Number(f64),
-  String(&'e str),
+  String(String),
   Char(char),
   Bool(bool),
+  Identifier(String),
   Binary(Rc<Expression<'e>>, Operator, Rc<Expression<'e>>),
   Unary(Operator, Rc<Expression<'e>>),
+  EOF,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Expression<'e> {
   pub node: ExpressionNode<'e>,
-  pub pos:  &'e TokenElement<'e>,
+  pub pos:  TokenElement<'e>,
+}
+
+impl<'e> Expression<'e> {
+  pub fn new(node: ExpressionNode<'e>, pos: TokenElement<'e>) -> Self {
+    Expression {
+      node,
+      pos,
+    }
+  }
 }
 
 
-#[derive(Debug)]
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Operator {
   Add, Sub, Mul, Div, Mod, Pow, Concat,
 }
@@ -42,13 +62,13 @@ impl Operator {
     use self::Operator::*;
 
     let op_prec = match operator {
-      "*"  => (Mul, 0),
-      "/"  => (Div, 0),
-      "%"  => (Mod, 0),
-      "^"  => (Pow, 0),
-      "+"  => (Add, 1),
-      "-"  => (Sub, 1),
-      "++" => (Concat, 1),
+      "+"  => (Add,    0),
+      "-"  => (Sub,    0),
+      "++" => (Concat, 0),
+      "*"  => (Mul,    1),
+      "/"  => (Div,    1),
+      "%"  => (Mod,    1),
+      "^"  => (Pow,    2),
       _    => return None,
     };
 
