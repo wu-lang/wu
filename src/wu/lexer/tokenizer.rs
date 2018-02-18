@@ -99,7 +99,21 @@ impl<'t> Tokenizer<'t> {
 
   pub fn try_match_token(&mut self, matcher: &Matcher<'t>) -> Result<Option<Token<'t>>, ()> {
     if self.end() {
-      return Ok(Some(Token::new(TokenType::EOF, (self.pos.0, &self.source.lines.get(self.pos.0).unwrap_or(self.source.lines.last().unwrap())), (self.pos.1, 0), "")));
+      return Ok(
+        Some(
+          Token::new(
+            TokenType::EOF,
+            (self.pos.0, if self.source.lines.len() > 0 {
+                &self.source.lines.get(self.pos.0).unwrap_or(self.source.lines.first().unwrap())
+              } else {
+                ""
+              }
+            ),
+            (self.pos.1, 0),
+            ""
+          )
+        )
+      )
     }
 
     self.take_snapshot();

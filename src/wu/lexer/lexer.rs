@@ -39,6 +39,12 @@ impl<'l> Lexer<'l> {
       )
     );
 
+    lexer.matchers.push(
+      Rc::new(
+        KeyMatcher::new(Bool, &["true", "false"])
+      )
+    );
+
     lexer.matchers.push(Rc::new(IdentifierMatcher));
     lexer.matchers.push(Rc::new(NumberLiteralMatcher));
 
@@ -85,8 +91,8 @@ impl<'l> Iterator for Lexer<'l> {
             Wrong("bumped into weird character"),
             self.source.file,
             TokenElement::Pos(
-              (pos.0 + 1, &self.source.lines[pos.0 + 1]),
-              (pos.1 - 1, pos.1),
+              (pos.0, &self.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(self.source.lines.last().unwrap_or(&String::new()))),
+              (pos.1 + 1, pos.1 + 1),
             )
           );
           return None
