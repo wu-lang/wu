@@ -1,7 +1,0 @@
-a: string = "hey world"
-
-b: char = '\n'
-c: char = 'a
-
-e: int: 1337
-f :: true

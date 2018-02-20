@@ -69,31 +69,32 @@ impl<'p> Parser<'p> {
       )
     } else {
       let token_type = self.current_type().clone();
+      let position   = self.current_position();
 
       let expression = match token_type {
         Number => Expression::new(
           ExpressionNode::Number(self.eat()?.parse::<f64>().unwrap()),
-          self.current_position()
+          position
         ),
 
         Char => Expression::new(
           ExpressionNode::Char(self.eat()?.chars().last().unwrap()),
-          self.current_position()
+          position
         ),
 
         String => Expression::new(
           ExpressionNode::String(self.eat()?),
-          self.current_position()
+          position
         ),
 
         Identifier => Expression::new(
           ExpressionNode::Identifier(self.eat()?),
-          self.current_position()
+          position
         ),
 
         Bool => Expression::new(
           ExpressionNode::Bool(self.eat()? == "true"),
-          self.current_position()
+          position
         ),
 
         ref token_type => return Err(
