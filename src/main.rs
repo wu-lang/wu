@@ -8,7 +8,12 @@ use wu::visitor::Visitor;
 
 fn main() {
   let mut content = r#"
-foobadoo       
+bob := 100
+phil :: "hey"
+
+a: int = 1
+b: float = 2
+c: char: '3
   "#;
 
   let source = Source::from("main.rs/testing.wu", content.lines().map(|x| x.into()).collect::<Vec<String>>());
@@ -19,7 +24,15 @@ foobadoo
   let mut parser  = Parser::new(tokens, &source);
   let mut visitor = Visitor::new(&source);
 
-  for statement in parser.parse().unwrap() {
-    visitor.visit_statement(&statement);
+  match parser.parse() {
+    Ok(ast) => {
+      for statement in ast {
+        println!("{:#?}", statement);
+
+        visitor.visit_statement(&statement);
+      }
+    },
+
+    Err(_) => (),
   }
 }

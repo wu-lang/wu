@@ -4,7 +4,9 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatementNode<'s> {
-  Expression(Expression<'s>)
+  Expression(Expression<'s>),
+  Variable(Type, Expression<'s>, Option<Expression<'s>>),
+  Constant(Type, Expression<'s>, Option<Expression<'s>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -31,7 +33,6 @@ pub enum ExpressionNode<'e> {
   Bool(bool),
   Identifier(String),
   Binary(Rc<Expression<'e>>, Operator, Rc<Expression<'e>>),
-  Unary(Operator, Rc<Expression<'e>>),
   EOF,
 }
 

@@ -38,20 +38,46 @@ impl<'p> Parser<'p> {
     }
 
     let statement = match *self.current_type() {
-      _ => Statement::new(
-        StatementNode::Expression(self.parse_expression(None)?),
-        self.current_position(),
-      ),
+      _ => {
+        use self::ExpressionNode::*;
+
+        let expression = self.parse_expression()?;
+
+        if let Identifier(_) = expression.node {
+          if self.current_type() == &TokenType::Symbol {
+            let expression = match self.current_lexeme().as_str() {
+              ":"   => return self.parse_declaration(expression),
+              ref c => return Err(
+                response!(
+                  Wrong(format!("unexpected symbol `{}`", c)),
+                  self.source.file,
+                  TokenElement::Ref(self.current())
+                )
+              )
+            };
+          } else {
+            Statement::new(
+              StatementNode::Expression(expression),
+              self.current_position(),
+            )
+          }
+        } else {
+          Statement::new(
+            StatementNode::Expression(expression),
+            self.current_position(),
+          )
+        }
+      }
     };
 
     Ok(statement)
   }
 
-  fn parse_expression(&mut self, min_precedence: Option<u8>) -> Result<Expression<'p>, ()> {
+  fn parse_expression(&mut self) -> Result<Expression<'p>, ()> {
     let atom = self.parse_atom()?;
 
     if self.current_type() == &TokenType::Operator {
-      self.parse_binary(atom, min_precedence.unwrap_or(0))
+      self.parse_binary(atom)
     } else {
       Ok(atom)
     }
@@ -111,7 +137,7 @@ impl<'p> Parser<'p> {
   }
 
   // basic precedence climbing
-  fn parse_binary(&mut self, left: Expression<'p>, min_precedence: u8) -> Result<Expression<'p>, ()> {
+  fn parse_binary(&mut self, left: Expression<'p>) -> Result<Expression<'p>, ()> {
     let mut expression_stack = vec!(left);
     let mut operator_stack   = vec!(Operator::from_str(&self.eat()?).unwrap());
 
@@ -163,6 +189,155 @@ impl<'p> Parser<'p> {
     }
 
     Ok(expression_stack.pop().unwrap())
+  }
+
+  fn parse_declaration(&mut self, left: Expression<'p>) -> Result<Statement<'p>, ()> {
+    match self.current_lexeme().as_str() {
+      ":" => {
+        self.next()?;
+
+        let position = left.pos.clone();
+
+        if self.current_type() == &TokenType::Symbol {
+          match self.current_lexeme().as_str() {
+            ":" => {
+              self.next()?;
+
+              let right    = Some(self.parse_expression()?);
+
+              Ok(
+                Statement::new(
+                  StatementNode::Constant(
+                    Type::new(TypeNode::Nil, TypeMode::Immutable),
+                    left,
+                    right,
+                  ),
+
+                  position,
+                )
+              )
+            },
+
+            "=" => {
+              self.next()?;
+
+              let right    = Some(self.parse_expression()?);
+              let position = left.pos.clone();
+
+              Ok(
+                Statement::new(
+                  StatementNode::Variable(
+                    Type::nil(),
+                    left,
+                    right,
+                  ),
+
+                  position,
+                )
+              )
+            },
+
+            ref c => Err(
+              response!(
+                Wrong(format!("unexpected symbol `{}`", c)),
+                self.source.file,
+                self.current_position()
+              )
+            )
+          }
+        } else {
+
+          let t = self.parse_type()?;
+
+          if self.current_type() == &TokenType::Symbol {
+            match self.current_lexeme().as_str() {
+              ":" => {
+                self.next()?;
+
+                let right    = Some(self.parse_expression()?);
+
+                Ok(
+                  Statement::new(
+                    StatementNode::Constant(
+                      Type::new(t.node, TypeMode::Immutable),
+                      left,
+                      right,
+                    ),
+
+                    position,
+                  )
+                )
+              },
+
+              "=" => {
+                self.next()?;
+
+                let right    = Some(self.parse_expression()?);
+                let position = left.pos.clone();
+
+                Ok(
+                  Statement::new(
+                    StatementNode::Variable(
+                      t,
+                      left,
+                      right,
+                    ),
+
+                    position,
+                  )
+                )
+              },
+
+              ref c => Err(
+                response!(
+                  Wrong(format!("unexpected symbol `{}`", c)),
+                  self.source.file,
+                  self.current_position()
+                )
+              )
+            }
+          } else {
+            Ok(
+              Statement::new(
+                StatementNode::Variable(
+                  t,
+                  left,
+                  None,
+                ),
+
+                position,
+              )
+            )
+          }
+        }
+      },
+
+      _ => Err(
+        response!(
+          Wrong("invalid declaration without `:`"),
+          self.source.file,
+          self.current_position()
+        )
+      )
+    }
+  }
+
+  fn parse_type(&mut self) -> Result<Type, ()> {
+    use self::TokenType::*;
+
+    let t = match *self.current_type() {
+      Identifier => Type::id(&self.eat()?),
+
+      _ => return Err(
+        response!(
+          Wrong(format!("expected type found `{}`", self.current_lexeme())),
+          self.source.file,
+          self.current_position()
+        )
+      )
+    };
+
+    Ok(t)
   }
 
 

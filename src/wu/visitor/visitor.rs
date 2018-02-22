@@ -3,6 +3,7 @@ use super::super::error::Response::Wrong;
 
 use std::fmt::{ self, Write, Formatter, Display, };
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum TypeNode {
   Int,
   Float,
@@ -13,6 +14,9 @@ pub enum TypeNode {
   Id(String)
 }
 
+
+
+#[derive(Debug, Clone)]
 pub enum TypeMode {
   Undeclared,
   Immutable,
@@ -84,6 +88,7 @@ impl PartialEq for TypeMode {
 
 
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Type {
   pub node: TypeNode,
   pub mode: TypeMode,
@@ -94,6 +99,10 @@ impl Type {
     Type {
       node, mode,
     }
+  }
+
+  pub fn id(id: &str) -> Type {
+    Type::new(TypeNode::Id(id.to_owned()), TypeMode::Regular)
   }
 
   pub fn number() -> Type {
@@ -151,9 +160,7 @@ impl<'v> Visitor<'v> {
     use self::ExpressionNode::*;
 
     match expression.node {
-      Identifier(ref name) => if let Some((index, env_index)) = self.symtab.get_name(name) {
-        Ok(())
-      } else {
+      Identifier(ref name) => if self.symtab.get_name(name).is_none() {
         Err(
           response!(
             Wrong(format!("no such value `{}` in this scope", name)),
@@ -161,7 +168,10 @@ impl<'v> Visitor<'v> {
             expression.pos
           )
         )
+      } else {
+        Ok(())
       }
+
       _ => Ok(())
     }
   }

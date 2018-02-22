@@ -6,3 +6,5 @@ pub use self::parser::*;
 
 use super::lexer::{ TokenElement, Token, TokenType, };
 use super::source::Source;
+
+use super::visitor::{ Type, TypeMode, TypeNode, };
