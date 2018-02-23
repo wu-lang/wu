@@ -152,6 +152,17 @@ impl<'v> Visitor<'v> {
 
     match statement.node {
       Expression(ref expression) => self.visit_expression(expression),
+
+      Variable(_, ref left, _) => match left.node {
+        ExpressionNode::Identifier(_) => self.visit_variable(&statement.node),
+        _ => Ok(())
+      },
+
+      Constant(_, ref left, _) => match left.node {
+        ExpressionNode::Identifier(_) => self.visit_constant(&statement.node),
+        _ => Ok(())
+      },
+
       _ => Ok(())
     }
   }
@@ -173,6 +184,54 @@ impl<'v> Visitor<'v> {
       }
 
       _ => Ok(())
+    }
+  }
+
+  fn visit_variable(&mut self, variable: &StatementNode) -> Result<(), ()> {
+    use self::ExpressionNode::*;
+
+    if let &StatementNode::Variable(ref t, ref left, ref right) = variable {
+      match left.node {
+        Identifier(ref name) => {
+          self.symtab.add_name(name);
+        },
+
+        _ => return Err(
+          response!(
+            Wrong("unexpected variable declaration"),
+            self.source.file,
+            left.pos
+          )
+        )
+      }
+
+      Ok(())
+    } else {
+      unreachable!()
+    }
+  }
+
+  fn visit_constant(&mut self, constant: &StatementNode) -> Result<(), ()> {
+    use self::ExpressionNode::*;
+
+    if let &StatementNode::Constant(ref t, ref left, ref right) = constant {
+      match left.node {
+        Identifier(ref name) => {
+          self.symtab.add_name(name);
+        },
+
+        _ => return Err(
+          response!(
+            Wrong("unexpected constant declaration"),
+            self.source.file,
+            left.pos
+          )
+        )
+      }
+
+      Ok(())
+    } else {
+      unreachable!()
     }
   }
 }
