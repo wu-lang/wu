@@ -8,11 +8,10 @@ use wu::visitor::Visitor;
 
 fn main() {
   let mut content = r#"
-æble := 10
-æble
-
-åå :: "hey"
-åå
+{
+  a :: 0
+  a
+}
   "#;
 
   let source = Source::from("main.rs/testing.wu", content.lines().map(|x| x.into()).collect::<Vec<String>>());
@@ -25,6 +24,8 @@ fn main() {
 
   match parser.parse() {
     Ok(ast) => {
+      println!("{:#?}", ast);
+
       for statement in ast {
         visitor.visit_statement(&statement);
       }

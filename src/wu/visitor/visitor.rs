@@ -181,6 +181,14 @@ impl<'v> Visitor<'v> {
         )
       } else {
         Ok(())
+      },
+
+      Block(ref statements) => {
+        for statement in statements {
+          self.visit_statement(statement)?
+        }
+
+        Ok(())
       }
 
       _ => Ok(())

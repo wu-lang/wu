@@ -123,6 +123,20 @@ impl<'p> Parser<'p> {
           position
         ),
 
+        Symbol => match self.current_lexeme().as_str() {
+          "{" => Expression::new(
+            ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+            position
+          ),
+          ref c => return Err(
+            response!(
+              Wrong(format!("unexpected symbol `{}`", c)),
+              self.source.file,
+              TokenElement::Ref(self.current())
+            )
+          )
+        }
+
         ref token_type => return Err(
           response!(
             Wrong(format!("unexpected token `{}`", token_type)),
@@ -340,6 +354,56 @@ impl<'p> Parser<'p> {
     Ok(t)
   }
 
+  fn parse_block_of<B>(&mut self, delimeters: (&str, &str), parse_with: &Fn(&mut Self) -> Result<Option<B>, ()>) -> Result<Vec<B>, ()> {
+    self.eat_lexeme(delimeters.0)?;
+
+    let mut block      = Vec::new();
+    let mut nest_count = 1;
+
+    while nest_count > 0 {
+      if self.current_lexeme() == delimeters.1 {
+        nest_count -= 1
+      } else if self.current_lexeme() == delimeters.0 {
+        nest_count += 1
+      }
+
+      if nest_count == 0 {
+        break
+      } else {
+        if let Some(element) = parse_with(self)? {
+          block.push(element)
+        } else {
+          break
+        }
+
+        self.next()?
+      }
+    }
+
+    self.eat_lexeme(delimeters.1)?;
+
+    Ok(block)
+  }
+
+
+
+  fn _parse_statement(self: &mut Self) -> Result<Option<Statement<'p>>, ()> {
+    if self.remaining() > 0 {
+      Ok(Some(self.parse_statement()?))
+    } else {
+      Ok(None)
+    }
+  }
+
+  fn _parse_expression(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
+    let expression = self.parse_expression()?;
+
+    match expression.node {
+      ExpressionNode::EOF => Ok(None),
+      _                   => Ok(Some(expression)),
+    }
+  }
+
 
 
   fn next(&mut self) -> Result<(), ()> {
@@ -382,6 +446,22 @@ impl<'p> Parser<'p> {
     self.next()?;
 
     Ok(lexeme)
+  }
+
+  fn eat_lexeme(&mut self, lexeme: &str) -> Result<String, ()> {
+    if self.current_lexeme() == lexeme {
+      let lexeme = self.current().lexeme.clone();
+      self.next()?;
+
+      Ok(lexeme)
+    } else {
+      Err(
+        response!(
+          Wrong(format!("expected `{}`, found `{}`", lexeme, self.current_lexeme())),
+          self.source.file
+        )
+      )
+    }
   }
 
   fn current_lexeme(&self) -> String {
