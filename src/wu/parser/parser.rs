@@ -45,8 +45,8 @@ impl<'p> Parser<'p> {
 
         if let Identifier(_) = expression.node {
           if self.current_type() == &TokenType::Symbol {
-            let expression = match self.current_lexeme().as_str() {
-              ":"   => return self.parse_declaration(expression),
+            let statement = match self.current_lexeme().as_str() {
+              ":"   => self.parse_declaration(expression)?,
               ref c => return Err(
                 response!(
                   Wrong(format!("unexpected symbol `{}`", c)),
@@ -55,6 +55,8 @@ impl<'p> Parser<'p> {
                 )
               )
             };
+
+            statement
           } else {
             Statement::new(
               StatementNode::Expression(expression),
@@ -69,6 +71,8 @@ impl<'p> Parser<'p> {
         }
       }
     };
+
+    self.newline()?;
 
     Ok(statement)
   }
@@ -128,6 +132,60 @@ impl<'p> Parser<'p> {
             ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
             position
           ),
+
+          "(" => {
+            self.eat()?;
+
+            let backup_index = self.index;
+
+            let mut nest_count  = 1;
+            let mut found_comma = false;
+
+            while nest_count > 0 {
+              if self.current_lexeme() == ")" {
+                nest_count -= 1
+              } else if self.current_lexeme() == "(" {
+                nest_count += 1
+              }
+
+              if nest_count == 0 {
+                break
+              } else {
+                if nest_count == 1 {
+                  if self.current_lexeme() == "," {
+                    found_comma = true
+                  }
+                }
+
+                self.next()?
+              }
+            }
+
+            self.eat_lexeme(")")?;
+
+            if self.current_lexeme() != "->" {
+              self.parse_type().unwrap();
+            }
+
+            if self.current_lexeme() != "->" {
+              self.index = backup_index;
+
+              let expression = self.parse_expression()?;
+
+              self.eat_lexeme(")")?;
+
+              expression
+            } else {
+              return Err(
+                response!(
+                  Wrong("functions aren't implemented yet"),
+                  self.source.file,
+                  TokenElement::Ref(self.current())
+                )
+              )
+            }
+          },
+
           ref c => return Err(
             response!(
               Wrong(format!("unexpected symbol `{}`", c)),
@@ -401,6 +459,21 @@ impl<'p> Parser<'p> {
     match expression.node {
       ExpressionNode::EOF => Ok(None),
       _                   => Ok(Some(expression)),
+    }
+  }
+
+
+
+  fn newline(&mut self) -> Result<(), ()> {
+    match self.current_lexeme().as_str() {
+      "\n" => self.next(),
+      _    => Err(
+        response!(
+          Wrong(format!("expected new line or `;` found: `{}`", self.current_lexeme())),
+          self.source.file,
+          self.current_position()
+        )
+      )
     }
   }
 
