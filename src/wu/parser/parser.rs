@@ -5,12 +5,12 @@ use std::rc::Rc;
 
 pub struct Parser<'p> {
   index:  usize,
-  tokens: Vec<Token<'p>>,
+  tokens: Vec<&'p Token<'p>>,
   source: &'p Source,
 }
 
 impl<'p> Parser<'p> {
-  pub fn new(tokens: Vec<Token<'p>>, source: &'p Source) -> Self {
+  pub fn new(tokens: Vec<&'p Token<'p>>, source: &'p Source) -> Self {
     Parser {
       tokens,
       source,
@@ -44,19 +44,26 @@ impl<'p> Parser<'p> {
         let expression = self.parse_expression()?;
 
         if let Identifier(_) = expression.node {
-          if self.current_type() == &TokenType::Symbol {
-            let statement = match self.current_lexeme().as_str() {
-              ":"   => self.parse_declaration(expression)?,
-              ref c => return Err(
-                response!(
-                  Wrong(format!("unexpected symbol `{}`", c)),
-                  self.source.file,
-                  TokenElement::Ref(self.current())
+          if self.remaining() > 0 {
+            if self.current_type() == &TokenType::Symbol {
+              let statement = match self.current_lexeme().as_str() {
+                ":"   => self.parse_declaration(expression)?,
+                ref c => return Err(
+                  response!(
+                    Wrong(format!("unexpected symbol `{}`", c)),
+                    self.source.file,
+                    TokenElement::Ref(self.current())
+                  )
                 )
-              )
-            };
+              };
 
-            statement
+              statement
+            } else {
+              Statement::new(
+                StatementNode::Expression(expression),
+                self.current_position(),
+              )
+            }
           } else {
             Statement::new(
               StatementNode::Expression(expression),
@@ -134,51 +141,19 @@ impl<'p> Parser<'p> {
           ),
 
           "(" => {
-            self.eat()?;
+            let content = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
 
-            let backup_index = self.index;
-
-            let mut nest_count  = 1;
-            let mut found_comma = false;
-
-            while nest_count > 0 {
-              if self.current_lexeme() == ")" {
-                nest_count -= 1
-              } else if self.current_lexeme() == "(" {
-                nest_count += 1
-              }
-
-              if nest_count == 0 {
-                break
-              } else {
-                if nest_count == 1 {
-                  if self.current_lexeme() == "," {
-                    found_comma = true
-                  }
-                }
-
-                self.next()?
-              }
-            }
-
-            self.eat_lexeme(")")?;
-
-            if self.current_lexeme() != "->" {
-              self.parse_type().unwrap();
-            }
-
-            if self.current_lexeme() != "->" {
-              self.index = backup_index;
-
-              let expression = self.parse_expression()?;
-
-              self.eat_lexeme(")")?;
-
-              expression
+            if content.len() == 1 {
+              content[0].clone()
+            } else if content.len() > 1 {
+              Expression::new(
+                ExpressionNode::Set(content),
+                position
+              )
             } else {
               return Err(
                 response!(
-                  Wrong("functions aren't implemented yet"),
+                  Wrong("unhandled empty clause `()`"),
                   self.source.file,
                   TokenElement::Ref(self.current())
                 )
@@ -415,8 +390,8 @@ impl<'p> Parser<'p> {
   fn parse_block_of<B>(&mut self, delimeters: (&str, &str), parse_with: &Fn(&mut Self) -> Result<Option<B>, ()>) -> Result<Vec<B>, ()> {
     self.eat_lexeme(delimeters.0)?;
 
-    let mut block      = Vec::new();
-    let mut nest_count = 1;
+    let mut block_tokens = Vec::new();
+    let mut nest_count   = 1;
 
     while nest_count > 0 {
       if self.current_lexeme() == delimeters.1 {
@@ -428,11 +403,7 @@ impl<'p> Parser<'p> {
       if nest_count == 0 {
         break
       } else {
-        if let Some(element) = parse_with(self)? {
-          block.push(element)
-        } else {
-          break
-        }
+        block_tokens.push(self.current());
 
         self.next()?
       }
@@ -440,7 +411,18 @@ impl<'p> Parser<'p> {
 
     self.eat_lexeme(delimeters.1)?;
 
-    Ok(block)
+    if !block_tokens.is_empty() {
+      let mut parser = Parser::new(block_tokens, self.source);
+      let mut block  = Vec::new();
+
+      while let Some(element) = parse_with(&mut parser)? {
+        block.push(element)
+      }
+
+      Ok(block)
+    } else {
+      Ok(Vec::new())
+    }
   }
 
 
@@ -462,18 +444,32 @@ impl<'p> Parser<'p> {
     }
   }
 
+  fn _parse_expression_comma(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
+    let expression = Self::_parse_expression(self);
+
+    if self.remaining() > 0 {
+      self.eat_lexeme(",")?;
+    }
+
+    expression
+  }
+
 
 
   fn newline(&mut self) -> Result<(), ()> {
-    match self.current_lexeme().as_str() {
-      "\n" => self.next(),
-      _    => Err(
-        response!(
-          Wrong(format!("expected new line or `;` found: `{}`", self.current_lexeme())),
-          self.source.file,
-          self.current_position()
+    if self.remaining() > 0 {
+      match self.current_lexeme().as_str() {
+        "\n" => self.next(),
+        _    => Err(
+          response!(
+            Wrong(format!("expected new line found: `{}`", self.current_lexeme())),
+            self.source.file,
+            self.current_position()
+          )
         )
-      )
+      }
+    } else {
+      Ok(())
     }
   }
 
@@ -494,7 +490,7 @@ impl<'p> Parser<'p> {
   }
 
   fn remaining(&self) -> usize {
-    self.tokens.len() - self.index
+    self.tokens.len().saturating_sub(self.index)
   }
 
   fn current_position(&self) -> TokenElement<'p> {
@@ -506,7 +502,7 @@ impl<'p> Parser<'p> {
     )
   }
 
-  fn current(&self) -> &Token<'p> {
+  fn current(&self) -> &'p Token<'p> {
     if self.index > self.tokens.len() - 1 {
       &self.tokens[self.tokens.len() - 1]
     } else {
@@ -531,7 +527,8 @@ impl<'p> Parser<'p> {
       Err(
         response!(
           Wrong(format!("expected `{}`, found `{}`", lexeme, self.current_lexeme())),
-          self.source.file
+          self.source.file,
+          self.current_position()
         )
       )
     }

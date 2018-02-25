@@ -16,7 +16,7 @@ macro_rules! token {
 
     let line = tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap());
 
-    Token::new(token_type, (pos.0, &line), (pos.1, pos.1 + accum.len()), &accum)
+    Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len()), &accum)
   }};
 }
 

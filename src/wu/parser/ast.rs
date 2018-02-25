@@ -34,6 +34,7 @@ pub enum ExpressionNode<'e> {
   Identifier(String),
   Binary(Rc<Expression<'e>>, Operator, Rc<Expression<'e>>),
   Block(Vec<Statement<'e>>),
+  Set(Vec<Expression<'e>>),
   EOF,
 }
 
