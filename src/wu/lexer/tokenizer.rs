@@ -44,14 +44,7 @@ impl<'t> Tokenizer<'t> {
 
   pub fn advance(&mut self) {
     if let Some(item) = self.items.get(self.index + 1) {
-      match *item {
-        /*'\n' => {
-          self.pos.0 += 1;
-          self.pos.1 = 0;
-        },*/
-
-        _ => self.pos.1 += 1,
-      }
+      self.pos.1 += 1
     }
 
     self.index += 1

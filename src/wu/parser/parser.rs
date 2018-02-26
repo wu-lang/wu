@@ -43,38 +43,40 @@ impl<'p> Parser<'p> {
 
         let expression = self.parse_expression()?;
 
-        if let Identifier(_) = expression.node {
-          if self.remaining() > 0 {
-            if self.current_type() == &TokenType::Symbol {
-              let statement = match self.current_lexeme().as_str() {
-                ":"   => self.parse_declaration(expression)?,
-                ref c => return Err(
-                  response!(
-                    Wrong(format!("unexpected symbol `{}`", c)),
-                    self.source.file,
-                    TokenElement::Ref(self.current())
+        match expression.node {
+          Identifier(_) | Set(_) => {
+            if self.remaining() > 0 {
+              if self.current_type() == &TokenType::Symbol {
+                let statement = match self.current_lexeme().as_str() {
+                  ":"   => self.parse_declaration(expression)?,
+                  ref c => return Err(
+                    response!(
+                      Wrong(format!("unexpected symbol `{}`", c)),
+                      self.source.file,
+                      TokenElement::Ref(self.current())
+                    )
                   )
-                )
-              };
+                };
 
-              statement
+                statement
+              } else {
+                Statement::new(
+                  StatementNode::Expression(expression),
+                  self.current_position(),
+                )
+              }
             } else {
               Statement::new(
                 StatementNode::Expression(expression),
                 self.current_position(),
               )
             }
-          } else {
-            Statement::new(
-              StatementNode::Expression(expression),
-              self.current_position(),
-            )
-          }
-        } else {
-          Statement::new(
+          },
+
+          _ => Statement::new(
             StatementNode::Expression(expression),
             self.current_position(),
-          )
+          ),
         }
       }
     };
@@ -250,7 +252,7 @@ impl<'p> Parser<'p> {
             ":" => {
               self.next()?;
 
-              let right    = Some(self.parse_expression()?);
+              let right    = self.parse_expression()?;
 
               Ok(
                 Statement::new(
@@ -293,7 +295,6 @@ impl<'p> Parser<'p> {
             )
           }
         } else {
-
           let t = self.parse_type()?;
 
           if self.current_type() == &TokenType::Symbol {
@@ -301,7 +302,7 @@ impl<'p> Parser<'p> {
               ":" => {
                 self.next()?;
 
-                let right    = Some(self.parse_expression()?);
+                let right = self.parse_expression()?;
 
                 Ok(
                   Statement::new(
@@ -373,7 +374,14 @@ impl<'p> Parser<'p> {
     use self::TokenType::*;
 
     let t = match *self.current_type() {
-      Identifier => Type::id(&self.eat()?),
+      Identifier => match self.eat()?.as_str() {
+        "str"   => Type::string(),
+        "char"  => Type::char(),
+        "float" => Type::float(),
+        "int"   => Type::int(),
+        "bool"  => Type::bool(),
+        id      => Type::id(id),
+      },
 
       _ => return Err(
         response!(

@@ -16,7 +16,11 @@ macro_rules! token {
 
     let line = tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap());
 
-    Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len()), &accum)
+    if TokenType::String == token_type || TokenType::Char == token_type {
+      Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len() + 2), &accum) // delimeters
+    } else {
+      Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len()), &accum)
+    }
   }};
 }
 
@@ -153,14 +157,14 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
 
     tokenizer.advance();
 
-    let mut string     = String::new();
+    let mut string       = String::new();
     let mut found_escape = false;
 
     loop {
       if tokenizer.end() {
         return Err(
           response!(
-            Wrong(format!("missing closing delimeter `{}` to close literal here", delimeter)),
+            Wrong(format!("unterminated delimeter `{}`", delimeter)),
             tokenizer.source.file,
             TokenElement::Pos(
               (pos.0 + 1, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
@@ -205,7 +209,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
           },
 
           // check for valid closing delimeter and alternative
-          c => if c == delimeter || (c.is_whitespace() && delimeter == '\'') {
+          c => if c == delimeter {
             if string.len() > 0 && string != " " {
               break
             } else {

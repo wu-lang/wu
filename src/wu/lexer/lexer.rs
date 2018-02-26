@@ -75,37 +75,38 @@ impl<'l> Lexer<'l> {
   }
 }
 
-
-
 impl<'l> Iterator for Lexer<'l> {
-  type Item = Token<'l>;
+  type Item = Result<Token<'l>, ()>;
 
-  fn next(&mut self) -> Option<Token<'l>> {
+  fn next(&mut self) -> Option<Result<Token<'l>, ()>> {
     let token = match self.match_token() {
       Ok(hmm) => match hmm {
         Some(n) => n,
         None    => {
           let pos = self.tokenizer.pos;
 
-          response!(
-            Wrong("bumped into weird character"),
-            self.source.file,
-            TokenElement::Pos(
-              (pos.0, &self.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(self.source.lines.last().unwrap_or(&String::new()))),
-              (pos.1 + 1, pos.1 + 1),
+          return Some(
+            Err(
+              response!(
+                Wrong("bumped into weird character"),
+                self.source.file,
+                TokenElement::Pos(
+                  (pos.0, &self.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(self.source.lines.last().unwrap_or(&String::new()))),
+                  (pos.1 + 1, pos.1 + 1),
+                )
+              )
             )
-          );
-          return None
+          )
         },
       },
 
-      Err(_) => return None,
+      Err(_) => return Some(Err(())),
     };
 
     match token.token_type {
       TokenType::EOF        => None,
       TokenType::Whitespace => self.next(),
-      _                     => Some(token),
+      _                     => Some(Ok(token)),
     }
   }
 }
