@@ -53,11 +53,19 @@ a: int:   123
 b: float: .123
 c: char:  '\n'
 d: char:  'a'
-e: brr:   "raw"
+e: str:   "raw"
 f: bool:  true
 
 bar :: b
+
+hmm: int
   "#;
 
-  run(&test1);
+  let test2 = r#"
+foo: (str, int) = ("hey", 100)
+
+foo: () = (1)
+  "#;
+
+  run(&test2);
 }

@@ -65,8 +65,12 @@ impl Display for TypeNode {
       Set(ref content) => {
         write!(f, "(");
 
-        for element in content {
-          write!(f, "{},", element)?
+        for (index, element) in content.iter().enumerate() {
+          if index < content.len() - 1 {
+            write!(f, "{}, ", element)?          
+          } else {
+            write!(f, "{}", element)?
+          }
         }
 
         write!(f, ")")
@@ -166,6 +170,10 @@ impl Type {
 
   pub fn nil() -> Type {
     Type::new(TypeNode::Nil, TypeMode::Regular)
+  }
+
+  pub fn set(content: Vec<Type>) -> Type {
+    Type::new(TypeNode::Set(content), TypeMode::Regular)
   }
 }
 
@@ -408,6 +416,16 @@ impl<'v> Visitor<'v> {
       Char(_)   => Type::char(),
       Bool(_)   => Type::bool(),
       Number(_) => Type::number(),
+
+      Set(ref content) => {
+        let mut type_content = Vec::new();
+
+        for expression in content {
+          type_content.push(self.type_expression(expression)?)
+        }
+
+        Type::set(type_content)
+      },
 
       _ => Type::nil()
     };

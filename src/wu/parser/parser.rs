@@ -247,57 +247,47 @@ impl<'p> Parser<'p> {
 
         let position = left.pos.clone();
 
-        if self.current_type() == &TokenType::Symbol {
-          match self.current_lexeme().as_str() {
-            ":" => {
-              self.next()?;
+        match self.current_lexeme().as_str() {
+          ":" => {
+            self.next()?;
 
-              let right    = self.parse_expression()?;
+            let right    = self.parse_expression()?;
 
-              Ok(
-                Statement::new(
-                  StatementNode::Constant(
-                    Type::new(TypeNode::Nil, TypeMode::Immutable),
-                    left,
-                    right,
-                  ),
+            Ok(
+              Statement::new(
+                StatementNode::Constant(
+                  Type::new(TypeNode::Nil, TypeMode::Immutable),
+                  left,
+                  right,
+                ),
 
-                  position,
-                )
-              )
-            },
-
-            "=" => {
-              self.next()?;
-
-              let right    = Some(self.parse_expression()?);
-              let position = left.pos.clone();
-
-              Ok(
-                Statement::new(
-                  StatementNode::Variable(
-                    Type::nil(),
-                    left,
-                    right,
-                  ),
-
-                  position,
-                )
-              )
-            },
-
-            ref c => Err(
-              response!(
-                Wrong(format!("unexpected symbol `{}`", c)),
-                self.source.file,
-                self.current_position()
+                position,
               )
             )
-          }
-        } else {
-          let t = self.parse_type()?;
+          },
 
-          if self.current_type() == &TokenType::Symbol {
+          "=" => {
+            self.next()?;
+
+            let right    = Some(self.parse_expression()?);
+            let position = left.pos.clone();
+
+            Ok(
+              Statement::new(
+                StatementNode::Variable(
+                  Type::nil(),
+                  left,
+                  right,
+                ),
+
+                position,
+              )
+            )
+          },
+
+          _ => {
+            let t = self.parse_type()?;
+
             match self.current_lexeme().as_str() {
               ":" => {
                 self.next()?;
@@ -336,26 +326,18 @@ impl<'p> Parser<'p> {
                 )
               },
 
-              ref c => Err(
-                response!(
-                  Wrong(format!("unexpected symbol `{}`", c)),
-                  self.source.file,
-                  self.current_position()
+              _ => Ok(
+                Statement::new(
+                  StatementNode::Variable(
+                    t,
+                    left,
+                    None,
+                  ),
+
+                  position,
                 )
               )
             }
-          } else {
-            Ok(
-              Statement::new(
-                StatementNode::Variable(
-                  t,
-                  left,
-                  None,
-                ),
-
-                position,
-              )
-            )
           }
         }
       },
@@ -382,6 +364,25 @@ impl<'p> Parser<'p> {
         "bool"  => Type::bool(),
         id      => Type::id(id),
       },
+
+      Symbol => match self.current_lexeme().as_str() {
+        "(" => {
+          let content = self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?;
+
+          if content.len() == 1 {
+            content[0].clone()
+          } else {
+            Type::set(content)
+          }
+        }
+        _   => return Err(
+          response!(
+            Wrong(format!("unexpected symbol `{}` in type", self.current_lexeme())),
+            self.source.file,
+            self.current_position()
+          )
+        )
+      }
 
       _ => return Err(
         response!(
@@ -460,6 +461,20 @@ impl<'p> Parser<'p> {
     }
 
     expression
+  }
+
+  fn _parse_type_comma(self: &mut Self) -> Result<Option<Type>, ()> {
+    if self.remaining() == 0 {
+      Ok(None)
+    } else {
+      let t = self.parse_type()?;
+
+      if self.remaining() > 0 {
+        self.eat_lexeme(",")?;
+      }
+
+      Ok(Some(t))
+    }
   }
 
 
