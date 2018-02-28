@@ -12,23 +12,19 @@ A full walk-through of the language can be found over at the [wu-lang documentat
 
 ```=
 fib :: (a: int) int -> match a {
-    | 0 -> 0
-    | 1 -> 1
-    | _ -> fib(a - 1) + fib(a - 2)
+  | 0 -> 0
+  | 1 -> 1
+  | _ -> fib(a - 1) + fib(a - 2)
 }
 
 fibs := List new()
 
 for i, 100 {
-    fibs push(fib(i))
+  fibs push(fib(i))
 }
 
 print(fibs)
 ```
-
-### language of the future
-
-
 
 ### contributors
 

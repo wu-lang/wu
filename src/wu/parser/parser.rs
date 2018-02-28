@@ -375,6 +375,7 @@ impl<'p> Parser<'p> {
             Type::set(content)
           }
         }
+
         _   => return Err(
           response!(
             Wrong(format!("unexpected symbol `{}` in type", self.current_lexeme())),

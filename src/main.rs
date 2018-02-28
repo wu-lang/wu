@@ -1,3 +1,5 @@
+#![feature(i128)]
+
 extern crate colored;
 
 mod wu;
@@ -63,6 +65,23 @@ hmm: int
 
   let test2 = r#"
 (a, b, c) := (1, 2, 3)
+(æ, ø): (int, str) = (1000, "world")
+
+(grr): bool: false
+(bar): (float): .123
+
+(d, e, f, g) :: (1, "two", 3, 4, "hey")
+
+a
+b
+c
+d
+e
+f
+g
+grr
+æ
+ø
   "#;
 
   run(&test2);
