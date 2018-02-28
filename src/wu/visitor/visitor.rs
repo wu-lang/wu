@@ -304,17 +304,81 @@ impl<'v> Visitor<'v> {
         },
 
         Set(ref names) => {
-          for expression in names {
-            if let Identifier(ref name) = expression.node {
-              self.symtab.add_name(name);
-            } else {
-              return Err(
+          if let &Some(ref right) = right {
+            let right_content = match right.node {
+              Set(ref content) => content,
+
+              _ => return Err(
                 response!(
-                  Wrong("can't declare non-identifier"),
+                  Wrong("can't assign set to non-set"),
                   self.source.file,
-                  expression.pos
+                  left.pos
                 )
               )
+            };          
+
+            for (content_index, expression) in names.iter().enumerate() {            
+              if let Identifier(ref name) = expression.node {
+                let index = if let Some((index, _)) = self.symtab.get_name(name) {
+                  index
+                } else {
+                  self.typetab.grow();
+                  self.symtab.add_name(name)
+                };
+
+                if let Some(right) = right_content.get(content_index) {                
+                  self.visit_expression(&right)?;
+
+                  let right_type = self.type_expression(right)?;
+
+                  if variable_type.node != TypeNode::Nil {                  
+                    if let TypeNode::Set(ref type_content) = variable_type.node {
+                      if type_content[content_index] != right_type {
+                        return Err(
+                          response!(
+                            Wrong(format!("mismatched types, expected type `{}` got `{}`", type_content[content_index], right_type)),
+                            self.source.file,
+                            right.pos
+                          )
+                        )
+                      } else {
+                        self.typetab.set_type(index, 0, variable_type.to_owned())?
+                      }
+                    } else {
+                      return Err(
+                        response!(
+                          Wrong(format!("mismatched types of set declaration got `{}`", variable_type.node)),
+                          self.source.file,
+                          left.pos
+                        )
+                      )
+                    }
+                  } else {                  
+                    self.typetab.set_type(index, 0, right_type)?
+                  }
+                } else {
+                  return Err(
+                    response!(
+                      Wrong("missing"),
+                      self.source.file,
+                      right.pos
+                    )
+                  )
+                }
+              }
+            }
+          } else {
+            for expression in names {            
+              if let Identifier(ref name) = expression.node {
+                let index = if let Some((index, _)) = self.symtab.get_name(name) {
+                  index
+                } else {
+                  self.typetab.grow();
+                  self.symtab.add_name(name)
+                };
+
+                self.typetab.set_type(index, 0, variable_type.to_owned())?
+              }
             }
           }
         }
@@ -369,18 +433,67 @@ impl<'v> Visitor<'v> {
           }
         },
 
-        Set(ref names) => {
-          for expression in names {
-            if let Identifier(ref name) = expression.node {
-              self.symtab.add_name(name);
-            } else {
-              return Err(
-                response!(
-                  Wrong("can't declare non-identifier"),
-                  self.source.file,
-                  expression.pos
-                )
+        Set(ref names) => {          
+          let right_content = match right.node {
+            Set(ref content) => content,
+
+            _ => return Err(
+              response!(
+                Wrong("can't assign set to non-set"),
+                self.source.file,
+                left.pos
               )
+            )
+          };          
+
+          for (content_index, expression) in names.iter().enumerate() {            
+            if let Identifier(ref name) = expression.node {
+              let index = if let Some((index, _)) = self.symtab.get_name(name) {
+                index
+              } else {
+                self.typetab.grow();
+                self.symtab.add_name(name)
+              };
+
+              if let Some(right) = right_content.get(content_index) {                
+                self.visit_expression(&right)?;
+
+                let right_type = self.type_expression(right)?;
+
+                if constant_type.node != TypeNode::Nil {                  
+                  if let TypeNode::Set(ref type_content) = constant_type.node {
+                    if type_content[content_index] != right_type {
+                      return Err(
+                        response!(
+                          Wrong(format!("mismatched types, expected type `{}` got `{}`", type_content[content_index], right_type)),
+                          self.source.file,
+                          right.pos
+                        )
+                      )
+                    } else {
+                      self.typetab.set_type(index, 0, constant_type.to_owned())?
+                    }
+                  } else {
+                    return Err(
+                      response!(
+                        Wrong(format!("mismatched types of set declaration got `{}`", constant_type.node)),
+                        self.source.file,
+                        left.pos
+                      )
+                    )
+                  }
+                } else {                  
+                  self.typetab.set_type(index, 0, right_type)?
+                }
+              } else {
+                return Err(
+                  response!(
+                    Wrong("missing"),
+                    self.source.file,
+                    right.pos
+                  )
+                )
+              }
             }
           }
         }

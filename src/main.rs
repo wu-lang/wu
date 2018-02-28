@@ -62,9 +62,7 @@ hmm: int
   "#;
 
   let test2 = r#"
-foo: (str, int) = ("hey", 100)
-
-foo: () = (1)
+(a, b, c) := (1, 2, 3)
   "#;
 
   run(&test2);
