@@ -111,8 +111,13 @@ impl<'p> Parser<'p> {
       let position   = self.current_position();
 
       let expression = match token_type {
-        Number => Expression::new(
-          ExpressionNode::Number(self.eat()?.parse::<f64>().unwrap()),
+        Int => Expression::new(
+          ExpressionNode::Int(self.eat()?.parse::<i64>().unwrap()),
+          position
+        ),
+
+        Float => Expression::new(
+          ExpressionNode::Float(self.eat()?.parse::<f64>().unwrap()),
           position
         ),
 

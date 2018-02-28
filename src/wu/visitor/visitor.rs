@@ -144,10 +144,6 @@ impl Type {
     Type::new(TypeNode::Id(id.to_owned()), TypeMode::Regular)
   }
 
-  pub fn number() -> Type {
-    Type::new(TypeNode::Number, TypeMode::Regular)
-  }
-
   pub fn int() -> Type {
     Type::new(TypeNode::Int, TypeMode::Regular)
   }
@@ -528,7 +524,8 @@ impl<'v> Visitor<'v> {
       String(_) => Type::string(),
       Char(_)   => Type::char(),
       Bool(_)   => Type::bool(),
-      Number(_) => Type::number(),
+      Int(_)    => Type::int(),
+      Float(_)  => Type::float(),
 
       Set(ref content) => {
         let mut type_content = Vec::new();
