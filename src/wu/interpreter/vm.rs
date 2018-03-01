@@ -33,8 +33,8 @@ pub enum Code {
 }
 
 pub struct Machine {
-  stack: Vec<Value>,
-  next:  *mut HeapObject,
+  pub stack: Vec<Value>,
+  pub next:  *mut HeapObject,
 }
 
 impl Machine {

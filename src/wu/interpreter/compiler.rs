@@ -144,11 +144,70 @@ impl<'c> Compiler<'c> {
 
 
 
-  fn compile_statement(&mut self, statement: &Statement<'c>) -> Result<(), ()> {
+  fn compile_statement(&mut self, statement: &'c Statement<'c>) -> Result<(), ()> {
     use self::StatementNode::*;
 
     match statement.node {
       Expression(ref expression) => self.compile_expression(expression)?,
+      Constant(_, ref left, ref right) => match left.node {
+        ExpressionNode::Identifier(ref name) => {
+          self.compile_expression(right)?;
+
+          let index = self.declare_local(name)?;
+
+          self.emit(Code::StoreLocal(index))
+        },
+
+        ExpressionNode::Set(ref content) => {
+          self.compile_expression(right)?; // push content of tuple set onto stack
+
+          for (index, element) in content.iter().enumerate() {
+            match element.node {
+              ExpressionNode::Identifier(ref name) => {
+                let index = self.declare_local(name)?;
+
+                self.emit(Code::StoreLocal(index)) // pop and assign
+              },
+
+              _ => unreachable!(),
+            }
+          }
+        }
+
+        _ => unreachable!(),
+      },
+
+      Variable(_, ref left, ref right) => {
+        match left.node {
+          ExpressionNode::Identifier(ref name) => if let &Some(ref right) = right {
+            self.compile_expression(right)?;
+
+            let index = self.declare_local(name)?;
+
+            self.emit(Code::StoreLocal(index))
+          } else {
+            self.declare_local(name)?;
+          },
+
+          ExpressionNode::Set(ref content) => for element in content {
+            match element.node {
+              ExpressionNode::Identifier(ref name) => if let &Some(ref right) = right {
+                self.compile_expression(right)?;
+
+                let index = self.declare_local(name)?;
+
+                self.emit(Code::StoreLocal(index))
+              } else {
+                self.declare_local(name)?;
+              },
+
+              _ => unreachable!()
+            }
+          }
+
+          _ => unreachable!()
+        }
+      }
       _ => (),
     }
 
@@ -165,6 +224,15 @@ impl<'c> Compiler<'c> {
       String(ref n) => {
         let value = self.vm.alloc(HeapObjectType::Str(n.clone().into_boxed_str()));
         self.emit_load_const(value)
+      },
+
+      Identifier(ref name) => {
+        let index = self.fetch_local(name);
+        self.emit(Code::LoadLocal(index))
+      },
+
+      Set(ref content) => for element in content {
+        self.compile_expression(element)?
       }
 
       _ => (),
@@ -175,9 +243,8 @@ impl<'c> Compiler<'c> {
 
   
 
-  pub fn compile_entry(&mut self, block: &Vec<Statement<'c>>, name: &'c str) -> Result<CompiledBlock, ()> {
+  pub fn compile_entry(&mut self, block: &'c Vec<Statement<'c>>, name: &'c str) -> Result<CompiledBlock, ()> {
     for statement in block {
-      println!("{:?}", statement);
       self.compile_statement(&statement)?
     }
 

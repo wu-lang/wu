@@ -2,8 +2,8 @@ use std::hash::{ Hash, Hasher };
 use std::mem;
 
 pub enum HeapObjectType {
-  List(Vec<Value>),
   Str(Box<str>),
+  Set(Vec<Value>),
 }
 
 pub struct HeapObject {

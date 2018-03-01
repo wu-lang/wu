@@ -42,6 +42,8 @@ fn run(content: &str) {
           let mut vm       = Machine::new();
 
           vm.execute(&mut compiled);
+
+          println!("{:#?}", vm.stack);
         }
 
         _ => (),
@@ -97,10 +99,14 @@ grr
   "#;
 
   let test3 = r#"
-1
-.2
-"3"
-false
+(a, b) :: (2, 1)
+
+b
+b
+a
+a
+b
+b
   "#;
 
   run(&test3);
