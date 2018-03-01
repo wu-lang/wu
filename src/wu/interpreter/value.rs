@@ -16,6 +16,7 @@ pub enum Value {
   Bool(bool),
   Int(i64),
   Float(f64),
+  Char(char),
   HeapObject(*mut HeapObject),
   Nil,
 }
@@ -53,6 +54,15 @@ impl Hash for Value {
       Value::Float(n) => {
         state.write_u8(3);
         state.write_u64(
+          unsafe {
+            mem::transmute(n)
+          }
+        )
+      },
+
+      Value::Char(n) => {
+        state.write_u8(4);
+        state.write_u32(
           unsafe {
             mem::transmute(n)
           }

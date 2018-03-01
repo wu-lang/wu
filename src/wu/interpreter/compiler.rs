@@ -161,7 +161,7 @@ impl<'c> Compiler<'c> {
         ExpressionNode::Set(ref content) => {
           self.compile_expression(right)?; // push content of tuple set onto stack
 
-          for (index, element) in content.iter().enumerate() {
+          for element in content.iter() {
             match element.node {
               ExpressionNode::Identifier(ref name) => {
                 let index = self.declare_local(name)?;
@@ -189,19 +189,29 @@ impl<'c> Compiler<'c> {
             self.declare_local(name)?;
           },
 
-          ExpressionNode::Set(ref content) => for element in content {
-            match element.node {
-              ExpressionNode::Identifier(ref name) => if let &Some(ref right) = right {
-                self.compile_expression(right)?;
+          ExpressionNode::Set(ref content) => if let &Some(ref right) = right {
+            self.compile_expression(right)?; // push content of tuple set onto stack
 
-                let index = self.declare_local(name)?;
+            for element in content.iter() {
+              match element.node {
+                ExpressionNode::Identifier(ref name) => {
+                  let index = self.declare_local(name)?;
 
-                self.emit(Code::StoreLocal(index))
-              } else {
-                self.declare_local(name)?;
-              },
+                  self.emit(Code::StoreLocal(index)) // pop and assign
+                },
 
-              _ => unreachable!()
+                _ => unreachable!(),
+              }
+            }
+          } else {
+            for element in content {
+              match element.node {
+                ExpressionNode::Identifier(ref name) => {
+                  self.declare_local(name)?;
+                },
+
+                _ => unreachable!()
+              }
             }
           }
 
@@ -221,6 +231,7 @@ impl<'c> Compiler<'c> {
       Int(ref n)    => self.emit_load_const(Value::Int(n.clone())),
       Float(ref n)  => self.emit_load_const(Value::Float(n.clone())),
       Bool(ref n)   => self.emit_load_const(Value::Bool(n.clone())),
+      Char(ref n)   => self.emit_load_const(Value::Char(*n)),
       String(ref n) => {
         let value = self.vm.alloc(HeapObjectType::Str(n.clone().into_boxed_str()));
         self.emit_load_const(value)

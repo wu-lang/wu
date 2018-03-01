@@ -99,13 +99,13 @@ grr
   "#;
 
   let test3 = r#"
-(a, b) :: (2, 1)
+(a, b): (int, str) = (1, "hey")
 
-b
-b
+(æ, ø, å) := (true, false, 'h')
+
+æ ø å
+
 a
-a
-b
 b
   "#;
 
