@@ -9,9 +9,9 @@ use colored::Colorize;
 pub struct FilePath(pub String);
 
 impl fmt::Display for FilePath {
-    fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "\n{:>8} {}", "-->".blue().bold(), self.0)
-    }
+  fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "\n{:>8} {}", "-->".blue().bold(), self.0)
+  }
 }
 
 
@@ -23,22 +23,22 @@ pub struct Source {
 }
 
 impl Source {
-    pub fn new(path: String) -> Self {
-        let mut source  = File::open(path.as_str()).unwrap();
-        let mut content = String::new();
+  pub fn new(path: String) -> Self {
+    let mut source  = File::open(path.as_str()).unwrap();
+    let mut content = String::new();
 
-        source.read_to_string(&mut content).unwrap();
+    source.read_to_string(&mut content).unwrap();
 
-        Source {
-            file:  FilePath(path),
-            lines: content.lines().map(|x| x.to_string()).collect()
-        }
+    Source {
+      file:  FilePath(path),
+      lines: content.lines().map(|x| x.to_string()).collect()
     }
+  }
 
-    pub fn from(path: &str, lines: Vec<String>) -> Self {
-        Source {
-            file: FilePath(path.into()),
-            lines,
-        }
+  pub fn from(path: &str, lines: Vec<String>) -> Self {
+    Source {
+      file: FilePath(path.into()),
+      lines,
     }
+  }
 }

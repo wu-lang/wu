@@ -193,8 +193,28 @@ impl<'p> Parser<'p> {
           )
         )
       };
-    
-      Ok(expression)
+
+      match *self.current_type() {
+        TokenType::Keyword  => match self.current_lexeme().as_str() {
+          "as" => {
+            self.next()?;
+
+            let t        = self.parse_type()?;
+            let position = expression.pos.clone();
+
+            Ok(
+              Expression::new(
+                ExpressionNode::Cast(Rc::new(expression), t),
+                position
+              )
+            )
+          },
+
+          _ => Ok(expression)
+        },
+
+        _ => Ok(expression)
+      }
     }
   }
 

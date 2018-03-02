@@ -34,7 +34,7 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(
       Rc::new(
         KeyMatcher::new(Keyword, &[
-          "struct", "->"
+          "as",
         ])
       )
     );
@@ -56,7 +56,7 @@ impl<'l> Lexer<'l> {
 
     lexer.matchers.push(
       Rc::new(
-        ConstantCharMatcher::new(Symbol, &['(', ')', '[', ']', '{', '}', ',', ':', ';', '=', '.', '|', '@'])
+        ConstantCharMatcher::new(Symbol, &['(', ')', '[', ']', '{', '}', ',', ':', ';', '=', '.', '|'])
       )
     );
 

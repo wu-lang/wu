@@ -527,6 +527,19 @@ impl<'v> Visitor<'v> {
       Int(_)    => Type::int(),
       Float(_)  => Type::float(),
 
+      Cast(ref expression, ref t) => match (self.type_expression(expression)?.node, &t.node) {
+        (TypeNode::Int, &TypeNode::Float) => Type::float(),
+        (TypeNode::Int, &TypeNode::Int)   => Type::int(),
+
+        (a, b) => return Err(
+          response!(
+            Wrong(format!("can't cast from {} to {}", a, b)),
+            self.source.file,
+            expression.pos
+          )
+        )
+      }
+
       Binary(ref left, ref op, ref right) => {
         use self::Operator::*;
         use self::TypeNode::*;

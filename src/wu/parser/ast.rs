@@ -37,6 +37,7 @@ pub enum ExpressionNode<'e> {
   Binary(Rc<Expression<'e>>, Operator, Rc<Expression<'e>>),
   Block(Vec<Statement<'e>>),
   Set(Vec<Expression<'e>>),
+  Cast(Rc<Expression<'e>>, Type),
   EOF,
 }
 

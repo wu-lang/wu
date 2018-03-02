@@ -147,11 +147,13 @@ impl Machine {
         Add => match_binop! {
           (&Int(a),   &Int(b))   => { Int(a + b) }
           (&Float(a), &Float(b)) => { Float(a + b) }
+          (&Float(a), &Int(b))   => { Float(a + b as f64) }
         },
 
         Sub => match_binop! {
           (&Int(a),   &Int(b))   => { Int(a - b) }
           (&Float(a), &Float(b)) => { Float(a - b) }
+          (&Float(a), &Int(b))   => { Float(a - b as f64) }
         },
 
         Mul => match_binop! {

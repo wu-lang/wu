@@ -7,6 +7,7 @@ use super::{ Machine, Code, Value, HeapObjectType, };
 use super::super::error::Response::Wrong;
 
 use super::ast::*;
+use super::TypeNode;
 
 #[derive(Clone, Copy)]
 pub struct JumpPatch(usize);
@@ -236,6 +237,12 @@ impl<'c> Compiler<'c> {
         let value = self.vm.alloc(HeapObjectType::Str(n.clone().into_boxed_str()));
         self.emit_load_const(value)
       },
+
+      Cast(ref expression, ref t) => match (&expression.node, &t.node) {
+        (&Int(ref n), &TypeNode::Float) => self.emit_load_const(Value::Float(*n as f64)),
+        (&Int(ref n), &TypeNode::Int)   => self.emit_load_const(Value::Int(*n)),
+        _                               => unreachable!(),
+      }
 
       Binary(ref left, ref op, ref right) => {
         use self::Operator::*;
