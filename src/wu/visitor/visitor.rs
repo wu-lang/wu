@@ -527,6 +527,37 @@ impl<'v> Visitor<'v> {
       Int(_)    => Type::int(),
       Float(_)  => Type::float(),
 
+      Binary(ref left, ref op, ref right) => {
+        use self::Operator::*;
+        use self::TypeNode::*;
+
+        match (self.type_expression(left)?.node, op, self.type_expression(right)?.node) {
+          (ref a, ref op, ref b) => match **op {
+            Add | Sub | Mul => match (a, b) {
+              (&Int,   &Int)   => Type::int(),
+              (&Float, &Int)   => Type::float(),
+              (&Float, &Float) => Type::float(),
+              _                => return Err(
+                response!(
+                  Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                  self.source.file,
+                  expression.pos
+                )
+              )
+            },
+
+            _ => return Err(
+              response!(
+                Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                self.source.file,
+                expression.pos
+              )
+            )
+          },
+          _ => Type::nil(),
+        }
+      },
+
       Set(ref content) => {
         let mut type_content = Vec::new();
 

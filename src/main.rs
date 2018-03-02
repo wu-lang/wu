@@ -99,7 +99,11 @@ grr
   "#;
 
   let test3 = r#"
-a: int = 10 + 1 * 10
+a: int = 10 - 2 * 10
+b :: (1.0 - 1.0) * a
+
+a
+b
   "#;
 
   run(&test3);

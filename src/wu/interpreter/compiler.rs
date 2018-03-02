@@ -237,6 +237,21 @@ impl<'c> Compiler<'c> {
         self.emit_load_const(value)
       },
 
+      Binary(ref left, ref op, ref right) => {
+        use self::Operator::*;
+
+        self.compile_expression(left)?;
+        self.compile_expression(right)?;
+
+        match *op {
+          Add => self.emit(Code::Add),
+          Sub => self.emit(Code::Sub),
+          Mul => self.emit(Code::Mul),
+          Div => self.emit(Code::Div),
+          _   => (),
+        }
+      }
+
       Identifier(ref name) => {
         let index = self.fetch_local(name);
         self.emit(Code::LoadLocal(index))

@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::fmt;
 
 use super::*;
 
@@ -77,5 +78,25 @@ impl Operator {
     };
 
     Some(op_prec)
+  }
+
+  pub fn as_str(&self) -> &str {
+    use self::Operator::*;
+    
+    match *self {
+      Add    => "+",
+      Sub    => "-",
+      Concat => "++",
+      Mul    => "*",
+      Div    => "/",
+      Mod    => "%",
+      Pow    => "^",
+    }
+  }
+}
+
+impl fmt::Display for Operator {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{}", self.as_str())
   }
 }

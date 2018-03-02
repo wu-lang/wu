@@ -7,4 +7,4 @@ pub use self::typetab::*;
 pub use self::visitor::*;
 
 use super::source::Source;
-use super::parser::{ Statement, Expression, ExpressionNode, StatementNode, };
+use super::parser::{ Statement, Expression, ExpressionNode, StatementNode, Operator, };

@@ -255,8 +255,8 @@ impl<'p> Parser<'p> {
     let expression = expression_stack.pop().unwrap();
 
     let position = match left_position {
-      TokenElement::Pos(ref line, ref slice) => if let TokenElement::Pos(_, ref slice2) = expression.pos {
-        TokenElement::Pos(*line, (slice.0, slice2.1 - 1))
+      TokenElement::Pos(ref line, ref slice) => if let TokenElement::Pos(_, ref slice2) = self.current_position() {
+        TokenElement::Pos(*line, (slice.0, if slice2.1 < line.1.len() { slice2.1 } else { line.1.len() } ))
       } else {
         left_position.clone()
       },

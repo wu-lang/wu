@@ -156,6 +156,8 @@ impl Machine {
 
         Mul => match_binop! {
           (&Int(a),   &Int(b))   => { Int(a * b) }
+          (&Int(a),   &Float(b)) => { Float(a as f64 * b) }
+          (&Float(a), &Int(b))   => { Float(a * b as f64) }
           (&Float(a), &Float(b)) => { Float(a * b) }
         },
 
