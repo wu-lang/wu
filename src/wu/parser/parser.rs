@@ -60,23 +60,31 @@ impl<'p> Parser<'p> {
 
                 statement
               } else {
+                let position = expression.pos.clone();
+
                 Statement::new(
                   StatementNode::Expression(expression),
-                  self.current_position(),
+                  position
                 )
               }
             } else {
+              let position = expression.pos.clone();
+
               Statement::new(
                 StatementNode::Expression(expression),
-                self.current_position(),
+                position,
               )
             }
           },
 
-          _ => Statement::new(
-            StatementNode::Expression(expression),
-            self.current_position(),
-          ),
+          _ => {
+            let position = expression.pos.clone();
+
+            Statement::new(
+              StatementNode::Expression(expression),
+              position,
+            )
+          },
         }
       }
     };
@@ -192,6 +200,8 @@ impl<'p> Parser<'p> {
 
   // basic precedence climbing
   fn parse_binary(&mut self, left: Expression<'p>) -> Result<Expression<'p>, ()> {
+    let left_position = left.pos.clone();
+
     let mut expression_stack = vec!(left);
     let mut operator_stack   = vec!(Operator::from_str(&self.eat()?).unwrap());
 
@@ -242,7 +252,24 @@ impl<'p> Parser<'p> {
       );
     }
 
-    Ok(expression_stack.pop().unwrap())
+    let expression = expression_stack.pop().unwrap();
+
+    let position = match left_position {
+      TokenElement::Pos(ref line, ref slice) => if let TokenElement::Pos(_, ref slice2) = expression.pos {
+        TokenElement::Pos(*line, (slice.0, slice2.1 - 1))
+      } else {
+        left_position.clone()
+      },
+
+      _ => left_position.clone(),
+    };
+
+    Ok(
+      Expression::new(
+        expression.node,
+        position
+      )
+    )
   }
 
   fn parse_declaration(&mut self, left: Expression<'p>) -> Result<Statement<'p>, ()> {

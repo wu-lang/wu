@@ -99,14 +99,7 @@ grr
   "#;
 
   let test3 = r#"
-(a, b): (int, str) = (1, "hey")
-
-(æ, ø, å) := (true, false, 'h')
-
-æ ø å
-
-a
-b
+a: int = 10 + 1 * 10
   "#;
 
   run(&test3);

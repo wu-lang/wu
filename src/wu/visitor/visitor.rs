@@ -413,7 +413,7 @@ impl<'v> Visitor<'v> {
           let right_type = self.type_expression(right)?;
 
           if constant_type.node != TypeNode::Nil {
-            if constant_type != &right_type {
+            if constant_type != &right_type {              
               return Err(
                 response!(
                   Wrong(format!("mismatched types, expected type `{}` got `{}`", constant_type.node, right_type)),
@@ -458,7 +458,7 @@ impl<'v> Visitor<'v> {
 
                 if constant_type.node != TypeNode::Nil {                  
                   if let TypeNode::Set(ref type_content) = constant_type.node {
-                    if type_content[content_index] != right_type {
+                    if type_content[content_index] != right_type {                      
                       return Err(
                         response!(
                           Wrong(format!("mismatched types, expected type `{}` got `{}`", type_content[content_index], right_type)),
