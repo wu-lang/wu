@@ -26,6 +26,10 @@ for i, 100 {
 print(fibs)
 ```
 
+### a decent language
+
+The whole Wu language is highly inspired by low-level languages Rust and Jai, while remaining to be a high-level scripting language.
+
 ### contributors
 
 - nilq: https://github.com/nilq

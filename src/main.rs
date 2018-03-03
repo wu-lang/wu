@@ -99,9 +99,26 @@ grr
   "#;
 
   let test3 = r#"
-b :: 1 as int - 10
-b
+a: int  = 100
+b: bool = false
+
+c := .123
+
+d: str: "communism essentially"
+e: str: r"you can't escape \n\n\n"
+
+f :: 'a'
+
+(g, h): (int, bool) = (1000, false)
+
+(one, two, three, four, five) := (1, "two", .3, '4', false)
+
+(foo): float =( (1/2) +  (1))
   "#;
 
-  run(&test3);
+  let test4 = r#"
+foo: [str; 1 + 2]: ["1", "2", "3"]
+  "#;
+
+  run(&test4);
 }

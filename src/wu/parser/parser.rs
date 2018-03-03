@@ -159,7 +159,10 @@ impl<'p> Parser<'p> {
             let content = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
 
             if content.len() == 1 {
-              content[0].clone()
+              Expression::new(
+                content[0].clone().node,
+                self.span_from(position)
+              )
             } else if content.len() > 1 {
               Expression::new(
                 ExpressionNode::Set(content),
@@ -274,20 +277,10 @@ impl<'p> Parser<'p> {
 
     let expression = expression_stack.pop().unwrap();
 
-    let position = match left_position {
-      TokenElement::Pos(ref line, ref slice) => if let TokenElement::Pos(_, ref slice2) = self.current_position() {
-        TokenElement::Pos(*line, (slice.0, if slice2.1 < line.1.len() { slice2.1 } else { line.1.len() } ))
-      } else {
-        left_position.clone()
-      },
-
-      _ => left_position.clone(),
-    };
-
     Ok(
       Expression::new(
         expression.node,
-        position
+        self.span_from(left_position)
       )
     )
   }
@@ -576,6 +569,18 @@ impl<'p> Parser<'p> {
       current.line,
       current.slice
     )
+  }
+
+  fn span_from(&self, left_position: TokenElement<'p>) -> TokenElement<'p> {
+    match left_position {
+      TokenElement::Pos(ref line, ref slice) => if let TokenElement::Pos(_, ref slice2) = self.current_position() {
+        TokenElement::Pos(*line, (slice.0, if slice2.1 < line.1.len() { slice2.1 } else { line.1.len() } ))
+      } else {
+        left_position.clone()
+      },
+
+      _ => left_position.clone(),
+    }
   }
 
   fn current(&self) -> &'p Token<'p> {

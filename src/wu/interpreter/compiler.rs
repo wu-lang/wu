@@ -239,9 +239,10 @@ impl<'c> Compiler<'c> {
       },
 
       Cast(ref expression, ref t) => match (&expression.node, &t.node) {
-        (&Int(ref n), &TypeNode::Float) => self.emit_load_const(Value::Float(*n as f64)),
-        (&Int(ref n), &TypeNode::Int)   => self.emit_load_const(Value::Int(*n)),
-        _                               => unreachable!(),
+        (&Int(ref n), &TypeNode::Float)   => self.emit_load_const(Value::Float(*n as f64)),
+        (&Int(ref n), &TypeNode::Int)     => self.emit_load_const(Value::Int(*n)),
+        (&Float(ref n), &TypeNode::Float) => self.emit_load_const(Value::Float(*n)),
+        _ => self.compile_expression(expression)?
       }
 
       Binary(ref left, ref op, ref right) => {

@@ -1,7 +1,9 @@
 use super::*;
 use super::super::error::Response::Wrong;
 
-use std::fmt::{ self, Write, Formatter, Display, };
+use std::fmt::{ self, Formatter, Write, Display };
+
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum TypeNode {
@@ -14,6 +16,7 @@ pub enum TypeNode {
   Nil,
   Id(String),
   Set(Vec<Type>),
+  Array(Rc<Type>),
 }
 
 impl PartialEq for TypeNode {
@@ -54,14 +57,15 @@ impl Display for TypeNode {
     use self::TypeNode::*;
 
     match *self {
-      Number    => write!(f, "number"),
-      Int       => write!(f, "int"),
-      Float     => write!(f, "float"),
-      Bool      => write!(f, "bool"),
-      Str       => write!(f, "string"),
-      Char      => write!(f, "char"),
-      Nil       => write!(f, "nil"),
-      Id(ref n) => write!(f, "{}", n),
+      Number       => write!(f, "number"),
+      Int          => write!(f, "int"),
+      Float        => write!(f, "float"),
+      Bool         => write!(f, "bool"),
+      Str          => write!(f, "string"),
+      Char         => write!(f, "char"),
+      Nil          => write!(f, "nil"),
+      Array(ref n) => write!(f, "[{}]", n),
+      Id(ref n)    => write!(f, "{}", n),
       Set(ref content) => {
         write!(f, "(");
 
@@ -546,7 +550,7 @@ impl<'v> Visitor<'v> {
 
         match (self.type_expression(left)?.node, op, self.type_expression(right)?.node) {
           (ref a, ref op, ref b) => match **op {
-            Add | Sub | Mul => match (a, b) {
+            Add | Sub | Mul | Div => match (a, b) {
               (&Int,   &Int)   => Type::int(),
               (&Float, &Int)   => Type::float(),
               (&Float, &Float) => Type::float(),
@@ -585,5 +589,38 @@ impl<'v> Visitor<'v> {
     };
 
     Ok(t)
+  }
+
+
+
+  fn fold_expression(&self, expression: &Expression<'v>) -> Result<Expression<'v>, ()> {
+    use self::ExpressionNode::*;
+    use self::Operator::*;
+
+    let node = match expression.node {
+      Binary(ref left, ref op, ref right) => {
+        let node = match (&self.fold_expression(&*left)?.node, op, &self.fold_expression(&*right)?.node) {
+          (&Int(ref a),   &Add, &Int(ref b))   => Int(a + b),
+          (&Float(ref a), &Add, &Float(ref b)) => Float(a + b),
+          (&Int(ref a),   &Sub, &Int(ref b))   => Int(a - b),
+          (&Float(ref a), &Sub, &Float(ref b)) => Float(a - b),
+          (&Int(ref a),   &Mul, &Int(ref b))   => Int(a * b),
+          (&Float(ref a), &Mul, &Float(ref b)) => Float(a * b),
+          (&Int(ref a),   &Div, &Int(ref b))   => Int(a / b),
+          (&Float(ref a), &Div, &Float(ref b)) => Float(a / b),
+          
+          _ => return Err(()),
+        };
+
+        Expression::new(
+          node,
+          expression.pos.clone()
+        )
+      },
+
+      _ => expression.clone()
+    };
+
+    Ok(node)
   }
 }
