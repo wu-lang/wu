@@ -3,7 +3,6 @@ use std::mem;
 
 pub enum HeapObjectType {
   Str(Box<str>),
-  Set(Vec<Value>),
   Array(Vec<Value>),
 }
 

@@ -41,6 +41,8 @@ fn run(content: &str) {
           let mut compiled = compiler.compile_entry(&ast, "main").unwrap();
           let mut vm       = Machine::new();
 
+          println!("constants:\n{:#?}\n\ncode:\n{:#?}", compiled.constants, compiled.code);
+
           vm.execute(&mut compiled);
 
           println!("{:#?}", vm.stack);
@@ -117,7 +119,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-foo: [str; 1 + 1] = ["hey", "h"]
+a := [2, 1, 3, 4]
   "#;
 
   run(&test4);

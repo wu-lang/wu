@@ -28,6 +28,8 @@ pub enum Code {
   BranchFalse(i16),
   Jump(i16),
 
+  StoreArray(usize),
+
   Pop,
   Return,
 }
@@ -174,6 +176,18 @@ impl Machine {
         },
 
         Return => break,
+
+        StoreArray(ref len) => {
+          let mut content = Vec::new();
+
+          for _ in 0 .. *len {
+            content.push(self.stack.pop().unwrap())
+          }
+
+          let array = self.alloc(HeapObjectType::Array(content));
+
+          self.stack.push(array)
+        }
 
         _ => (),
       }

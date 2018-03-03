@@ -57,8 +57,8 @@ impl<'c> Compiler<'c> {
 
       match entry {
         Entry::Vacant(value) => {
-            value.insert(index);
-            Ok(index)
+          value.insert(index);
+          Ok(index)
         },
 
         _ => Err(
@@ -269,8 +269,14 @@ impl<'c> Compiler<'c> {
         self.compile_expression(element)?
       },
 
-      Array(ref content) => for element in content {
-        self.compile_expression(element)?
+      Array(ref content) => {
+        self.vm.alloc(HeapObjectType::Array(Vec::new())); // newarray; reference to heap allocation stored in `self.vm.next`
+
+        for expression in content {
+          self.compile_expression(expression)? // push content
+        }
+
+        self.emit(Code::StoreArray(content.len())) // pops content values, store those in allocated array slot, pushes array reference
       }
 
       _ => (),
@@ -279,7 +285,7 @@ impl<'c> Compiler<'c> {
     Ok(())
   }
 
-  
+
 
   pub fn compile_entry(&mut self, block: &'c Vec<Statement<'c>>, name: &'c str) -> Result<CompiledBlock, ()> {
     for statement in block {
