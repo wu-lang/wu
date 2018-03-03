@@ -117,7 +117,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-foo: [str; 1 + 2]: ["1", "2", "3"]
+foo: [str; 1 + 1] = ["hey", "h"]
   "#;
 
   run(&test4);

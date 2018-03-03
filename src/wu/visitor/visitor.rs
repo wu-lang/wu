@@ -35,9 +35,10 @@ impl PartialEq for TypeNode {
       (&Str, &Str)       => true,
       (&Char, &Char)     => true,
       (&Nil, &Nil)       => true,
-      (&Id(ref a), &Id(ref b))   => a == b,
-      (&Set(ref a), &Set(ref b)) => a == b,
-      _                          => false,
+      (&Array(ref a), &Array(ref b)) => a == b,
+      (&Id(ref a), &Id(ref b))       => a == b,
+      (&Set(ref a), &Set(ref b))     => a == b,
+      _                              => false,
     }
   }
 }
@@ -175,6 +176,10 @@ impl Type {
   pub fn set(content: Vec<Type>) -> Type {
     Type::new(TypeNode::Set(content), TypeMode::Regular)
   }
+
+  pub fn array(t: Type) -> Type {
+    Type::new(TypeNode::Array(Rc::new(t)), TypeMode::Regular)
+  }
 }
 
 impl Display for Type {
@@ -250,7 +255,7 @@ impl<'v> Visitor<'v> {
         }
 
         Ok(())
-      }
+      },
 
       Block(ref statements) => {
         for statement in statements {
@@ -258,7 +263,27 @@ impl<'v> Visitor<'v> {
         }
 
         Ok(())
-      }
+      },
+
+      Array(ref content) => {
+        let t = self.type_expression(content.first().unwrap())?;
+
+        for element in content {
+          let element_type = self.type_expression(element)?;
+
+          if t != element_type {
+            return Err(
+              response!(
+                Wrong(format!("mismatched types in array, expected `{}` got `{}`", t, element_type)),
+                self.source.file,
+                element.pos
+              )
+            )
+          }
+        }
+
+        Ok(())
+      },
 
       _ => Ok(())
     }
@@ -530,6 +555,8 @@ impl<'v> Visitor<'v> {
       Bool(_)   => Type::bool(),
       Int(_)    => Type::int(),
       Float(_)  => Type::float(),
+
+      Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
 
       Cast(ref expression, ref t) => match (self.type_expression(expression)?.node, &t.node) {
         (TypeNode::Int, &TypeNode::Float) => Type::float(),

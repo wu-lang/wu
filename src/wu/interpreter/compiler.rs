@@ -267,6 +267,10 @@ impl<'c> Compiler<'c> {
 
       Set(ref content) => for element in content {
         self.compile_expression(element)?
+      },
+
+      Array(ref content) => for element in content {
+        self.compile_expression(element)?
       }
 
       _ => (),

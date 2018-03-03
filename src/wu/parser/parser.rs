@@ -155,6 +155,11 @@ impl<'p> Parser<'p> {
             position
           ),
 
+          "[" => Expression::new(
+            ExpressionNode::Array(self.parse_block_of(("[", "]"), &Self::_parse_expression_comma)?),
+            self.span_from(position)
+          ),
+
           "(" => {
             let content = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
 
@@ -419,6 +424,16 @@ impl<'p> Parser<'p> {
           } else {
             Type::set(content)
           }
+        },
+
+        "[" => {
+          self.next()?;
+
+          let t = self.parse_type()?;
+
+          self.eat_lexeme("]")?;
+
+          Type::array(t)
         }
 
         _   => return Err(
