@@ -7,7 +7,6 @@ use wu::source::*;
 use wu::lexer::*;
 use wu::parser::{ Parser, ExpressionNode, Expression, };
 use wu::visitor::Visitor;
-use wu::interpreter::{ Machine, Compiler, };
 
 fn run(content: &str) {
 
@@ -40,17 +39,7 @@ fn run(content: &str) {
       let mut visitor = Visitor::new(&source, &ast);
  
       match visitor.visit() {
-        Ok(_) => {
-          let mut machine  = Machine::new();
-          let mut compiler = Compiler::new(&mut machine);
-
-          let mut compiled = compiler.compile_entry(&block, "main").unwrap();
-          let mut vm       = Machine::new();
-
-          vm.execute(&mut compiled);
-        }
-
-        _ => (),
+        _ => ()
       }
     },
 
@@ -121,7 +110,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-
+  
   "#;
 
   run(&test4);

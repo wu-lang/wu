@@ -1,12 +1,9 @@
 use std::hash::{ Hash, Hasher };
 use std::mem;
 
-use super::CompiledBlock;
-
 pub enum HeapObjectType {
   Str(Box<str>),
   Array(Vec<Value>),
-  Function(CompiledBlock)
 }
 
 pub struct HeapObject {
