@@ -161,26 +161,77 @@ impl<'p> Parser<'p> {
           ),
 
           "(" => {
-            let content = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
+            let backup_index = self.index;
 
-            if content.len() == 1 {
+            self.next()?;
+
+            let mut nested = 1;
+
+            while nested != 0 {
+              if self.current_lexeme() == ")" {
+                nested -= 1
+              } else if self.current_lexeme() == "(" {
+                nested += 1
+              }
+
+              if nested == 0 {
+                break
+              }
+
+              self.next()?
+            }
+
+            self.next()?;
+
+            self.parse_type().unwrap_or(Type::nil()); // we don't care
+
+            if self.current_lexeme() == "->" {
+              self.index = backup_index;
+
+              let position = self.current_position();
+
+              let params = self.parse_block_of(("(", ")"), &Self::_parse_declaration_comma)?;
+
+              let return_type = if self.current_lexeme() == "->" {
+                self.next()?;
+                Type::nil()
+              } else {
+                self.parse_type()?
+              };
+
+              self.eat_lexeme("->")?;
+
+              let body = self.parse_expression()?;
+
               Expression::new(
-                content[0].clone().node,
+                ExpressionNode::Function(params, return_type, Rc::new(body)),
                 self.span_from(position)
               )
-            } else if content.len() > 1 {
-              Expression::new(
-                ExpressionNode::Set(content),
-                position
-              )
+
             } else {
-              return Err(
-                response!(
-                  Wrong("unhandled empty clause `()`"),
-                  self.source.file,
-                  TokenElement::Ref(self.current())
+              self.index = backup_index;
+
+              let content = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
+
+              if content.len() == 1 {
+                Expression::new(
+                  content[0].clone().node,
+                  self.span_from(position)
                 )
-              )
+              } else if content.len() > 1 {
+                Expression::new(
+                  ExpressionNode::Set(content),
+                  position
+                )
+              } else {
+                return Err(
+                  response!(
+                    Wrong("unhandled empty clause `()`"),
+                    self.source.file,
+                    TokenElement::Ref(self.current())
+                  )
+                )
+              }
             }
           },
 
@@ -524,6 +575,27 @@ impl<'p> Parser<'p> {
     expression
   }
 
+  fn _parse_declaration_comma(self: &mut Self) -> Result<Option<Statement<'p>>, ()> {
+    if self.remaining() == 0 {
+      Ok(None)
+    } else {
+      let position = self.current_position();
+
+      let name = Expression::new(
+        ExpressionNode::Identifier(self.eat_type(&TokenType::Identifier)?),
+        position,
+      );
+
+      let expression = self.parse_declaration(name)?;
+
+      if self.remaining() > 0 {
+        self.eat_lexeme(",")?;
+      }
+
+      Ok(Some(expression))
+    }
+  }
+
   fn _parse_type_comma(self: &mut Self) -> Result<Option<Type>, ()> {
     if self.remaining() == 0 {
       Ok(None)
@@ -564,6 +636,7 @@ impl<'p> Parser<'p> {
       self.index += 1;
       Ok(())
     } else {
+      panic!();
       Err(
         response!(
           Wrong("moving outside token stack"),
@@ -623,6 +696,23 @@ impl<'p> Parser<'p> {
       Err(
         response!(
           Wrong(format!("expected `{}`, found `{}`", lexeme, self.current_lexeme())),
+          self.source.file,
+          self.current_position()
+        )
+      )
+    }
+  }
+
+  fn eat_type(&mut self, token_type: &TokenType) -> Result<String, ()> {
+    if self.current_type() == token_type {
+      let lexeme = self.current().lexeme.clone();
+      self.next()?;
+
+      Ok(lexeme)
+    } else {
+      Err(
+        response!(
+          Wrong(format!("expected `{}`, found `{}`", token_type, self.current_type())),
           self.source.file,
           self.current_position()
         )

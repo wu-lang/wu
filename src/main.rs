@@ -119,7 +119,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-a := [2, 1, 3, 4]
+ass :: (a: int, b: int) int -> a + b
   "#;
 
   run(&test4);

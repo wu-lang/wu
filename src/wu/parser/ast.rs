@@ -39,6 +39,7 @@ pub enum ExpressionNode<'e> {
   Set(Vec<Expression<'e>>),
   Cast(Rc<Expression<'e>>, Type),
   Array(Vec<Expression<'e>>),
+  Function(Vec<Statement<'e>>, Type, Rc<Expression<'e>>),
   EOF,
 }
 
