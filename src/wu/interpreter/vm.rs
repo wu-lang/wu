@@ -17,14 +17,23 @@ pub struct VirtualMachine {
 }
 
 impl VirtualMachine {
+  pub fn new() -> Self {
+    VirtualMachine {
+      var_stack:     [0; 262144],
+      compute_stack: [0; 262144],
+      frames:        Vec::new(),
+
+      var_top:     0,
+      compute_top: 0,
+    }
+  }
+
   pub fn execute(&mut self, bytecode: &[u8]) -> Result<(), ()> {
     use self::Instruction::*;
 
     let mut ip = 0;
 
     loop {
-      let code = bytecode[ip];
-
       match unsafe { mem::transmute::<u8, Instruction>(bytecode[ip]) } {
         PUSH => {
           ip += 1;
@@ -33,9 +42,7 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let value = unsafe {
-            slice::from_raw_parts((code as *const u8).offset(ip as isize), size as usize)
-          };
+          let value = read(&bytecode, ip as u32, size as u32);
 
           self.compute_stack[self.compute_top as usize .. (self.compute_top + size as u32) as usize].copy_from_slice(&value);
 

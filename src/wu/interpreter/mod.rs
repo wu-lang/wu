@@ -1,5 +1,7 @@
 pub mod vm;
-pub mod value;
+pub mod compiler;
+
+use super::parser::*;
 
 pub use self::vm::*;
-pub use self::value::*;
+pub use self::compiler::*;

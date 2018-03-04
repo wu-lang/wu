@@ -120,12 +120,12 @@ impl<'p> Parser<'p> {
 
       let expression = match token_type {
         Int => Expression::new(
-          ExpressionNode::Int(self.eat()?.parse::<i64>().unwrap()),
+          ExpressionNode::Int(self.eat()?.parse::<i32>().unwrap()),
           position
         ),
 
         Float => Expression::new(
-          ExpressionNode::Float(self.eat()?.parse::<f64>().unwrap()),
+          ExpressionNode::Float(self.eat()?.parse::<f32>().unwrap()),
           position
         ),
 

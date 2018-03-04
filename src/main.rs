@@ -7,9 +7,11 @@ use wu::source::*;
 use wu::lexer::*;
 use wu::parser::{ Parser, ExpressionNode, Expression, };
 use wu::visitor::Visitor;
+use wu::interpreter::*;
+
+use std::env;
 
 fn run(content: &str) {
-
   let source = Source::from("main.rs/testing.wu", content.lines().map(|x| x.into()).collect::<Vec<String>>());
   let lexer  = Lexer::default(content.chars().collect(), &source);
 
@@ -39,6 +41,18 @@ fn run(content: &str) {
       let mut visitor = Visitor::new(&source, &ast);
  
       match visitor.visit() {
+        Ok(_) => {
+          let mut compiler = Compiler::new();
+
+          compiler.compile(&ast);
+          println!("{:#?}", compiler.bytecode);
+
+          let mut vm = VirtualMachine::new();
+
+          vm.execute(compiler.bytecode.as_slice());
+
+          println!("{:?}", &vm.compute_stack[0 .. 10])
+        }
         _ => ()
       }
     },
@@ -110,7 +124,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-  
+100
   "#;
 
   run(&test4);

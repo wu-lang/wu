@@ -28,8 +28,8 @@ impl<'s> Statement<'s> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionNode<'e> {
-  Int(i64),
-  Float(f64),
+  Int(i32),
+  Float(f32),
   String(String),
   Char(char),
   Bool(bool),
