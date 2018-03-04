@@ -51,7 +51,7 @@ impl Compiler {
     match expression.node {
       Int(ref n) => {
         self.emit(Instruction::PUSH as u8);
-        self.emit(4);
+        self.emit(mem::size_of::<i32>() as u8);
         self.emit_bytes(
           unsafe {
             &mem::transmute::<i32, [u8; mem::size_of::<i32>()]>(*n)
@@ -79,6 +79,12 @@ impl Compiler {
         self.emit(Instruction::PUSH as u8);
         self.emit(n.len() as u8);
         self.emit_bytes(n.as_bytes());
+      },
+
+      Bool(ref n) => {
+        self.emit(Instruction::PUSH as u8);
+        self.emit(1);
+        self.emit(*n as u8)
       },
 
       _ => (),

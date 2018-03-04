@@ -51,7 +51,7 @@ fn run(content: &str) {
 
           vm.execute(compiler.bytecode.as_slice());
 
-          println!("{:?}", &vm.compute_stack[0 .. 10])
+          println!("{:?}", &vm.compute_stack.iter().take_while(|x| **x != 0 as u8).collect::<Vec<&u8>>())
         }
         _ => ()
       }
@@ -124,7 +124,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-"hey"
+true
   "#;
 
   run(&test4);
