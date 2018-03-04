@@ -56,10 +56,9 @@ impl VirtualMachine {
           ip += 1;
 
           let value = read(&bytecode, ip as u32, size as u32);
+          ip += size as usize;
 
           memmove(&value, &mut self.compute_stack, self.compute_top, size as u32);
-
-          ip += 1;
 
           self.compute_top += size as u32
         },
@@ -101,5 +100,5 @@ fn read (mem: &[u8], from: u32, size: u32) -> &[u8] {
 }
 
 fn memmove (source: &[u8], target: &mut [u8], from: u32, size: u32) {
-    target[from as usize .. (from + size) as usize].copy_from_slice(&source);
+  (&mut target[from as usize .. (from+size) as usize]).copy_from_slice(&source);
 }

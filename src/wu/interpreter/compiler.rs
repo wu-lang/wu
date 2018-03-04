@@ -77,7 +77,7 @@ impl Compiler {
 
       String(ref n) => {
         self.emit(Instruction::PUSH as u8);
-        self.emit((n.len()) as u8);
+        self.emit(n.len() as u8);
         self.emit_bytes(n.as_bytes());
       },
 
