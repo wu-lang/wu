@@ -1,5 +1,18 @@
 use std::slice;
 use std::mem;
+use std::default;
+
+
+
+macro_rules! from_bytes {
+    ($raw:expr => $t:ty) => {{
+        let mut b: [u8; mem::size_of::<$t>()] = default::Default::default();
+        b.copy_from_slice($raw);
+        unsafe { mem::transmute::<_,$t>(b) }
+    }}
+}
+
+
 
 pub enum Instruction {
   HALT = 0x00,
@@ -44,7 +57,7 @@ impl VirtualMachine {
 
           let value = read(&bytecode, ip as u32, size as u32);
 
-          self.compute_stack[self.compute_top as usize .. (self.compute_top + size as u32) as usize].copy_from_slice(&value);
+          memmove(&value, &mut self.compute_stack, self.compute_top, size as u32);
 
           ip += 1;
 
@@ -58,14 +71,7 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let raw_bytes = &bytecode[ip .. ip + size as usize];
-
-          let mut bytes: [u8; 4] = [0, 0, 0, 0];
-          bytes.copy_from_slice(raw_bytes);
-
-          let address = unsafe {
-            mem::transmute::<[u8; mem::size_of::<u32>()], u32>(bytes)
-          };
+          let address = from_bytes!(&bytecode[ip .. ip + size as usize] => u32);
 
           ip += 1;
 
@@ -73,8 +79,8 @@ impl VirtualMachine {
         
           self.compute_top -= size as u32;
 
-          self.compute_stack[self.compute_top as usize .. (self.compute_top + size as u32) as usize].copy_from_slice(&variable);
-
+          memmove(&variable, &mut self.compute_stack, self.compute_top, size as u32);
+          
           if self.var_top < (address + size as u32) {
             self.var_top = address + size as u32
           }
@@ -92,4 +98,8 @@ impl VirtualMachine {
 
 fn read (mem: &[u8], from: u32, size: u32) -> &[u8] {
   &mem[from as usize .. (from + size) as usize]
+}
+
+fn memmove (source: &[u8], target: &mut [u8], from: u32, size: u32) {
+    target[from as usize .. (from + size) as usize].copy_from_slice(&source);
 }

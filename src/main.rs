@@ -124,7 +124,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-100
+"hey"
   "#;
 
   run(&test4);

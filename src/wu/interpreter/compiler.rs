@@ -29,6 +29,8 @@ impl Compiler {
       self.compile_statement(statement)?
     }
 
+    self.emit(Instruction::HALT as u8);
+
     Ok(())
   }
 
@@ -55,6 +57,28 @@ impl Compiler {
             &mem::transmute::<i32, [u8; mem::size_of::<i32>()]>(*n)
           }
         );
+      },
+
+      Float(ref n) => {
+        self.emit(Instruction::PUSH as u8);
+        self.emit(mem::size_of::<f32>() as u8);
+        self.emit_bytes(
+          unsafe {
+            &mem::transmute::<f32, [u8; mem::size_of::<f32>()]>(*n)
+          }
+        );
+      },
+
+      Char(ref n) => {
+        self.emit(Instruction::PUSH as u8);
+        self.emit(1);
+        self.emit(*n as u8)
+      },
+
+      String(ref n) => {
+        self.emit(Instruction::PUSH as u8);
+        self.emit((n.len()) as u8);
+        self.emit_bytes(n.as_bytes());
       },
 
       _ => (),
