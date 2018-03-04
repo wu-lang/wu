@@ -1,14 +1,17 @@
 use std::hash::{ Hash, Hasher };
 use std::mem;
 
+use super::CompiledBlock;
+
 pub enum HeapObjectType {
   Str(Box<str>),
   Array(Vec<Value>),
+  Function(CompiledBlock)
 }
 
 pub struct HeapObject {
   pub next: *mut HeapObject,
-  pub kind: HeapObjectType,
+  pub kind: HeapObjectType
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -5,7 +5,7 @@ extern crate colored;
 mod wu;
 use wu::source::*;
 use wu::lexer::*;
-use wu::parser::Parser;
+use wu::parser::{ Parser, ExpressionNode, Expression, };
 use wu::visitor::Visitor;
 use wu::interpreter::{ Machine, Compiler, };
 
@@ -32,13 +32,19 @@ fn run(content: &str) {
     Ok(ast) => {
       println!("{:#?}", ast);
 
+      let block = Expression::new(
+        ExpressionNode::Block(ast.clone()),
+        TokenElement::Lexeme("<entry point>")
+      );
+
       let mut visitor = Visitor::new(&source, &ast);
  
       match visitor.visit() {
         Ok(_) => {
           let mut machine  = Machine::new();
           let mut compiler = Compiler::new(&mut machine);
-          let mut compiled = compiler.compile_entry(&ast, "main").unwrap();
+
+          let mut compiled = compiler.compile_entry(&block, "main").unwrap();
           let mut vm       = Machine::new();
 
           println!("constants:\n{:#?}\n\ncode:\n{:#?}", compiled.constants, compiled.code);
@@ -119,7 +125,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-ass :: (a: int, b: int) int -> a + b
+add :: (a: int, b: int) int -> a + b
   "#;
 
   run(&test4);

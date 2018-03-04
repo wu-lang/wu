@@ -17,6 +17,7 @@ pub enum TypeNode {
   Id(String),
   Set(Vec<Type>),
   Array(Rc<Type>),
+  Func(Vec<Type>, Rc<Type>),
 }
 
 impl PartialEq for TypeNode {
@@ -79,6 +80,19 @@ impl Display for TypeNode {
         }
 
         write!(f, ")")
+      },
+      Func(ref params, ref return_type) => {
+        write!(f, "(");
+
+        for (index, element) in params.iter().enumerate() {
+          if index < params.len() - 1 {
+            write!(f, "{}, ", element)?          
+          } else {
+            write!(f, "{}", element)?
+          }
+        }
+
+        write!(f, ") {}", return_type)
       },
     }
   }
@@ -180,6 +194,10 @@ impl Type {
   pub fn array(t: Type) -> Type {
     Type::new(TypeNode::Array(Rc::new(t)), TypeMode::Regular)
   }
+
+  pub fn function(params: Vec<Type>, return_type: Type) -> Type {
+    Type::new(TypeNode::Func(params, Rc::new(return_type)), TypeMode::Regular)
+  }
 }
 
 impl Display for Type {
@@ -263,6 +281,59 @@ impl<'v> Visitor<'v> {
         }
 
         Ok(())
+      },
+
+      Function(ref params, ref return_type, ref body) => {
+        use self::ExpressionNode::*;
+        use self::StatementNode::*;
+
+        let mut param_names = Vec::new();
+        let mut param_types = Vec::new();
+
+        for param in params {
+          match param.node {
+            Constant(ref t, ref name, _) | Variable(ref t, ref name, _) => if let Identifier(ref name) = name.node {
+              param_names.push(name.clone());
+              param_types.push(t.clone());
+            } else {
+              return Err(
+                response!(
+                  Wrong("set parameters are work-in-progress"),
+                  self.source.file,
+                  param.pos
+                )
+              )
+            },
+
+            _ => unreachable!()
+          }
+        }
+
+        let local_symtab  = SymTab::new(&self.symtab, &param_names.as_slice());
+        let local_typetab = TypeTab::new(&self.typetab, param_types.as_slice());
+
+        let mut visitor = Visitor {
+          source:  self.source,
+          ast:     self.ast,
+          symtab:  local_symtab,
+          typetab: local_typetab,
+        };
+
+        visitor.visit_expression(body)?;
+
+        let body_type   = visitor.type_expression(body)?;
+
+        if return_type != &body_type {
+          Err(
+            response!(
+              Wrong(format!("mismatched return type, expected `{}` got `{}`", return_type, body_type)),
+              self.source.file,
+              expression.pos
+            )
+          )
+        } else {
+          Ok(())
+        }
       },
 
       Array(ref content) => {
@@ -569,7 +640,7 @@ impl<'v> Visitor<'v> {
             expression.pos
           )
         )
-      }
+      },
 
       Binary(ref left, ref op, ref right) => {
         use self::Operator::*;
@@ -598,8 +669,24 @@ impl<'v> Visitor<'v> {
               )
             )
           },
+
           _ => Type::nil(),
         }
+      },
+
+      Function(ref params, ref return_type, _) => {
+        use self::StatementNode::*;
+
+        let mut param_types = Vec::new();
+
+        for param in params {
+          match param.node {
+            Variable(ref t, ..) | Constant(ref t, ..) => param_types.push(t.clone()),
+            _ => unreachable!(),
+          }
+        }
+
+        Type::function(param_types, return_type.clone())
       },
 
       Set(ref content) => {

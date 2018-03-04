@@ -183,21 +183,24 @@ impl<'p> Parser<'p> {
 
             self.next()?;
 
-            self.parse_type().unwrap_or(Type::nil()); // we don't care
+            if self.current_lexeme() != "->" {
+              self.parse_type().unwrap_or(Type::nil()); // we don't care
+            }
 
             if self.current_lexeme() == "->" {
               self.index = backup_index;
 
-              let position = self.current_position();
+              let left_position = self.current_position();
 
-              let params = self.parse_block_of(("(", ")"), &Self::_parse_declaration_comma)?;
+              let params = self.parse_block_of(("(", ")"), &Self::_parse_declaration_comma)?;              
 
               let return_type = if self.current_lexeme() == "->" {
-                self.next()?;
                 Type::nil()
               } else {
                 self.parse_type()?
               };
+
+              let position = self.span_from(left_position);
 
               self.eat_lexeme("->")?;
 
@@ -205,7 +208,7 @@ impl<'p> Parser<'p> {
 
               Expression::new(
                 ExpressionNode::Function(params, return_type, Rc::new(body)),
-                self.span_from(position)
+                position
               )
 
             } else {

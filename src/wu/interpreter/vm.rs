@@ -34,6 +34,9 @@ pub enum Code {
   Return,
 }
 
+
+
+#[derive(Clone)]
 pub struct Machine {
   pub stack: Vec<Value>,
   pub next:  *mut HeapObject,

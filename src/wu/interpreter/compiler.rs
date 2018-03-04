@@ -18,11 +18,11 @@ pub struct BranchTarget(usize);
 
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CompiledBlock<'b> {
-    pub name:        String,
-    pub code:        Box<[Code]>,
-    pub constants:   Box<[Value]>,
-    pub local_names: Box<[&'b str]>,
+pub struct CompiledBlock {
+  pub name:        String,
+  pub code:        Box<[Code]>,
+  pub constants:   Box<[Value]>,
+  pub local_names: Box<[String]>,
 }
 
 
@@ -225,7 +225,7 @@ impl<'c> Compiler<'c> {
     Ok(())
   }
 
-  fn compile_expression(&mut self, expression: &Expression<'c>) -> Result<(), ()> {
+  fn compile_expression(&mut self, expression: &'c Expression<'c>) -> Result<(), ()> {
     use self::ExpressionNode::*;
 
     match expression.node {
@@ -237,6 +237,10 @@ impl<'c> Compiler<'c> {
         let value = self.vm.alloc(HeapObjectType::Str(n.clone().into_boxed_str()));
         self.emit_load_const(value)
       },
+
+      Block(ref statements) => for statement in statements {
+        self.compile_statement(statement)?
+      }
 
       Cast(ref expression, ref t) => match (&expression.node, &t.node) {
         (&Int(ref n), &TypeNode::Float)   => self.emit_load_const(Value::Float(*n as f64)),
@@ -277,7 +281,41 @@ impl<'c> Compiler<'c> {
         }
 
         self.emit(Code::StoreArray(content.len())) // pops content values, store those in allocated array slot, pushes array reference
-      }
+      },
+
+      Function(ref params, _, ref body) => {
+        use self::ExpressionNode::*;
+        use self::StatementNode::*;
+
+        let function = {
+          let mut locals = HashMap::new();
+
+          for (index, param) in params.iter().enumerate() {
+            match param.node {
+              Constant(_, ref name, _) | Variable(_, ref name, _) => if let Identifier(ref name) = name.node {
+                locals.insert(name.as_str(), index as u16);
+              } else {
+                unreachable!()
+              },
+
+              _ => unreachable!()
+            }
+          }
+
+          let mut compiler = Compiler {
+            locals,
+            code: Vec::new(),
+            constants: Vec::new(),
+            vm: self.vm,
+          };
+
+          compiler.compile_entry(&body, "<function>")?
+        };
+
+        let value = self.vm.alloc(HeapObjectType::Function(function));
+
+        self.emit_load_const(value)
+      },
 
       _ => (),
     }
@@ -287,19 +325,17 @@ impl<'c> Compiler<'c> {
 
 
 
-  pub fn compile_entry(&mut self, block: &'c Vec<Statement<'c>>, name: &'c str) -> Result<CompiledBlock, ()> {
-    for statement in block {
-      self.compile_statement(&statement)?
-    }
+  pub fn compile_entry(&mut self, block: &'c Expression<'c>, name: &'c str) -> Result<CompiledBlock, ()> {
+    self.compile_expression(&block)?;
 
     self.emit_load_const(Value::Nil);
 
     self.code.push(Code::Return);
 
-    let mut local_names = vec![""; self.locals.len()];
+    let mut local_names = vec![String::new(); self.locals.len()];
 
     for (name, index) in self.locals.drain() {
-      local_names[index as usize] = name;
+      local_names[index as usize] = name.to_owned();
     }
 
     Ok(
