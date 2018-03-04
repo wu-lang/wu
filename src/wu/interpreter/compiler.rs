@@ -71,6 +71,7 @@ impl<'c> Compiler<'c> {
   }
 
   pub fn fetch_local(&mut self, name: &str) -> u16 {
+    println!("{}", name);
     self.locals.get(name).map(|i| *i).unwrap()
   }
 
@@ -149,13 +150,12 @@ impl<'c> Compiler<'c> {
     use self::StatementNode::*;
 
     match statement.node {
-      Expression(ref expression) => self.compile_expression(expression)?,
+      Expression(ref expression)       => self.compile_expression(expression)?,
       Constant(_, ref left, ref right) => match left.node {
         ExpressionNode::Identifier(ref name) => {
-          self.compile_expression(right)?;
-
           let index = self.declare_local(name)?;
 
+          self.compile_expression(right)?;
           self.emit(Code::StoreLocal(index))
         },
 
@@ -269,7 +269,7 @@ impl<'c> Compiler<'c> {
         self.emit(Code::LoadLocal(index))
       },
 
-      Set(ref content) => for element in content {
+      Set(ref content) => for element in content.iter().rev() {
         self.compile_expression(element)?
       },
 
@@ -288,7 +288,7 @@ impl<'c> Compiler<'c> {
         use self::StatementNode::*;
 
         let function = {
-          let mut locals = HashMap::new();
+          let mut locals = self.locals.clone();
 
           for (index, param) in params.iter().enumerate() {
             match param.node {
@@ -304,7 +304,7 @@ impl<'c> Compiler<'c> {
 
           let mut compiler = Compiler {
             locals,
-            code: Vec::new(),
+            code:      Vec::new(),
             constants: Vec::new(),
             vm: self.vm,
           };
@@ -337,8 +337,6 @@ impl<'c> Compiler<'c> {
 
   pub fn compile_entry(&mut self, block: &'c Expression<'c>, name: &'c str) -> Result<CompiledBlock, ()> {
     self.compile_expression(&block)?;
-
-    self.emit_load_const(Value::Nil);
 
     self.code.push(Code::Return);
 

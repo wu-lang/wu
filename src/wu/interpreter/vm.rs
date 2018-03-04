@@ -193,7 +193,16 @@ impl Machine {
           (&Float(a), &Float(b)) => { Float(a % b) }
         },
 
-        Return => break,
+        Return => {
+          if let Some(call_info) = self.calls.pop() {
+            func    = unsafe { &*call_info.func };
+
+            locals  = call_info.locals;
+            pointer = call_info.pointer;
+          } else {
+            break
+          }
+        },
 
         StoreArray(ref len) => {
           let mut content = Vec::new();
@@ -254,6 +263,7 @@ impl Machine {
           );
 
           pointer = 0;
+
           continue
         }
 

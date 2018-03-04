@@ -47,11 +47,7 @@ fn run(content: &str) {
           let mut compiled = compiler.compile_entry(&block, "main").unwrap();
           let mut vm       = Machine::new();
 
-          println!("constants:\n{:#?}\n\ncode:\n{:#?}", compiled.constants, compiled.code);
-
           vm.execute(&mut compiled);
-
-          println!("{:#?}", vm.stack);
         }
 
         _ => (),
@@ -125,14 +121,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-add :: (a: int, b: int) int -> a + b
 
-foo := 10
-bar := 200
-
-baz :: add(foo, bar)
-
-baz
   "#;
 
   run(&test4);

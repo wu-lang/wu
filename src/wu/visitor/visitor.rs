@@ -283,6 +283,36 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
+      Call(ref expression, ref args) => {
+        let expression_type = self.type_expression(expression)?.node;
+
+        if let TypeNode::Func(ref params, ..) = expression_type {
+          for (index, param) in params.iter().enumerate() {
+            let arg_type = self.type_expression(&args[index])?;
+
+            if param != &arg_type {
+              return Err(
+                response!(
+                  Wrong(format!("mismatched argument, expected `{}` got `{}`", expression_type, arg_type)),
+                  self.source.file,
+                  expression.pos
+                )
+              )
+            }
+          }
+        } else {
+          return Err(
+            response!(
+              Wrong(format!("expected function, found `{}`", expression_type)),
+              self.source.file,
+              expression.pos
+            )
+          )
+        }
+
+        Ok(())
+      },
+
       Function(ref params, ref return_type, ref body) => {
         use self::ExpressionNode::*;
         use self::StatementNode::*;
@@ -321,7 +351,7 @@ impl<'v> Visitor<'v> {
 
         visitor.visit_expression(body)?;
 
-        let body_type   = visitor.type_expression(body)?;
+        let body_type = visitor.type_expression(body)?;
 
         if return_type != &body_type {
           Err(
@@ -495,7 +525,7 @@ impl<'v> Visitor<'v> {
   }
 
   fn visit_constant(&mut self, constant: &'v StatementNode) -> Result<(), ()> {
-    use self::ExpressionNode::{Identifier, Set};
+    use self::ExpressionNode::*;
 
     if let &StatementNode::Constant(ref constant_type, ref left, ref right) = constant {
       match left.node {
@@ -508,7 +538,10 @@ impl<'v> Visitor<'v> {
 
           self.typetab.grow();
 
-          self.visit_expression(&right)?;
+          match right.node {
+            Function(..) | Block(_) => (),
+            _                       => self.visit_expression(right)?,
+          }
 
           let right_type = self.type_expression(right)?;
 
@@ -526,6 +559,11 @@ impl<'v> Visitor<'v> {
             }
           } else {
             self.typetab.set_type(index, 0, right_type)?
+          }
+
+          match right.node {
+            Function(..) | Block(_) => self.visit_expression(right)?,
+            _                       => (),
           }
         },
 
@@ -618,7 +656,13 @@ impl<'v> Visitor<'v> {
       Identifier(ref name) => if let Some((index, env_index)) = self.symtab.get_name(name) {
         self.typetab.get_type(index, env_index)?
       } else {
-        unreachable!()
+        return Err(
+          response!(
+            Wrong(format!("no such value `{}` in this scope", name)),
+            self.source.file,
+            expression.pos
+          )
+        )
       },
 
       String(_) => Type::string(),
@@ -626,6 +670,14 @@ impl<'v> Visitor<'v> {
       Bool(_)   => Type::bool(),
       Int(_)    => Type::int(),
       Float(_)  => Type::float(),
+
+      Call(ref expression, _) => {
+        if let TypeNode::Func(_, ref return_type) = self.type_expression(expression)?.node {
+          (**return_type).clone()
+        } else {
+          unreachable!()
+        }
+      },
 
       Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
 

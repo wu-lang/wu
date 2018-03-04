@@ -183,8 +183,8 @@ impl<'p> Parser<'p> {
 
             self.next()?;
 
-            if self.current_lexeme() != "->" {
-              self.parse_type().unwrap_or(Type::nil()); // we don't care
+            if self.current_lexeme() != "->" && self.remaining() > 0 && self.current_lexeme() != "\n" {
+              println!("{:?}", self.parse_type());
             }
 
             if self.current_lexeme() == "->" {
@@ -659,7 +659,6 @@ impl<'p> Parser<'p> {
       self.index += 1;
       Ok(())
     } else {
-      panic!();
       Err(
         response!(
           Wrong("moving outside token stack"),
