@@ -126,6 +126,13 @@ f :: 'a'
 
   let test4 = r#"
 add :: (a: int, b: int) int -> a + b
+
+foo := 10
+bar := 200
+
+baz :: add(foo, bar)
+
+baz
   "#;
 
   run(&test4);

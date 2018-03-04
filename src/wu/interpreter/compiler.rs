@@ -280,7 +280,7 @@ impl<'c> Compiler<'c> {
           self.compile_expression(expression)? // push content
         }
 
-        self.emit(Code::StoreArray(content.len())) // pops content values, store those in allocated array slot, pushes array reference
+        self.emit(Code::StoreArray(content.len() as u16)) // pops content values, store those in allocated array slot, pushes array reference
       },
 
       Function(ref params, _, ref body) => {
@@ -309,13 +309,23 @@ impl<'c> Compiler<'c> {
             vm: self.vm,
           };
 
-          compiler.compile_entry(&body, "<function>")?
+          compiler.compile_entry(&body, "<fun>")?
         };
 
         let value = self.vm.alloc(HeapObjectType::Function(function));
 
         self.emit_load_const(value)
       },
+
+      Call(ref caller, ref args) => {
+        self.compile_expression(caller)?;
+
+        for arg in args {
+          self.compile_expression(arg)?
+        }
+
+        self.emit(Code::Call(args.len() as u16))
+      }
 
       _ => (),
     }

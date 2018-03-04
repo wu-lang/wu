@@ -256,27 +256,47 @@ impl<'p> Parser<'p> {
         )
       };
 
-      match *self.current_type() {
-        TokenType::Keyword  => match self.current_lexeme().as_str() {
-          "as" => {
-            self.next()?;
+      self.parse_postfix(expression)
+    }
+  }
 
-            let t        = self.parse_type()?;
-            let position = expression.pos.clone();
 
-            Ok(
-              Expression::new(
-                ExpressionNode::Cast(Rc::new(expression), t),
-                position
-              )
+  fn parse_postfix(&mut self, expression: Expression<'p>) -> Result<Expression<'p>, ()> {
+    match *self.current_type() {
+      TokenType::Symbol => match self.current_lexeme().as_str() {
+        "(" => {
+          let args = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
+
+          let call = Expression::new(
+            ExpressionNode::Call(Rc::new(expression.clone()), args),
+            self.span_from(expression.pos)
+          );
+
+          self.parse_postfix(call)
+        }
+
+        _ => Ok(expression)
+      },
+
+      TokenType::Keyword => match self.current_lexeme().as_str() {
+        "as" => {
+          self.next()?;
+
+          let t        = self.parse_type()?;
+          let position = expression.pos.clone();
+
+          self.parse_postfix(
+            Expression::new(
+              ExpressionNode::Cast(Rc::new(expression), t),
+              position
             )
-          },
-
-          _ => Ok(expression)
+          )
         },
 
         _ => Ok(expression)
-      }
+      },
+
+      _ => Ok(expression)
     }
   }
 
