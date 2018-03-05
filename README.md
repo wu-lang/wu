@@ -35,5 +35,7 @@ The whole Wu language is highly inspired by low-level languages Rust and Jai, wh
 - nilq: https://github.com/nilq
 - FuzzyLitchi: https://github.com/FuzzyLitchi
 
+- *wouldn't have been possible without evolbug 💖💖*
+
 ### license
 MIT

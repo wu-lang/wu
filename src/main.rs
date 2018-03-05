@@ -33,16 +33,11 @@ fn run(content: &str) {
     Ok(ast) => {
       println!("{:#?}", ast);
 
-      let block = Expression::new(
-        ExpressionNode::Block(ast.clone()),
-        TokenElement::Lexeme("<entry point>")
-      );
-
       let mut visitor = Visitor::new(&source, &ast);
  
       match visitor.visit() {
         Ok(_) => {
-          let mut compiler = Compiler::new();
+          let mut compiler = Compiler::new(&mut visitor);
 
           compiler.compile(&ast);
           println!("{:#?}", compiler.bytecode);
@@ -51,7 +46,8 @@ fn run(content: &str) {
 
           vm.execute(compiler.bytecode.as_slice());
 
-          println!("{:?}", &vm.compute_stack.iter().take_while(|x| **x != 0 as u8).collect::<Vec<&u8>>())
+          println!("stack: {:?}", &vm.compute_stack[..16]);
+          println!("vars:  {:?}", &vm.var_stack[..16]);
         }
         _ => ()
       }
@@ -124,7 +120,8 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-true
+a: int: 1
+b: int: 2
   "#;
 
   run(&test4);

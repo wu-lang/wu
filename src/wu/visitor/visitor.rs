@@ -4,12 +4,12 @@ use super::super::error::Response::Wrong;
 use std::fmt::{ self, Formatter, Write, Display };
 
 use std::rc::Rc;
+use std::mem;
 
 #[derive(Debug, Clone)]
 pub enum TypeNode {
   Int,
   Float,
-  Number,
   Bool,
   Str,
   Char,
@@ -20,18 +20,28 @@ pub enum TypeNode {
   Func(Vec<Type>, Rc<Type>),
 }
 
+impl TypeNode {
+  pub fn size_bytes(&self) -> u8 {
+    use self::TypeNode::*;
+
+    match *self {
+      Int   => mem::size_of::<f32>()  as u8,
+      Float => mem::size_of::<f32>()  as u8,
+      Char  => mem::size_of::<char>() as u8,
+      Bool  => mem::size_of::<bool>() as u8,
+
+      ref other => panic!("{:?}", other),
+    }
+  }
+}
+
 impl PartialEq for TypeNode {
   fn eq(&self, other: &TypeNode) -> bool {
     use self::TypeNode::*;
 
     match (self, other) {
       (&Int, &Int)       => true,
-      (&Int, &Number)    => true,
-      (&Number, &Int)    => true,
       (&Float, &Float)   => true,
-      (&Float, &Number)  => true,
-      (&Number, &Float)  => true,
-      (&Number, &Number) => true,
       (&Bool, &Bool)     => true,
       (&Str, &Str)       => true,
       (&Char, &Char)     => true,
@@ -59,7 +69,6 @@ impl Display for TypeNode {
     use self::TypeNode::*;
 
     match *self {
-      Number       => write!(f, "number"),
       Int          => write!(f, "int"),
       Float        => write!(f, "float"),
       Bool         => write!(f, "bool"),
@@ -649,7 +658,7 @@ impl<'v> Visitor<'v> {
 
 
 
-  fn type_expression(&mut self, expression: &'v Expression<'v>) -> Result<Type, ()> {
+  pub fn type_expression(&mut self, expression: &'v Expression<'v>) -> Result<Type, ()> {
     use self::ExpressionNode::*;
 
     let t = match expression.node {
