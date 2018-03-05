@@ -16,8 +16,6 @@ macro_rules! to_bytes {
 pub struct Compiler<'c> {
   pub bytecode: Vec<u8>,
   pub visitor:  &'c mut Visitor<'c>,
-  
-  offset: u32,
 }
 
 impl<'c> Compiler<'c> {
@@ -25,7 +23,6 @@ impl<'c> Compiler<'c> {
     Compiler {
       bytecode: Vec::new(),
       visitor,
-      offset: 0,
     }
   }
 
@@ -47,20 +44,22 @@ impl<'c> Compiler<'c> {
 
     match statement.node {
       Expression(ref expression) => self.compile_expression(expression)?,
-      Constant(ref t, _, ref right) => {
-        self.compile_expression(right)?;
-        self.emit(Instruction::Pop as u8);
+      Constant(_, ref left, ref right) => {
+        if let ExpressionNode::Identifier(ref name) = left.node {
+          self.compile_expression(right)?;
+          self.emit(Instruction::Pop as u8);
 
-        let right_type = self.visitor.type_expression(right)?;
-        let size       = right_type.node.size_bytes();
+          let right_type = self.visitor.type_expression(right)?;
 
-        self.emit(right_type.node.size_bytes());
+          self.emit(right_type.node.byte_size());
 
-        let address = &to_bytes!(self.offset => u32);
+          let (index, env_index) = self.visitor.symtab.get_name(name).unwrap();
+          let offset             = self.visitor.typetab.get_offset(index, env_index).unwrap();
 
-        self.emit_bytes(address);
+          let address = &to_bytes!(offset => u32);
 
-        self.offset += size as u32;
+          self.emit_bytes(address);
+        }
       }
       _ => (),
     }
@@ -109,6 +108,16 @@ impl<'c> Compiler<'c> {
         self.emit(mem::size_of::<u8>() as u8);
         self.emit(*n as u8)
       },
+
+      Identifier(ref name) => {
+        let (index, env_index) = self.visitor.symtab.get_name(name).unwrap();
+        let offset             = self.visitor.typetab.get_offset(index, env_index).unwrap();
+        let size               = self.visitor.typetab.get_type(index, env_index).unwrap().node.byte_size();
+
+        self.emit(Instruction::PushDeref as u8);
+        self.emit(size);
+        self.emit_bytes(&to_bytes!(offset => u32));
+      }
 
       _ => (),
     }

@@ -21,7 +21,7 @@ pub enum TypeNode {
 }
 
 impl TypeNode {
-  pub fn size_bytes(&self) -> u8 {
+  pub fn byte_size(&self) -> u8 {
     use self::TypeNode::*;
 
     match *self {
@@ -222,6 +222,8 @@ pub struct Visitor<'v> {
   pub typetab: TypeTab<'v>,
   pub source:  &'v Source,
   pub ast:     &'v Vec<Statement<'v>>,
+
+  pub offsets: Vec<u32>,
 }
 
 impl<'v> Visitor<'v> {
@@ -231,6 +233,7 @@ impl<'v> Visitor<'v> {
       typetab: TypeTab::global(),
       source,
       ast,
+      offsets: vec!(0),
     }
   }
 
@@ -333,7 +336,7 @@ impl<'v> Visitor<'v> {
           match param.node {
             Constant(ref t, ref name, _) | Variable(ref t, ref name, _) => if let Identifier(ref name) = name.node {
               param_names.push(name.clone());
-              param_types.push(t.clone());
+              param_types.push((t.clone(), t.node.byte_size() as u32));
             } else {
               return Err(
                 response!(
@@ -356,6 +359,7 @@ impl<'v> Visitor<'v> {
           ast:     self.ast,
           symtab:  local_symtab,
           typetab: local_typetab,
+          offsets: vec!(0),
         };
 
         visitor.visit_expression(body)?;
@@ -428,13 +432,29 @@ impl<'v> Visitor<'v> {
                   )
                 )
               } else {
-                self.typetab.set_type(index, 0, variable_type.to_owned())?
+                self.typetab.set_type(index, 0, (variable_type.to_owned(), *self.offsets.last().unwrap()))?;
+
+                let len = self.offsets.len();
+
+                self.offsets[len - 1] += variable_type.node.byte_size() as u32
               }
+
             } else {
-              self.typetab.set_type(index, 0, right_type)?
+              let size = right_type.node.byte_size() as u32;
+
+              self.typetab.set_type(index, 0, (right_type, *self.offsets.last().unwrap()))?;
+
+              let len = self.offsets.len();
+
+              self.offsets[len - 1] += size
             }
+
           } else {
-            self.typetab.set_type(index, 0, variable_type.to_owned())?
+            self.typetab.set_type(index, 0, (variable_type.to_owned(), *self.offsets.last().unwrap()))?;
+
+            let len = self.offsets.len();
+
+            self.offsets[len - 1] += variable_type.node.byte_size() as u32
           }
         },
 
@@ -477,7 +497,11 @@ impl<'v> Visitor<'v> {
                           )
                         )
                       } else {
-                        self.typetab.set_type(index, 0, variable_type.to_owned())?
+                        self.typetab.set_type(index, 0, (variable_type.to_owned(), *self.offsets.last().unwrap()))?;
+                        
+                        let len = self.offsets.len();
+
+                        self.offsets[len - 1] += variable_type.node.byte_size() as u32
                       }
                     } else {
                       return Err(
@@ -489,7 +513,13 @@ impl<'v> Visitor<'v> {
                       )
                     }
                   } else {                  
-                    self.typetab.set_type(index, 0, right_type)?
+                    let size = right_type.node.byte_size() as u32;
+
+                    self.typetab.set_type(index, 0, (right_type, *self.offsets.last().unwrap()))?;
+                    
+                    let len = self.offsets.len();
+
+                    self.offsets[len - 1] += size
                   }
                 } else {
                   return Err(
@@ -512,7 +542,11 @@ impl<'v> Visitor<'v> {
                   self.symtab.add_name(name)
                 };
 
-                self.typetab.set_type(index, 0, variable_type.to_owned())?
+                self.typetab.set_type(index, 0, (variable_type.to_owned(), *self.offsets.last().unwrap()))?;
+                
+                let len = self.offsets.len();
+
+                self.offsets[len - 1] += variable_type.node.byte_size() as u32
               }
             }
           }
@@ -564,10 +598,20 @@ impl<'v> Visitor<'v> {
                 )
               )
             } else {
-              self.typetab.set_type(index, 0, constant_type.to_owned())?
+              self.typetab.set_type(index, 0, (constant_type.to_owned(), *self.offsets.last().unwrap()))?;
+
+              let len = self.offsets.len();
+
+              self.offsets[len - 1] += constant_type.node.byte_size() as u32
             }
           } else {
-            self.typetab.set_type(index, 0, right_type)?
+            let size = right_type.node.byte_size() as u32;
+
+            self.typetab.set_type(index, 0, (right_type, *self.offsets.last().unwrap()))?;
+
+            let len = self.offsets.len();
+
+            self.offsets[len - 1] += size
           }
 
           match right.node {
@@ -614,7 +658,11 @@ impl<'v> Visitor<'v> {
                         )
                       )
                     } else {
-                      self.typetab.set_type(index, 0, constant_type.to_owned())?
+                      self.typetab.set_type(index, 0, (constant_type.to_owned(), *self.offsets.last().unwrap()))?;
+
+                      let len = self.offsets.len();
+
+                      self.offsets[len - 1] += constant_type.node.byte_size() as u32
                     }
                   } else {
                     return Err(
@@ -626,7 +674,13 @@ impl<'v> Visitor<'v> {
                     )
                   }
                 } else {                  
-                  self.typetab.set_type(index, 0, right_type)?
+                  let size = right_type.node.byte_size() as u32;
+
+                  self.typetab.set_type(index, 0, (right_type, *self.offsets.last().unwrap()))?;
+
+                  let len = self.offsets.len();
+
+                  self.offsets[len - 1] += size
                 }
               } else {
                 return Err(

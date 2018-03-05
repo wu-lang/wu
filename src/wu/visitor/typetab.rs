@@ -7,12 +7,11 @@ use super::super::error::Response::Wrong;
 #[derive(Clone)]
 pub struct TypeTab<'s> {
   pub parent:  Option<&'s TypeTab<'s>>,
-  pub types:   RefCell<Vec<Type>>,
+  pub types:   RefCell<Vec<(Type, u32)>>, // type and offset
 }
 
 impl<'s> TypeTab<'s> {
-  pub fn new(parent: &'s TypeTab, types: &[Type]) -> Self {
-
+  pub fn new(parent: &'s TypeTab, types: &[(Type, u32)]) -> Self {
     TypeTab {
       parent: Some(parent),
       types:  RefCell::new(types.to_owned()),
@@ -26,7 +25,7 @@ impl<'s> TypeTab<'s> {
     }
   }
 
-  pub fn set_type(&self, index: usize, env_index: usize, t: Type) -> Result<(), ()> {
+  pub fn set_type(&self, index: usize, env_index: usize, t: (Type, u32)) -> Result<(), ()> {
     if env_index == 0usize {
       match self.types.borrow_mut().get_mut(index) {
         Some(v) => {
@@ -46,12 +45,26 @@ impl<'s> TypeTab<'s> {
   pub fn get_type(&self, index: usize, env_index: usize) -> Result<Type, ()> {
     if env_index == 0 {
       match self.types.borrow().get(index) {
-        Some(v) => Ok(v.clone()),
+        Some(v) => Ok(v.0.clone()),
         None    => Err(response!(Wrong("[type table] invalid type index")))
       }
     } else {
       match self.parent {
         Some(ref p) => p.get_type(index, env_index - 1),
+        None        => Err(response!(Wrong("[type table] invalid environment index")))
+      }
+    }
+  }
+
+  pub fn get_offset(&self, index: usize, env_index: usize) -> Result<u32, ()> {
+    if env_index == 0 {
+      match self.types.borrow().get(index) {
+        Some(v) => Ok(v.1.clone()),
+        None    => Err(response!(Wrong("[type table] invalid type index")))
+      }
+    } else {
+      match self.parent {
+        Some(ref p) => p.get_offset(index, env_index - 1),
         None        => Err(response!(Wrong("[type table] invalid environment index")))
       }
     }
@@ -77,6 +90,6 @@ impl<'s> TypeTab<'s> {
   }
 
   pub fn grow(&mut self) {
-    RefCell::borrow_mut(&self.types).push(Type::nil())
+    RefCell::borrow_mut(&self.types).push((Type::nil(), 0))
   }
 }

@@ -23,9 +23,10 @@ macro_rules! memmove {
 
 
 pub enum Instruction {
-  Halt = 0x00,
-  Push = 0x01,
-  Pop  = 0x02,
+  Halt      = 0x00,
+  Push      = 0x01,
+  Pop       = 0x02,
+  PushDeref = 0x03,
 }
 
 pub struct VirtualMachine {
@@ -55,9 +56,9 @@ impl VirtualMachine {
     let mut ip = 0;
 
     loop {
-      let last_code = bytecode[ip];
-
       match unsafe { mem::transmute::<u8, Instruction>(bytecode[ip]) } {
+        Halt => break,
+        
         Push => {
           ip += 1;
 
@@ -95,10 +96,28 @@ impl VirtualMachine {
           }
         }
 
-        Halt => break,
-      }
+        PushDeref => {
+          ip += 1;
 
-      println!("\nstate(last code was {}):\n\tstack: {:?}\n\tvars: {:?}", last_code, &self.compute_stack[..16], &self.var_stack[..16])
+          let size = bytecode[ip];
+
+          ip += 1;
+
+          let address = from_bytes!(&bytecode[ip .. ip + 4] => u32) + self.frames.last().unwrap();
+
+          ip += 4;
+
+          let value = read(&self.var_stack, address, size as u32);
+
+          self.var_top -= size as u32;
+
+          memmove!(value => self.compute_stack, [self.compute_top; size as u32]);
+
+          if self.compute_top < (address + size as u32) {
+            self.compute_top = address + size as u32
+          }
+        }
+      }
     }
 
     Ok(())
