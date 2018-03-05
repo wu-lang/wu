@@ -30,9 +30,10 @@ impl TypeNode {
       Char  => mem::size_of::<char>() as u8,
       Bool  => mem::size_of::<bool>() as u8,
 
-      ref other => panic!("{:?}", other),
+      ref other => panic!("no type size: {:?}", other),
     }
   }
+
 }
 
 impl PartialEq for TypeNode {
@@ -40,12 +41,12 @@ impl PartialEq for TypeNode {
     use self::TypeNode::*;
 
     match (self, other) {
-      (&Int, &Int)       => true,
-      (&Float, &Float)   => true,
-      (&Bool, &Bool)     => true,
-      (&Str, &Str)       => true,
-      (&Char, &Char)     => true,
-      (&Nil, &Nil)       => true,
+      (&Int,   &Int)   => true,
+      (&Float, &Float) => true,
+      (&Bool,  &Bool)  => true,
+      (&Str,   &Str)   => true,
+      (&Char,  &Char)  => true,
+      (&Nil,   &Nil)   => true,
       (&Array(ref a), &Array(ref b)) => a == b,
       (&Id(ref a), &Id(ref b))       => a == b,
       (&Set(ref a), &Set(ref b))     => a == b,
@@ -211,8 +212,8 @@ impl Type {
 
 impl Display for Type {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}{}", self.mode, self.node)
-    }
+    write!(f, "{}{}", self.mode, self.node)
+  }
 }
 
 
@@ -745,8 +746,11 @@ impl<'v> Visitor<'v> {
       Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
 
       Cast(ref expression, ref t) => match (self.type_expression(expression)?.node, &t.node) {
-        (TypeNode::Int, &TypeNode::Float) => Type::float(),
-        (TypeNode::Int, &TypeNode::Int)   => Type::int(),
+        (TypeNode::Int,   &TypeNode::Float) => Type::float(),
+        (TypeNode::Float, &TypeNode::Float) => Type::float(),
+        
+        (TypeNode::Float, &TypeNode::Int)   => Type::int(),
+        (TypeNode::Int,   &TypeNode::Int)   => Type::int(),
 
         (a, b) => return Err(
           response!(

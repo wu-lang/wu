@@ -42,6 +42,9 @@ pub enum ExpressionNode<'e> {
   Function(Vec<Statement<'e>>, Type, Rc<Expression<'e>>),
   Call(Rc<Expression<'e>>, Vec<Expression<'e>>),
   EOF,
+
+  // specifics
+  Byte(u8),
 }
 
 #[derive(Debug, Clone, PartialEq)]

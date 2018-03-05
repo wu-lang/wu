@@ -2,23 +2,8 @@ use std::slice;
 use std::mem;
 use std::default;
 
-
-
-macro_rules! from_bytes {
-  ($raw:expr => $t:ty) => {{
-    let mut b: [u8; mem::size_of::<$t>()] = default::Default::default();
-    b.copy_from_slice($raw);
-    unsafe { mem::transmute::<_,$t>(b) }
-  }}
-}
-
-
-
-macro_rules! memmove {
-  ($source:expr => $target:expr,[$from:expr; $size:expr]) => {{
-    $target[$from as usize .. ($from + $size) as usize].copy_from_slice($source);
-  }}
-}
+#[macro_use]
+use super::*;
 
 
 
@@ -27,6 +12,8 @@ pub enum Instruction {
   Push      = 0x01,
   Pop       = 0x02,
   PushDeref = 0x03,
+  ToF32     = 0x04,
+  ToI32     = 0x05,
 }
 
 pub struct VirtualMachine {
@@ -58,7 +45,7 @@ impl VirtualMachine {
     loop {
       match unsafe { mem::transmute::<u8, Instruction>(bytecode[ip]) } {
         Halt => break,
-        
+
         Push => {
           ip += 1;
 
@@ -66,7 +53,7 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let value = read(&bytecode, ip as u32, size as u32);
+          let value = &read(&bytecode, ip as u32, size as u32);
           ip += size as usize;
 
           memmove!(value => self.compute_stack, [self.compute_top; size as u32]);      
@@ -85,7 +72,7 @@ impl VirtualMachine {
 
           ip += 4;
 
-          let value = read(&self.compute_stack, self.compute_top - size as u32, size as u32);
+          let value = &read(&self.compute_stack, self.compute_top - size as u32, size as u32);
 
           self.compute_top -= size as u32;
 
@@ -107,7 +94,7 @@ impl VirtualMachine {
 
           ip += 4;
 
-          let value = read(&self.var_stack, address, size as u32);
+          let value = &read(&self.var_stack, address, size as u32);
 
           self.var_top -= size as u32;
 
@@ -116,7 +103,53 @@ impl VirtualMachine {
           if self.compute_top < (address + size as u32) {
             self.compute_top = address + size as u32
           }
+        },
+
+        ToF32 => {
+          ip += 1;
+
+          let size = bytecode[ip];
+
+          ip += 1;
+
+          self.compute_top += mem::size_of::<f32>() as u32 - size as u32;
+
+          let compute_stack_tmp = self.compute_stack.clone();
+          let value = &read(&compute_stack_tmp, self.compute_top - size as u32, size as u32);
+
+          self.compute_top -= size as u32;
+
+          let converted      = from_bytes!(value => u32) as f32;
+          let converted_size = mem::size_of::<f32>() as u32;
+
+          memmove!(&to_bytes!(converted => f32) => self.compute_stack, [self.compute_top; converted_size]);      
+
+          self.compute_top += converted_size
         }
+
+        ToI32 => {
+          ip += 1;
+
+          let size = bytecode[ip];
+
+          ip += 1;
+
+          self.compute_top += mem::size_of::<i32>() as u32 - size as u32;
+
+          let compute_stack_tmp = self.compute_stack.clone();
+          let value = &read(&compute_stack_tmp, self.compute_top - size as u32, size as u32);
+
+          self.compute_top -= size as u32;
+
+          let converted      = from_bytes!(value => u32) as i32;
+          let converted_size = mem::size_of::<i32>() as u32;
+
+          memmove!(&to_bytes!(converted => i32) => self.compute_stack, [self.compute_top; converted_size]);      
+
+          self.compute_top += converted_size
+        }
+
+        _ => (),
       }
     }
 
@@ -126,6 +159,6 @@ impl VirtualMachine {
 
 
 
-fn read (mem: &[u8], from: u32, size: u32) -> &[u8] {
-  &mem[from as usize .. (from + size) as usize]
+fn read (mem: &[u8], from: u32, size: u32) -> Vec<u8> {
+  mem[from as usize .. (from + size) as usize].iter().cloned().collect()
 }

@@ -1,15 +1,9 @@
-#[macro_use()]
+#[macro_use]
 use super::*;
+
+use super::super::error::Response::Wrong;
 use std::mem;
 
-
-
-#[macro_export]
-macro_rules! to_bytes {
-    ($value:expr => $t:ty) => {{
-        unsafe { mem::transmute::<_,[u8;mem::size_of::<$t>()]>($value) }
-    }}
-}
 
 
 
@@ -61,13 +55,34 @@ impl<'c> Compiler<'c> {
           self.emit_bytes(address);
         }
       }
+
+      Variable(ref t, ref left, ref right) => {
+        if let ExpressionNode::Identifier(ref name) = left.node {
+          if let &Some(ref right) = right {
+            self.compile_expression(right)?;
+            self.emit(Instruction::Pop as u8);
+
+            let right_type = self.visitor.type_expression(right)?;
+
+            self.emit(right_type.node.byte_size());
+
+            let (index, env_index) = self.visitor.symtab.get_name(name).unwrap();
+            let offset             = self.visitor.typetab.get_offset(index, env_index).unwrap();
+
+            let address = &to_bytes!(offset => u32);
+
+            self.emit_bytes(address);
+          }
+        }
+      }
+
       _ => (),
     }
 
     Ok(())
   }
 
-  fn compile_expression(&mut self, expression: &Expression) -> Result<(), ()> {
+  fn compile_expression(&mut self, expression: &'c Expression) -> Result<(), ()> {
     use self::ExpressionNode::*;
 
     match expression.node {
@@ -117,7 +132,21 @@ impl<'c> Compiler<'c> {
         self.emit(Instruction::PushDeref as u8);
         self.emit(size);
         self.emit_bytes(&to_bytes!(offset => u32));
-      }
+      },
+
+      Cast(ref expression, ref t) => {
+        let size = self.visitor.type_expression(&expression)?.node.byte_size();
+
+        self.compile_expression(expression)?;
+
+        match t.node {
+          TypeNode::Float => self.emit(Instruction::ToF32 as u8),
+          TypeNode::Int   => self.emit(Instruction::ToI32 as u8),
+          ref node        => return Err(response!(Wrong(format!("can't cast to `{}`", node))))
+        }
+
+        self.emit(size)
+      },
 
       _ => (),
     }

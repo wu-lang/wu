@@ -120,8 +120,8 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-a: int: 16
-b: int: a
+a: float = 1.0
+b: int   = a as int
   "#;
 
   run(&test4);
