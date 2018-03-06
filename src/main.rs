@@ -40,7 +40,6 @@ fn run(content: &str) {
           let mut compiler = Compiler::new(&mut visitor);
 
           compiler.compile(&ast);
-          println!("{:#?}", compiler.bytecode);
 
           let mut vm = VirtualMachine::new();
 
@@ -120,8 +119,8 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-a: float = 1.0
-b: int   = a as int
+a: f32 = 10
+b: i8  = a as i8
   "#;
 
   run(&test4);

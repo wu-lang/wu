@@ -5,13 +5,13 @@ use super::super::error::Response::Wrong;
 
 
 #[derive(Clone)]
-pub struct TypeTab<'s> {
-  pub parent:  Option<&'s TypeTab<'s>>,
+pub struct TypeTab<'t> {
+  pub parent:  Option<&'t TypeTab<'t>>,
   pub types:   RefCell<Vec<(Type, u32)>>, // type and offset
 }
 
-impl<'s> TypeTab<'s> {
-  pub fn new(parent: &'s TypeTab, types: &[(Type, u32)]) -> Self {
+impl<'t> TypeTab<'t> {
+  pub fn new(parent: &'t Self, types: &'t [(Type, u32)]) -> Self {
     TypeTab {
       parent: Some(parent),
       types:  RefCell::new(types.to_owned()),

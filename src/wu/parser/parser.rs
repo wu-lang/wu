@@ -120,7 +120,7 @@ impl<'p> Parser<'p> {
 
       let expression = match token_type {
         Int => Expression::new(
-          ExpressionNode::Int(self.eat()?.parse::<i32>().unwrap()),
+          ExpressionNode::Int(self.eat()?.parse::<u64>().unwrap()),
           position
         ),
 
@@ -483,8 +483,11 @@ impl<'p> Parser<'p> {
       Identifier => match self.eat()?.as_str() {
         "str"   => Type::string(),
         "char"  => Type::char(),
-        "float" => Type::float(),
-        "int"   => Type::int(),
+        "f32"   => Type::float32(),
+        "f64"   => Type::float64(),
+        "i8"    => Type::int8(),
+        "i32"   => Type::int32(),
+        "i64"   => Type::int64(),
         "bool"  => Type::bool(),
         id      => Type::id(id),
       },

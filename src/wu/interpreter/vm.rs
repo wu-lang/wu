@@ -1,4 +1,4 @@
-use std::slice;
+use std::fmt;
 use std::mem;
 use std::default;
 
@@ -12,8 +12,29 @@ pub enum Instruction {
   Push      = 0x01,
   Pop       = 0x02,
   PushDeref = 0x03,
-  ToF32     = 0x04,
-  ToI32     = 0x05,
+  ConvIF    = 0x04,
+  ConvFI    = 0x05,
+  ConvII    = 0x06,
+  ConvFF    = 0x07,
+}
+
+impl fmt::Display for Instruction {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    use self::Instruction::*;
+
+    let name = match *self {
+      Halt      => "halt",
+      Push      => "push",
+      Pop       => "pop",
+      PushDeref => "pushd",
+      ConvIF    => "convif",
+      ConvFI    => "convfi",
+      ConvII    => "convii",
+      ConvFF    => "convff",
+    };
+
+    write!(f, "{}", name)
+  }
 }
 
 pub struct VirtualMachine {
@@ -105,49 +126,109 @@ impl VirtualMachine {
           }
         },
 
-        ToF32 => {
+        // Int to Float ; size_from size_to ; convif i8 f32
+        ConvIF => {
           ip += 1;
 
-          let size = bytecode[ip];
+          let size_from = bytecode[ip] as i8;
 
-          ip += 1;
-
-          self.compute_top += mem::size_of::<f32>() as u32 - size as u32;
-
-          let compute_stack_tmp = self.compute_stack.clone();
-          let value = &read(&compute_stack_tmp, self.compute_top - size as u32, size as u32);
-
-          self.compute_top -= size as u32;
-
-          let converted      = from_bytes!(value => u32) as f32;
-          let converted_size = mem::size_of::<f32>() as u32;
-
-          memmove!(&to_bytes!(converted => f32) => self.compute_stack, [self.compute_top; converted_size]);      
-
-          self.compute_top += converted_size
-        }
-
-        ToI32 => {
-          ip += 1;
-
-          let size = bytecode[ip];
+          let is_signed = size_from < 0;
 
           ip += 1;
 
-          self.compute_top += mem::size_of::<i32>() as u32 - size as u32;
+          let size_to = bytecode[ip];
 
-          let compute_stack_tmp = self.compute_stack.clone();
-          let value = &read(&compute_stack_tmp, self.compute_top - size as u32, size as u32);
+          ip += 1;
 
-          self.compute_top -= size as u32;
+          self.compute_top += 8 - size_from as u32;
 
-          let converted      = from_bytes!(value => u32) as i32;
-          let converted_size = mem::size_of::<i32>() as u32;
+          let value = from_bytes!(&read(&self.compute_stack, self.compute_top - 8, 8) => u64);
 
-          memmove!(&to_bytes!(converted => i32) => self.compute_stack, [self.compute_top; converted_size]);      
+          self.compute_top -= 8;
 
-          self.compute_top += converted_size
-        }
+          if size_to == 4 {
+            let new_value = if !is_signed {
+              value as i64 as f32
+            } else {
+              value as f32
+            };
+
+            let converted_size = mem::size_of::<f32>() as u32;
+
+            memmove!(&to_bytes!(new_value => f32) => self.compute_stack, [self.compute_top; converted_size]);      
+
+            self.compute_top += converted_size
+
+          } else if size_to == 8 {
+            let new_value = if !is_signed {
+              value as i64 as f64
+            } else {
+              value as f64
+            };
+
+            let converted_size = mem::size_of::<f64>() as u32;
+
+            memmove!(&to_bytes!(new_value => f64) => self.compute_stack, [self.compute_top; converted_size]);      
+
+            self.compute_top += converted_size
+          }
+        },
+
+        ConvFI => {
+          ip += 1;
+
+          let size_from = bytecode[ip];
+
+          ip += 1;
+
+          let size_to = bytecode[ip];
+
+          ip += 1;
+
+          let converted = if size_from == 4 {
+            let value = &read(&self.compute_stack, self.compute_top - 4, 4);
+
+            from_bytes!(value => f32) as i64
+          } else if size_from == 8 {
+            let value = &read(&self.compute_stack, self.compute_top - 8, 8);
+
+            from_bytes!(value => f64) as i64
+          } else {
+            unreachable!()
+          };
+
+          self.compute_top -= size_from as u32;
+
+          memmove!(&to_bytes!(converted => u64)[0 .. size_to as usize] => self.compute_stack, [self.compute_top; size_to as u32]);
+
+          self.compute_top += size_to as u32
+        },
+
+        ConvII => {
+          ip += 1;
+
+          let size_from = bytecode[ip];
+
+          ip += 1;
+
+          let size_to = bytecode[ip];
+
+          ip += 1;
+
+          let converted = &if size_from == 4 {
+            read(&self.compute_stack, self.compute_top - 4, 4)
+          } else if size_from == 8 {
+            read(&self.compute_stack, self.compute_top - 8, 8)
+          } else {
+            unreachable!()
+          };
+
+          self.compute_top -= size_from as u32;
+
+          memmove!(&to_bytes!(converted => u64)[0 .. size_to as usize] => self.compute_stack, [self.compute_top; size_to as u32]);
+
+          self.compute_top += size_to as u32
+        },
 
         _ => (),
       }

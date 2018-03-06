@@ -8,8 +8,13 @@ use std::mem;
 
 #[derive(Debug, Clone)]
 pub enum TypeNode {
-  Int,
-  Float,
+  I64,
+  I32,
+  I08,
+
+  F64,
+  F32,
+
   Bool,
   Str,
   Char,
@@ -25,15 +30,19 @@ impl TypeNode {
     use self::TypeNode::*;
 
     match *self {
-      Int   => mem::size_of::<f32>()  as u8,
-      Float => mem::size_of::<f32>()  as u8,
-      Char  => mem::size_of::<char>() as u8,
-      Bool  => mem::size_of::<bool>() as u8,
+      I08  => mem::size_of::<u8>()  as u8,
+      I32  => mem::size_of::<i32>() as u8,
+      I64  => mem::size_of::<i64>() as u8,
+
+      F32  => mem::size_of::<f32>() as u8,
+      F64  => mem::size_of::<f32>() as u8,
+
+      Char => mem::size_of::<char>() as u8,
+      Bool => mem::size_of::<bool>() as u8,
 
       ref other => panic!("no type size: {:?}", other),
     }
   }
-
 }
 
 impl PartialEq for TypeNode {
@@ -41,12 +50,23 @@ impl PartialEq for TypeNode {
     use self::TypeNode::*;
 
     match (self, other) {
-      (&Int,   &Int)   => true,
-      (&Float, &Float) => true,
-      (&Bool,  &Bool)  => true,
-      (&Str,   &Str)   => true,
-      (&Char,  &Char)  => true,
-      (&Nil,   &Nil)   => true,
+      (&I08,  &I08)  => true,
+      (&I08,  &I32)  => true,
+      (&I32,  &I32)  => true,
+      (&I64,  &I64)  => true,
+      (&I64,  &I32)  => true,
+      (&I32, &I08)   => true,
+
+      (&F32,  b) if *b == I08 || *b == I32 || *b == I64 => true,
+      (&F64,  b) if *b == I08 || *b == I32 || *b == I64 => true,
+      
+      (&F32,  &F32) => true,
+      (&F64,  &F64) => true,
+
+      (&Bool, &Bool) => true,
+      (&Str,  &Str)  => true,
+      (&Char, &Char) => true,
+      (&Nil,  &Nil)  => true,
       (&Array(ref a), &Array(ref b)) => a == b,
       (&Id(ref a), &Id(ref b))       => a == b,
       (&Set(ref a), &Set(ref b))     => a == b,
@@ -70,10 +90,15 @@ impl Display for TypeNode {
     use self::TypeNode::*;
 
     match *self {
-      Int          => write!(f, "int"),
-      Float        => write!(f, "float"),
+      I64          => write!(f, "i64"),
+      I32          => write!(f, "i32"),
+      I08          => write!(f, "i8"),
+
+      F64          => write!(f, "f64"),
+      F32          => write!(f, "f32"),
+
       Bool         => write!(f, "bool"),
-      Str          => write!(f, "string"),
+      Str          => write!(f, "str"),
       Char         => write!(f, "char"),
       Nil          => write!(f, "nil"),
       Array(ref n) => write!(f, "[{}]", n),
@@ -173,12 +198,24 @@ impl Type {
     Type::new(TypeNode::Id(id.to_owned()), TypeMode::Regular)
   }
 
-  pub fn int() -> Type {
-    Type::new(TypeNode::Int, TypeMode::Regular)
+  pub fn int32() -> Type {
+    Type::new(TypeNode::I32, TypeMode::Regular)
   }
 
-  pub fn float() -> Type {
-    Type::new(TypeNode::Float, TypeMode::Regular)
+  pub fn int64() -> Type {
+    Type::new(TypeNode::I64, TypeMode::Regular)
+  }
+
+  pub fn int8() -> Type {
+    Type::new(TypeNode::I08, TypeMode::Regular)
+  }
+
+  pub fn float32() -> Type {
+    Type::new(TypeNode::F32, TypeMode::Regular)
+  }
+
+  pub fn float64() -> Type {
+    Type::new(TypeNode::F64, TypeMode::Regular)
   }
 
   pub fn string() -> Type {
@@ -424,7 +461,7 @@ impl<'v> Visitor<'v> {
             let right_type = self.type_expression(&right)?;
 
             if variable_type.node != TypeNode::Nil {
-              if variable_type != &right_type {
+              if variable_type.node != right_type.node {
                 return Err(
                   response!(
                     Wrong(format!("mismatched types, expected type `{}` got `{}`", variable_type.node, right_type)),
@@ -732,8 +769,8 @@ impl<'v> Visitor<'v> {
       String(_) => Type::string(),
       Char(_)   => Type::char(),
       Bool(_)   => Type::bool(),
-      Int(_)    => Type::int(),
-      Float(_)  => Type::float(),
+      Int(_)    => Type::int32(),
+      Float(_)  => Type::float32(),
 
       Call(ref expression, _) => {
         if let TypeNode::Func(_, ref return_type) = self.type_expression(expression)?.node {
@@ -746,11 +783,11 @@ impl<'v> Visitor<'v> {
       Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
 
       Cast(ref expression, ref t) => match (self.type_expression(expression)?.node, &t.node) {
-        (TypeNode::Int,   &TypeNode::Float) => Type::float(),
-        (TypeNode::Float, &TypeNode::Float) => Type::float(),
-        
-        (TypeNode::Float, &TypeNode::Int)   => Type::int(),
-        (TypeNode::Int,   &TypeNode::Int)   => Type::int(),
+        (TypeNode::I08,   b) => Type::new(b.clone(), TypeMode::Regular),
+        (TypeNode::I32,   b) => Type::new(b.clone(), TypeMode::Regular),
+        (TypeNode::I64,   b) => Type::new(b.clone(), TypeMode::Regular),
+        (TypeNode::F32,   b) => Type::new(b.clone(), TypeMode::Regular),
+        (TypeNode::F64,   b) => Type::new(b.clone(), TypeMode::Regular),
 
         (a, b) => return Err(
           response!(
@@ -763,15 +800,11 @@ impl<'v> Visitor<'v> {
 
       Binary(ref left, ref op, ref right) => {
         use self::Operator::*;
-        use self::TypeNode::*;
 
         match (self.type_expression(left)?.node, op, self.type_expression(right)?.node) {
           (ref a, ref op, ref b) => match **op {
             Add | Sub | Mul | Div => match (a, b) {
-              (&Int,   &Int)   => Type::int(),
-              (&Float, &Int)   => Type::float(),
-              (&Float, &Float) => Type::float(),
-              _                => return Err(
+              _ => return Err(
                 response!(
                   Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
                   self.source.file,

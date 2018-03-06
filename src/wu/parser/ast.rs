@@ -28,7 +28,7 @@ impl<'s> Statement<'s> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionNode<'e> {
-  Int(i32),
+  Int(u64),
   Float(f32),
   String(String),
   Char(char),
@@ -42,9 +42,6 @@ pub enum ExpressionNode<'e> {
   Function(Vec<Statement<'e>>, Type, Rc<Expression<'e>>),
   Call(Rc<Expression<'e>>, Vec<Expression<'e>>),
   EOF,
-
-  // specifics
-  Byte(u8),
 }
 
 #[derive(Debug, Clone, PartialEq)]

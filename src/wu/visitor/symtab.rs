@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use std::rc::Rc;
+
 
 
 #[derive(Clone)]
@@ -10,7 +12,7 @@ pub struct SymTab<'s> {
 }
 
 impl<'s> SymTab<'s> {
-  pub fn new(parent: &'s SymTab, names: &[String]) -> Self {
+  pub fn new(parent: &'s Self, names: &[String]) -> Self {
     let mut hash_names = HashMap::new();
 
     for (i, name) in names.iter().enumerate() {
