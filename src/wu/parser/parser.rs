@@ -120,7 +120,7 @@ impl<'p> Parser<'p> {
 
       let expression = match token_type {
         Int => Expression::new(
-          ExpressionNode::Int(self.eat()?.parse::<u64>().unwrap()),
+          ExpressionNode::Int(self.eat()?.parse::<u128>().unwrap()),
           position
         ),
 
@@ -195,7 +195,7 @@ impl<'p> Parser<'p> {
               let params = self.parse_block_of(("(", ")"), &Self::_parse_declaration_comma)?;              
 
               let return_type = if self.current_lexeme() == "->" {
-                Type::nil()
+                Type::from(TypeNode::Nil)
               } else {
                 self.parse_type()?
               };
@@ -224,7 +224,7 @@ impl<'p> Parser<'p> {
               } else if content.len() > 1 {
                 Expression::new(
                   ExpressionNode::Set(content),
-                  position
+                  self.span_from(position)
                 )
               } else {
                 return Err(
@@ -399,7 +399,7 @@ impl<'p> Parser<'p> {
             Ok(
               Statement::new(
                 StatementNode::Variable(
-                  Type::nil(),
+                  Type::from(TypeNode::Nil),
                   left,
                   right,
                 ),
@@ -478,17 +478,27 @@ impl<'p> Parser<'p> {
 
   fn parse_type(&mut self) -> Result<Type, ()> {
     use self::TokenType::*;
+    use self::TypeNode::*;
 
     let t = match *self.current_type() {
       Identifier => match self.eat()?.as_str() {
-        "str"   => Type::string(),
-        "char"  => Type::char(),
-        "f32"   => Type::float32(),
-        "f64"   => Type::float64(),
-        "i8"    => Type::int8(),
-        "i32"   => Type::int32(),
-        "i64"   => Type::int64(),
-        "bool"  => Type::bool(),
+        "str"   => Type::from(Str),
+        "char"  => Type::from(TypeNode::Char),
+
+        "i8"    => Type::from(I08),
+        "i32"   => Type::from(I32),
+        "i64"   => Type::from(I64),
+        "i128"  => Type::from(I128),
+
+        "u8"    => Type::from(U08),
+        "u32"   => Type::from(U32),
+        "u64"   => Type::from(U64),
+        "u128"  => Type::from(U128),
+
+        "f32"   => Type::from(F32),
+        "f64"   => Type::from(F64),
+
+        "bool"  => Type::from(TypeNode::Bool),
         id      => Type::id(id),
       },
 

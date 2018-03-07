@@ -130,9 +130,13 @@ impl VirtualMachine {
         ConvIF => {
           ip += 1;
 
-          let size_from = bytecode[ip] as i8;
+          let mut size_from = bytecode[ip] as i8;
 
           let is_signed = size_from < 0;
+
+          if is_signed {
+            size_from = -size_from 
+          };
 
           ip += 1;
 
@@ -140,15 +144,15 @@ impl VirtualMachine {
 
           ip += 1;
 
-          self.compute_top += 8 - size_from as u32;
+          self.compute_top += 16 - size_from as u32;
 
-          let value = from_bytes!(&read(&self.compute_stack, self.compute_top - 8, 8) => u64);
+          let value = from_bytes!(&read(&self.compute_stack, self.compute_top - 16, 16) => u128);
 
-          self.compute_top -= 8;
+          self.compute_top -= 16;
 
           if size_to == 4 {
-            let new_value = if !is_signed {
-              value as i64 as f32
+            let new_value = if is_signed {
+              value as i128 as f32
             } else {
               value as f32
             };
@@ -160,8 +164,8 @@ impl VirtualMachine {
             self.compute_top += converted_size
 
           } else if size_to == 8 {
-            let new_value = if !is_signed {
-              value as i64 as f64
+            let new_value = if is_signed {
+              value as i128 as f64
             } else {
               value as f64
             };
@@ -177,7 +181,13 @@ impl VirtualMachine {
         ConvFI => {
           ip += 1;
 
-          let size_from = bytecode[ip];
+          let mut size_from = bytecode[ip] as i8;
+
+          let is_signed = size_from < 0;
+
+          if is_signed {
+            size_from = -size_from 
+          };
 
           ip += 1;
 
@@ -185,23 +195,34 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let converted = if size_from == 4 {
-            let value = &read(&self.compute_stack, self.compute_top - 4, 4);
+          let value = from_bytes!(&read(&self.compute_stack, self.compute_top - size_from as u32, size_from as u32) => u32);
 
-            from_bytes!(value => f32) as i64
-          } else if size_from == 8 {
-            let value = &read(&self.compute_stack, self.compute_top - 8, 8);
+          if size_to == 4 {
+            let new_value = if is_signed {
+              value as i128 as f32
+            } else {
+              value as f32
+            };
 
-            from_bytes!(value => f64) as i64
-          } else {
-            unreachable!()
-          };
+            let converted_size = mem::size_of::<f32>() as u32;
 
-          self.compute_top -= size_from as u32;
+            memmove!(&to_bytes!(new_value => u32)[0 .. size_to as usize] => self.compute_stack, [self.compute_top; size_to as u32]);
 
-          memmove!(&to_bytes!(converted => u64)[0 .. size_to as usize] => self.compute_stack, [self.compute_top; size_to as u32]);
+            self.compute_top += converted_size
 
-          self.compute_top += size_to as u32
+          } else if size_to == 8 {
+            let new_value = if is_signed {
+              value as i128 as f64
+            } else {
+              value as f64
+            };
+
+            let converted_size = mem::size_of::<f64>() as u32;
+
+            memmove!(&to_bytes!(new_value => u64)[0 .. size_to as usize] => self.compute_stack, [self.compute_top; size_to as u32]);
+
+            self.compute_top += converted_size
+          }
         },
 
         ConvII => {
@@ -215,19 +236,9 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let converted = &if size_from == 4 {
-            read(&self.compute_stack, self.compute_top - 4, 4)
-          } else if size_from == 8 {
-            read(&self.compute_stack, self.compute_top - 8, 8)
-          } else {
-            unreachable!()
-          };
-
-          self.compute_top -= size_from as u32;
-
-          memmove!(&to_bytes!(converted => u64)[0 .. size_to as usize] => self.compute_stack, [self.compute_top; size_to as u32]);
-
-          self.compute_top += size_to as u32
+          if size_from != size_to {
+            self.compute_top = (self.compute_top as i32 + size_to as i32 - size_from as i32) as u32
+          }
         },
 
         _ => (),

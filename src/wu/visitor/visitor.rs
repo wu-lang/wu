@@ -6,14 +6,22 @@ use std::fmt::{ self, Formatter, Write, Display };
 use std::rc::Rc;
 use std::mem;
 
+
+
 #[derive(Debug, Clone)]
 pub enum TypeNode {
-  I64,
-  I32,
   I08,
+  I32,
+  I64,
+  I128,
 
   F64,
   F32,
+
+  U08,
+  U32,
+  U64,
+  U128,
 
   Bool,
   Str,
@@ -30,17 +38,46 @@ impl TypeNode {
     use self::TypeNode::*;
 
     match *self {
-      I08  => mem::size_of::<u8>()  as u8,
-      I32  => mem::size_of::<i32>() as u8,
-      I64  => mem::size_of::<i64>() as u8,
+      I08  => mem::size_of::<i8>()   as u8,
+      I32  => mem::size_of::<i32>()  as u8,
+      I64  => mem::size_of::<i64>()  as u8,
+      I128 => mem::size_of::<i128>() as u8,
 
       F32  => mem::size_of::<f32>() as u8,
       F64  => mem::size_of::<f32>() as u8,
 
+      U08  => mem::size_of::<u8>()   as u8,
+      U32  => mem::size_of::<u32>()  as u8,
+      U64  => mem::size_of::<u64>()  as u8,
+      U128 => mem::size_of::<u128>() as u8,
+
       Char => mem::size_of::<char>() as u8,
       Bool => mem::size_of::<bool>() as u8,
 
+      Set(ref content) => {
+        let mut acc = 0;
+
+        for element in content {
+          acc += element.node.byte_size()
+        }
+
+        acc
+      }
+
       ref other => panic!("no type size: {:?}", other),
+    }
+  }
+
+  pub fn check_expression(&self, other: &ExpressionNode) -> bool {
+    use self::TypeNode::*;
+
+    if let &ExpressionNode::Int(_) = other {
+      match *self {
+        I08 | I64 | I128 | F32 | F64 | U08 | U32 | U64 | U128 => true,
+        _ => false,
+      }
+    } else {
+      false
     }
   }
 }
@@ -51,25 +88,27 @@ impl PartialEq for TypeNode {
 
     match (self, other) {
       (&I08,  &I08)  => true,
-      (&I08,  &I32)  => true,
       (&I32,  &I32)  => true,
       (&I64,  &I64)  => true,
-      (&I64,  &I32)  => true,
-      (&I32, &I08)   => true,
+      (&I128, &I128) => true,
 
-      (&F32,  b) if *b == I08 || *b == I32 || *b == I64 => true,
-      (&F64,  b) if *b == I08 || *b == I32 || *b == I64 => true,
-      
       (&F32,  &F32) => true,
       (&F64,  &F64) => true,
+
+      (&U08,  &U08)  => true,
+      (&U32,  &U32)  => true,
+      (&U64,  &U64)  => true,
+      (&U128, &U128) => true,
 
       (&Bool, &Bool) => true,
       (&Str,  &Str)  => true,
       (&Char, &Char) => true,
       (&Nil,  &Nil)  => true,
+
       (&Array(ref a), &Array(ref b)) => a == b,
       (&Id(ref a), &Id(ref b))       => a == b,
       (&Set(ref a), &Set(ref b))     => a == b,
+
       _                              => false,
     }
   }
@@ -90,12 +129,18 @@ impl Display for TypeNode {
     use self::TypeNode::*;
 
     match *self {
-      I64          => write!(f, "i64"),
-      I32          => write!(f, "i32"),
       I08          => write!(f, "i8"),
+      I32          => write!(f, "i32"),
+      I64          => write!(f, "i64"),
+      I128         => write!(f, "i128"),
 
       F64          => write!(f, "f64"),
       F32          => write!(f, "f32"),
+
+      U08          => write!(f, "u8"),
+      U32          => write!(f, "u32"),
+      U64          => write!(f, "u64"),
+      U128         => write!(f, "u128"),
 
       Bool         => write!(f, "bool"),
       Str          => write!(f, "str"),
@@ -198,40 +243,8 @@ impl Type {
     Type::new(TypeNode::Id(id.to_owned()), TypeMode::Regular)
   }
 
-  pub fn int32() -> Type {
-    Type::new(TypeNode::I32, TypeMode::Regular)
-  }
-
-  pub fn int64() -> Type {
-    Type::new(TypeNode::I64, TypeMode::Regular)
-  }
-
-  pub fn int8() -> Type {
-    Type::new(TypeNode::I08, TypeMode::Regular)
-  }
-
-  pub fn float32() -> Type {
-    Type::new(TypeNode::F32, TypeMode::Regular)
-  }
-
-  pub fn float64() -> Type {
-    Type::new(TypeNode::F64, TypeMode::Regular)
-  }
-
-  pub fn string() -> Type {
-    Type::new(TypeNode::Str, TypeMode::Regular)
-  }
-
-  pub fn char() -> Type {
-    Type::new(TypeNode::Char, TypeMode::Regular)
-  }
-
-  pub fn bool() -> Type {
-    Type::new(TypeNode::Bool, TypeMode::Regular)
-  }
-
-  pub fn nil() -> Type {
-    Type::new(TypeNode::Nil, TypeMode::Regular)
+  pub fn from(node: TypeNode) -> Type {
+    Type::new(node, TypeMode::Regular)
   }
 
   pub fn set(content: Vec<Type>) -> Type {
@@ -460,8 +473,8 @@ impl<'v> Visitor<'v> {
 
             let right_type = self.type_expression(&right)?;
 
-            if variable_type.node != TypeNode::Nil {
-              if variable_type.node != right_type.node {
+            if variable_type.node != TypeNode::Nil {              
+              if !variable_type.node.check_expression(&right.node) && variable_type.node != right_type.node {
                 return Err(
                   response!(
                     Wrong(format!("mismatched types, expected type `{}` got `{}`", variable_type.node, right_type)),
@@ -627,7 +640,7 @@ impl<'v> Visitor<'v> {
           let right_type = self.type_expression(right)?;
 
           if constant_type.node != TypeNode::Nil {
-            if constant_type != &right_type {              
+            if !constant_type.node.check_expression(&right.node) && constant_type != &right_type {
               return Err(
                 response!(
                   Wrong(format!("mismatched types, expected type `{}` got `{}`", constant_type.node, right_type)),
@@ -766,11 +779,11 @@ impl<'v> Visitor<'v> {
         )
       },
 
-      String(_) => Type::string(),
-      Char(_)   => Type::char(),
-      Bool(_)   => Type::bool(),
-      Int(_)    => Type::int32(),
-      Float(_)  => Type::float32(),
+      String(_) => Type::from(TypeNode::Str),
+      Char(_)   => Type::from(TypeNode::Char),
+      Bool(_)   => Type::from(TypeNode::Bool),
+      Int(_)    => Type::from(TypeNode::I128),
+      Float(_)  => Type::from(TypeNode::F32),
 
       Call(ref expression, _) => {
         if let TypeNode::Func(_, ref return_type) = self.type_expression(expression)?.node {
@@ -782,21 +795,7 @@ impl<'v> Visitor<'v> {
 
       Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
 
-      Cast(ref expression, ref t) => match (self.type_expression(expression)?.node, &t.node) {
-        (TypeNode::I08,   b) => Type::new(b.clone(), TypeMode::Regular),
-        (TypeNode::I32,   b) => Type::new(b.clone(), TypeMode::Regular),
-        (TypeNode::I64,   b) => Type::new(b.clone(), TypeMode::Regular),
-        (TypeNode::F32,   b) => Type::new(b.clone(), TypeMode::Regular),
-        (TypeNode::F64,   b) => Type::new(b.clone(), TypeMode::Regular),
-
-        (a, b) => return Err(
-          response!(
-            Wrong(format!("can't cast from {} to {}", a, b)),
-            self.source.file,
-            expression.pos
-          )
-        )
-      },
+      Cast(_, ref t) => Type::from(t.node.clone()),
 
       Binary(ref left, ref op, ref right) => {
         use self::Operator::*;
@@ -822,7 +821,7 @@ impl<'v> Visitor<'v> {
             )
           },
 
-          _ => Type::nil(),
+          _ => Type::from(TypeNode::Nil),
         }
       },
 
@@ -851,7 +850,7 @@ impl<'v> Visitor<'v> {
         Type::set(type_content)
       },
 
-      _ => Type::nil()
+      _ => Type::from(TypeNode::Nil)
     };
 
     Ok(t)

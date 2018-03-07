@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use super::Type;
+use super::{ Type, TypeNode, };
 use super::super::error::Response::Wrong;
 
 
@@ -90,6 +90,6 @@ impl<'t> TypeTab<'t> {
   }
 
   pub fn grow(&mut self) {
-    RefCell::borrow_mut(&self.types).push((Type::nil(), 0))
+    RefCell::borrow_mut(&self.types).push((Type::from(TypeNode::Nil), 0))
   }
 }

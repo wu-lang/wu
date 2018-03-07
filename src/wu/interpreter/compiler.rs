@@ -41,75 +41,23 @@ impl<'c> Compiler<'c> {
     match statement.node {
       Expression(ref expression) => self.compile_expression(expression)?,
       Constant(ref t, ref left, ref right) => {
-        if let ExpressionNode::Identifier(ref name) = left.node {
-          use self::TypeNode::*;
-
-          self.compile_expression(right)?;
-
-          match &t.node {
-            &I08 => self.emit(Instruction::ConvII),
-            _       => (),
-          }
-
-          self.emit(Instruction::Pop);
-
-          let right_type = self.visitor.type_expression(right)?;
-
-          self.emit_byte(right_type.node.byte_size());
-
-          let (index, env_index) = self.visitor.symtab.get_name(name).unwrap();
-          let offset             = self.visitor.typetab.get_offset(index, env_index).unwrap();
-
-          let address = &to_bytes!(offset => u32);
-
-          self.emit_bytes(address);
+        if let ExpressionNode::Identifier(_) = left.node {
+          self.assign(t, left, right)?
         }
       }
 
       Variable(ref t, ref left, ref right) => {
-        if let ExpressionNode::Identifier(ref name) = left.node {
+        if let ExpressionNode::Identifier(_) = left.node {
           if let &Some(ref right) = right {
-            use self::TypeNode::*;
-
-            self.compile_expression(right)?;
-
-            let right_type = self.visitor.type_expression(right)?;
-
-            match &t.node {
-              &I08 | &I32 | &I64 => match &right_type.node {
-                &I32 | &I64 => {
-                  self.emit(Instruction::ConvII);
-                  self.emit_byte(right_type.node.byte_size());
-                  self.emit_byte(I08.byte_size())
-                },
-
-                _ => (),
-              },
-
-              &F32 => match &right_type.node {
-                &I08 | &I32 | &I64 => {
-                  self.emit(Instruction::ConvIF);
-                  self.emit_byte(right_type.node.byte_size());
-                  self.emit_byte(F32.byte_size())
-                },
-
-                _ => (),
-              }
-
-              _ => (),
-            }
-
-            self.emit(Instruction::Pop);
-
-            self.emit_byte(right_type.node.byte_size());
-
-            let (index, env_index) = self.visitor.symtab.get_name(name).unwrap();
-            let offset             = self.visitor.typetab.get_offset(index, env_index).unwrap();
-
-            let address = &to_bytes!(offset => u32);
-
-            self.emit_bytes(address);
+            self.assign(t, left, right)?
           }
+        } else if let ExpressionNode::Set(_) = left.node {
+          return Err(
+            response!(
+              Wrong("set declaration compilation is unimplemented"),
+              statement.pos
+            )
+          )
         }
       }
 
@@ -125,10 +73,10 @@ impl<'c> Compiler<'c> {
     match expression.node {
       Int(ref n) => {
         self.emit(Instruction::Push);
-        self.emit_byte(mem::size_of::<i32>() as u8);
+        self.emit_byte(mem::size_of::<u128>() as u8);
         self.emit_bytes(
           unsafe {
-            &mem::transmute::<u32, [u8; mem::size_of::<u32>()]>(*n as u32)
+            &mem::transmute::<u128, [u8; mem::size_of::<u128>()]>(*n)
           }
         );
       },
@@ -167,7 +115,7 @@ impl<'c> Compiler<'c> {
         let size               = self.visitor.typetab.get_type(index, env_index).unwrap().node.byte_size();
 
         self.emit(Instruction::PushDeref);
-        self.emit_byte(size);
+        self.emit_byte(size as u8);
         self.emit_bytes(&to_bytes!(offset => u32));
       },
 
@@ -180,8 +128,8 @@ impl<'c> Compiler<'c> {
 
         match (self.visitor.type_expression(expression)?.node, &t.node) {
           (ref a, ref b) if *b == &F32 || *b == &F64 => match a {
-            &I08 | &I32 |&I64 => self.emit(Instruction::ConvIF),
-            &F32 | &F64       => self.emit(Instruction::ConvFF),
+            &I08 | &I32 | &I64 | &I128 | &U08 | &U32 | &U64 | &U128 => self.emit(Instruction::ConvIF),
+            &F32 | &F64                                             => self.emit(Instruction::ConvFF),
             c => return Err(
               response!(
                 Wrong(format!("can't cast from `{}`", c)),
@@ -190,9 +138,9 @@ impl<'c> Compiler<'c> {
             )
           },
 
-          (ref a, ref b) if *b == &I08 || *b == &I32 || *b == &I64 => match a {
-            &F32 | &F64        => self.emit(Instruction::ConvFI),
-            &I08 | &I32 | &I64 => self.emit(Instruction::ConvII),
+          (ref a, ref b) if *b == &I08 || *b == &I32 || *b == &I64 || *b == &I128 || *b == &U08 || *b == &U32 || *b == &U64 || *b == &U128 => match a {
+            &F32 | &F64                                             => self.emit(Instruction::ConvFI),
+            &I08 | &I32 | &I64 | &I128 | &U08 | &U32 | &U64 | &U128 => self.emit(Instruction::ConvII),
 
             c => return Err(
               response!(
@@ -205,11 +153,66 @@ impl<'c> Compiler<'c> {
           (_, ref node) => return Err(response!(Wrong(format!("can't cast to `{}`", node))))
         }
 
-        self.emit_byte(size);
-        self.emit_byte(t.node.byte_size())
+        self.emit_byte(size as u8);
+        self.emit_byte(t.node.byte_size() as u8)
       },
 
       _ => (),
+    }
+
+    Ok(())
+  }
+
+
+
+  fn assign(&mut self, t: &Type, left: &'c Expression<'c>, right: &'c Expression<'c>) -> Result<(), ()> {
+    use self::TypeNode::*;
+
+    if let ExpressionNode::Identifier(ref name) = left.node {
+      self.compile_expression(right)?;
+
+      let right_type = self.visitor.type_expression(right)?;
+
+      if right_type.node != t.node {
+        match &t.node {
+          &I08 | &I32 | &I64 | &I128 | &U08 | &U32 | &U64 | &U128 => match &right_type.node {
+            &I08 | &I32 | &I64 | &I128 => {
+              self.emit(Instruction::ConvII);
+              self.emit_byte(right_type.node.byte_size() as u8);
+              self.emit_byte(t.node.byte_size() as u8)
+            },
+
+            _ => (),
+          },
+
+          &F32 | &F64 => match &right_type.node {
+            &I08 | &I32 | &I64 => {
+              self.emit(Instruction::ConvIF);
+              self.emit_byte(right_type.node.byte_size() as u8);
+              self.emit_byte(t.node.byte_size() as u8)
+            },
+
+            _ => (),
+          }
+
+          _ => (),
+        }
+      }
+
+      self.emit(Instruction::Pop);
+
+      if t.node != Nil {
+        self.emit_byte(t.node.byte_size() as u8);      
+      } else {
+        self.emit_byte(right_type.node.byte_size() as u8);
+      }
+
+      let (index, env_index) = self.visitor.symtab.get_name(name).unwrap();
+      let offset             = self.visitor.typetab.get_offset(index, env_index).unwrap();
+
+      let address = &to_bytes!(offset => u32);
+
+      self.emit_bytes(address);
     }
 
     Ok(())

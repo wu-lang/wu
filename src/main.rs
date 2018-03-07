@@ -1,4 +1,8 @@
 #![feature(i128)]
+#![feature(i128_type)]
+
+#![feature(u128)]
+#![feature(u128_type)]
 
 extern crate colored;
 
@@ -39,14 +43,18 @@ fn run(content: &str) {
         Ok(_) => {
           let mut compiler = Compiler::new(&mut visitor);
 
-          compiler.compile(&ast);
+          match compiler.compile(&ast) {
+            Ok(_) => {
+              let mut vm = VirtualMachine::new();
 
-          let mut vm = VirtualMachine::new();
+              vm.execute(compiler.bytecode.as_slice());
 
-          vm.execute(compiler.bytecode.as_slice());
+              println!("stack: {:?}", &vm.compute_stack[..16]);
+              println!("vars:  {:?}", &vm.var_stack[..16]);
+            },
 
-          println!("stack: {:?}", &vm.compute_stack[..16]);
-          println!("vars:  {:?}", &vm.var_stack[..16]);
+            _ => (),
+          }
         }
         _ => ()
       }
@@ -119,8 +127,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-a: f32 = 10
-b: i8  = a as i8
+a: u8 = 10
   "#;
 
   run(&test4);
