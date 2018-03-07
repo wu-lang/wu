@@ -125,7 +125,7 @@ impl<'p> Parser<'p> {
         ),
 
         Float => Expression::new(
-          ExpressionNode::Float(self.eat()?.parse::<f32>().unwrap()),
+          ExpressionNode::Float(self.eat()?.parse::<f64>().unwrap()),
           position
         ),
 

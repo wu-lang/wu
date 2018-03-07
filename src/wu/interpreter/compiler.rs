@@ -83,10 +83,10 @@ impl<'c> Compiler<'c> {
 
       Float(ref n) => {
         self.emit(Instruction::Push);
-        self.emit_byte(mem::size_of::<f32>() as u8);
+        self.emit_byte(mem::size_of::<f64>() as u8);
         self.emit_bytes(
           unsafe {
-            &mem::transmute::<f32, [u8; mem::size_of::<f32>()]>(*n)
+            &mem::transmute::<f64, [u8; mem::size_of::<f64>()]>(*n)
           }
         );
       },
@@ -125,7 +125,19 @@ impl<'c> Compiler<'c> {
         self.compile_expression(left)?;
         self.compile_expression(right)?;
 
+        let left_type = self.visitor.type_expression(left)?;
+
         match *op {
+          Add => {
+            if left_type.node.is_int() {
+              self.emit(Instruction::AddI)
+            } else if left_type.node.is_float() {
+              self.emit(Instruction::AddF)
+            }
+
+            self.emit_byte(left_type.node.byte_size())
+          },
+
           _ => (),
         }
       }
@@ -182,8 +194,8 @@ impl<'c> Compiler<'c> {
           (_, ref node) => return Err(response!(Wrong(format!("can't cast to `{}`", node))))
         }
 
-        self.emit_byte(if sign_a { -size as u8 } else { size as u8 });
-        self.emit_byte(if sign_b { -t.node.byte_size() as u8 } else { t.node.byte_size() as u8 })
+        self.emit_byte(if sign_a { -(size as i8) as u8 } else { size as u8 });
+        self.emit_byte(if sign_b { -(t.node.byte_size() as i8) as u8 } else { t.node.byte_size() as u8 })
       },
 
       _ => (),
@@ -217,7 +229,7 @@ impl<'c> Compiler<'c> {
           &F32 | &F64 => match &right_type.node {
             &I128 => {
               self.emit(Instruction::ConvIF);
-              self.emit_byte(-right_type.node.byte_size() as u8);
+              self.emit_byte(-(right_type.node.byte_size() as i8) as u8);
               self.emit_byte(t.node.byte_size() as u8)
             },
 

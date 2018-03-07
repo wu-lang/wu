@@ -35,12 +35,12 @@ fn run(content: &str) {
 
   match parser.parse() {
     Ok(ast) => {
-      println!("{:#?}", ast);
+      println!("{:#?}", ast);      
 
-      let mut visitor = Visitor::new(&source, &ast);
+      let mut visitor = Visitor::new(&source, &ast);      
  
       match visitor.visit() {
-        Ok(_) => {
+        Ok(_) => {          
           let mut compiler = Compiler::new(&mut visitor);
 
           match compiler.compile(&ast) {
@@ -127,12 +127,8 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-a: i8 = 1
-b: u32 = a as u32
-c: f32 = a as f32
-d: f64 = b as f64
-e: i32 = c as i32
-f: f32 = d as f32
+a: f32 = 10
+b: f64 = a as f64 + 100.0
   "#;
 
   run(&test4);

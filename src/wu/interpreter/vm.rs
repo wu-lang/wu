@@ -256,7 +256,7 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let value = from_bytes!(&read(&self.compute_stack, self.compute_top - size_from as u32, size_from as u32) => u64);
+          let value = from_bytes!(&read(&self.compute_stack, self.compute_top - size_from as u32, size_from as u32) => u32);
 
           if size_to == 4 {
 
@@ -290,7 +290,28 @@ impl VirtualMachine {
               let a = pop!([&self.compute_stack, self.compute_top] => u8);
               let b = pop!([&self.compute_stack, self.compute_top] => u8);
 
-              memmove!(&to_bytes!(a.wrapping_add(b) => u8) => self.compute_stack, [self.compute_top; size as u32]);
+              push!(&to_bytes!(a.wrapping_add(b) => u8) => self.compute_stack, [self.compute_top; size as u32]);
+            },
+
+            4 => {
+              let a = pop!([&self.compute_stack, self.compute_top] => u32);
+              let b = pop!([&self.compute_stack, self.compute_top] => u32);
+
+              push!(&to_bytes!(a.wrapping_add(b) => u32) => self.compute_stack, [self.compute_top; size as u32]);
+            },
+
+            8 => {
+              let a = pop!([&self.compute_stack, self.compute_top] => u64);
+              let b = pop!([&self.compute_stack, self.compute_top] => u64);
+
+              push!(&to_bytes!(a.wrapping_add(b) => u64) => self.compute_stack, [self.compute_top; size as u32]);
+            },
+
+            16 => {
+              let a = pop!([&self.compute_stack, self.compute_top] => u128);
+              let b = pop!([&self.compute_stack, self.compute_top] => u128);
+
+              push!(&to_bytes!(a.wrapping_add(b) => u128) => self.compute_stack, [self.compute_top; size as u32]);
             },
 
             _ => unreachable!()
@@ -305,6 +326,20 @@ impl VirtualMachine {
           ip += 1;
 
           match size {
+            4 => {
+              let a = pop!([&self.compute_stack, self.compute_top] => f32);
+              let b = pop!([&self.compute_stack, self.compute_top] => f32);
+
+              push!(&to_bytes!(a + b => f32) => self.compute_stack, [self.compute_top; size as u32]);
+            },
+
+            8 => {
+              let a = pop!([&self.compute_stack, self.compute_top] => f64);
+              let b = pop!([&self.compute_stack, self.compute_top] => f64);
+
+              push!(&to_bytes!(a + b => f64) => self.compute_stack, [self.compute_top; size as u32]);
+            },
+
             _ => unreachable!()
           }
         }

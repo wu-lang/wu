@@ -34,25 +34,25 @@ pub enum TypeNode {
 }
 
 impl TypeNode {
-  pub fn byte_size(&self) -> i8 {
+  pub fn byte_size(&self) -> u8 {
     use self::TypeNode::*;
 
     match *self {
-      I08  => mem::size_of::<i8>()   as i8,
-      I32  => mem::size_of::<i32>()  as i8,
-      I64  => mem::size_of::<i64>()  as i8,
-      I128 => mem::size_of::<i128>() as i8,
+      I08  => mem::size_of::<i8>()   as u8,
+      I32  => mem::size_of::<i32>()  as u8,
+      I64  => mem::size_of::<i64>()  as u8,
+      I128 => mem::size_of::<i128>() as u8,
 
-      F32  => mem::size_of::<f32>() as i8,
-      F64  => mem::size_of::<f64>() as i8,
+      F32  => mem::size_of::<f32>() as u8,
+      F64  => mem::size_of::<f64>() as u8,
 
-      U08  => mem::size_of::<u8>()   as i8,
-      U32  => mem::size_of::<u32>()  as i8,
-      U64  => mem::size_of::<u64>()  as i8,
-      U128 => mem::size_of::<u128>() as i8,
+      U08  => mem::size_of::<u8>()   as u8,
+      U32  => mem::size_of::<u32>()  as u8,
+      U64  => mem::size_of::<u64>()  as u8,
+      U128 => mem::size_of::<u128>() as u8,
 
-      Char => mem::size_of::<char>() as i8,
-      Bool => mem::size_of::<bool>() as i8,
+      Char => mem::size_of::<char>() as u8,
+      Bool => mem::size_of::<bool>() as u8,
 
       ref other => panic!("no type size: {:?}", other),
     }
@@ -316,7 +316,9 @@ impl<'v> Visitor<'v> {
       Expression(ref expression) => self.visit_expression(expression),
 
       Variable(_, ref left, _) => match left.node {
-        ExpressionNode::Identifier(_) | ExpressionNode::Set(_) => self.visit_variable(&statement.node),
+        ExpressionNode::Identifier(_) | ExpressionNode::Set(_) => {
+          self.visit_variable(&statement.node)
+        },
         _ => Ok(())
       },
 
@@ -486,8 +488,8 @@ impl<'v> Visitor<'v> {
 
             let right_type = self.type_expression(&right)?;
 
-            if variable_type.node != TypeNode::Nil {              
-              if !variable_type.node.check_expression(&right.node) && variable_type.node != right_type.node {
+            if variable_type.node != TypeNode::Nil {
+              if !variable_type.node.check_expression(&self.fold_expression(right)?.node) && variable_type.node != right_type.node {
                 return Err(
                   response!(
                     Wrong(format!("mismatched types, expected type `{}` got `{}`", variable_type.node, right_type)),
@@ -653,7 +655,7 @@ impl<'v> Visitor<'v> {
           let right_type = self.type_expression(right)?;
 
           if constant_type.node != TypeNode::Nil {
-            if !constant_type.node.check_expression(&right.node) && constant_type != &right_type {
+            if !constant_type.node.check_expression(&self.fold_expression(right)?.node) && constant_type != &right_type {
               return Err(
                 response!(
                   Wrong(format!("mismatched types, expected type `{}` got `{}`", constant_type.node, right_type)),
@@ -796,7 +798,7 @@ impl<'v> Visitor<'v> {
       Char(_)   => Type::from(TypeNode::Char),
       Bool(_)   => Type::from(TypeNode::Bool),
       Int(_)    => Type::from(TypeNode::I128),
-      Float(_)  => Type::from(TypeNode::F32),
+      Float(_)  => Type::from(TypeNode::F64),
 
       Call(ref expression, _) => {
         if let TypeNode::Func(_, ref return_type) = self.type_expression(expression)?.node {
@@ -815,8 +817,10 @@ impl<'v> Visitor<'v> {
 
         match (self.type_expression(left)?.node, op, self.type_expression(right)?.node) {
           (ref a, ref op, ref b) => match **op {
-            Add | Sub | Mul | Div => match (a, b) {
-              _ => return Err(
+            Add | Sub | Mul | Div => if a == b {
+              Type::from(a.to_owned())
+            } else {
+              return Err(
                 response!(
                   Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
                   self.source.file,
@@ -886,8 +890,8 @@ impl<'v> Visitor<'v> {
           (&Float(ref a), &Mul, &Float(ref b)) => Float(a * b),
           (&Int(ref a),   &Div, &Int(ref b))   => Int(a / b),
           (&Float(ref a), &Div, &Float(ref b)) => Float(a / b),
-          
-          _ => return Err(()),
+
+          _ => expression.node.clone()
         };
 
         Expression::new(

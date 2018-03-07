@@ -33,10 +33,22 @@ macro_rules! memmove {
 
 #[macro_export]
 macro_rules! pop {
-    ([$stack:expr, $top:expr] => $type:ty) => {{
-        $top -= mem::size_of::<$type>() as u32;
-        from_bytes!(&read($stack, $top, mem::size_of::<$type> as u32) =>$type)
-    }}
+  ([$stack:expr, $top:expr] => $type:ty) => {{
+    $top -= mem::size_of::<$type>() as u32;
+
+    from_bytes!(&read($stack, $top, mem::size_of::<$type>() as u32) =>$type)
+  }}
+}
+
+
+
+#[macro_export]
+macro_rules! push {
+  ($source:expr => $target:expr,[$from:expr; $size:expr]) => {{
+    let mut slice = &mut $target[$from as usize .. ($from + $size) as usize];
+    slice.copy_from_slice($source);
+    $from += $size;
+  }}
 }
 
 
