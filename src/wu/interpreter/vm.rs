@@ -18,6 +18,7 @@ pub enum Instruction {
   ConvFF    = 0x07,
   AddI      = 0x08,
   AddF      = 0x09,
+  JMP       = 0x10,
 }
 
 impl fmt::Display for Instruction {
@@ -35,6 +36,7 @@ impl fmt::Display for Instruction {
       ConvFF    => "convff",
       AddI      => "addi",
       AddF      => "addf",
+      JMP       => "jmp",
     };
 
     write!(f, "{}", name)
@@ -342,7 +344,13 @@ impl VirtualMachine {
 
             _ => unreachable!()
           }
-        }
+        },
+
+        JMP => {
+          ip += 1;
+
+          ip = from_bytes!(&bytecode[ip .. ip + 4] => u32) as usize
+        },
       }
     }
 
