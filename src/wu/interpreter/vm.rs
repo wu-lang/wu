@@ -18,7 +18,17 @@ pub enum Instruction {
   ConvFF    = 0x07,
   AddI      = 0x08,
   AddF      = 0x09,
-  JMP       = 0x10,
+  Jmp       = 0x10,
+
+  CmpI      = 0x11,
+  CmpF      = 0x12,
+
+  JEq       = 0x13,
+  JLt       = 0x14,
+  JGt       = 0x15,
+  JNE       = 0x16,
+  JLE       = 0x17,
+  JGE       = 0x18,
 }
 
 impl fmt::Display for Instruction {
@@ -36,12 +46,31 @@ impl fmt::Display for Instruction {
       ConvFF    => "convff",
       AddI      => "addi",
       AddF      => "addf",
-      JMP       => "jmp",
+      Jmp       => "jmp",
+      CmpI      => "cmpi",
+      CmpF      => "cmpf",
+
+      JEq       => "jeq",
+      JLt       => "jlt",
+      JGt       => "jgt",
+      JNE       => "jne",
+      JLE       => "jle",
+      JGE       => "jge",
     };
 
     write!(f, "{}", name)
   }
 }
+
+
+
+mod CmpResult {
+  pub const Eq: u8 = 0b001;
+  pub const Gt: u8 = 0b010;
+  pub const Lt: u8 = 0b100;
+}
+
+
 
 pub struct VirtualMachine {
   pub var_stack:     [u8; 262144],
@@ -67,21 +96,21 @@ impl VirtualMachine {
   pub fn execute(&mut self, bytecode: &[u8]) -> Result<(), ()> {
     use self::Instruction::*;
 
-    let mut ip = 0;
+    let mut ip: u32 = 0;
 
     loop {
-      match unsafe { mem::transmute::<u8, Instruction>(bytecode[ip]) } {
+      match unsafe { mem::transmute::<u8, Instruction>(bytecode[ip as usize]) } {
         Halt => break,
 
         Push => {
           ip += 1;
 
-          let size = bytecode[ip];
+          let size = bytecode[ip as usize];
 
           ip += 1;
 
           let value = &read(&bytecode, ip as u32, size as u32);
-          ip += size as usize;
+          ip += size as u32;
 
           memmove!(value => self.compute_stack, [self.compute_top; size as u32]);      
 
@@ -91,11 +120,11 @@ impl VirtualMachine {
         Pop => {
           ip += 1;
 
-          let size = bytecode[ip];
+          let size = bytecode[ip as usize];
 
           ip += 1;
 
-          let address = from_bytes!(&bytecode[ip .. ip + 4] => u32);
+          let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32);
 
           ip += 4;
 
@@ -113,11 +142,11 @@ impl VirtualMachine {
         PushDeref => {
           ip += 1;
 
-          let size = bytecode[ip];
+          let size = bytecode[ip as usize];
 
           ip += 1;
 
-          let address = from_bytes!(&bytecode[ip .. ip + 4] => u32) + self.frames.last().unwrap();
+          let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32) + self.frames.last().unwrap();
 
           ip += 4;
 
@@ -136,7 +165,7 @@ impl VirtualMachine {
         ConvIF => {
           ip += 1;
 
-          let mut size_from = bytecode[ip] as i8;
+          let mut size_from = bytecode[ip as usize] as i8;
 
           let is_signed = size_from < 0;
 
@@ -146,7 +175,7 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let size_to = bytecode[ip];
+          let size_to = bytecode[ip as usize];
 
           ip += 1;
 
@@ -187,7 +216,7 @@ impl VirtualMachine {
         ConvFI => {
           ip += 1;
 
-          let mut size_from = bytecode[ip] as i8;
+          let mut size_from = bytecode[ip as usize] as i8;
 
           let is_signed = size_from < 0;
 
@@ -197,7 +226,7 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let size_to = bytecode[ip];
+          let size_to = bytecode[ip as usize];
 
           ip += 1;
 
@@ -234,11 +263,11 @@ impl VirtualMachine {
         ConvII => {
           ip += 1;
 
-          let size_from = bytecode[ip];
+          let size_from = bytecode[ip as usize];
 
           ip += 1;
 
-          let size_to = bytecode[ip];
+          let size_to = bytecode[ip as usize];
 
           ip += 1;
 
@@ -250,18 +279,17 @@ impl VirtualMachine {
         ConvFF => {
           ip += 1;
 
-          let size_from = bytecode[ip];
+          let size_from = bytecode[ip as usize];
 
           ip += 1;
 
-          let size_to = bytecode[ip];
+          let size_to = bytecode[ip as usize];
 
           ip += 1;
 
           let value = from_bytes!(&read(&self.compute_stack, self.compute_top - size_from as u32, size_from as u32) => u32);
 
           if size_to == 4 {
-
             let new_value      = value as f32;
             let converted_size = mem::size_of::<f32>() as u32;
 
@@ -270,7 +298,6 @@ impl VirtualMachine {
             self.compute_top += converted_size
 
           } else if size_to == 8 {
-
             let new_value      = value as f64;
             let converted_size = mem::size_of::<f64>() as u32;
 
@@ -283,35 +310,35 @@ impl VirtualMachine {
         AddI => {
           ip += 1;
 
-          let size = bytecode[ip];
+          let size = bytecode[ip as usize];
 
           ip += 1;
 
           match size {
             1 => {
-              let a = pop!([&self.compute_stack, self.compute_top] => u8);
               let b = pop!([&self.compute_stack, self.compute_top] => u8);
+              let a = pop!([&self.compute_stack, self.compute_top] => u8);
 
               push!(&to_bytes!(a.wrapping_add(b) => u8) => self.compute_stack, [self.compute_top; size as u32]);
             },
 
             4 => {
-              let a = pop!([&self.compute_stack, self.compute_top] => u32);
               let b = pop!([&self.compute_stack, self.compute_top] => u32);
+              let a = pop!([&self.compute_stack, self.compute_top] => u32);
 
               push!(&to_bytes!(a.wrapping_add(b) => u32) => self.compute_stack, [self.compute_top; size as u32]);
             },
 
             8 => {
-              let a = pop!([&self.compute_stack, self.compute_top] => u64);
               let b = pop!([&self.compute_stack, self.compute_top] => u64);
+              let a = pop!([&self.compute_stack, self.compute_top] => u64);
 
               push!(&to_bytes!(a.wrapping_add(b) => u64) => self.compute_stack, [self.compute_top; size as u32]);
             },
 
             16 => {
-              let a = pop!([&self.compute_stack, self.compute_top] => u128);
               let b = pop!([&self.compute_stack, self.compute_top] => u128);
+              let a = pop!([&self.compute_stack, self.compute_top] => u128);
 
               push!(&to_bytes!(a.wrapping_add(b) => u128) => self.compute_stack, [self.compute_top; size as u32]);
             },
@@ -323,21 +350,21 @@ impl VirtualMachine {
         AddF => {
           ip += 1;
 
-          let size = bytecode[ip];
+          let size = bytecode[ip as usize];
 
           ip += 1;
 
           match size {
             4 => {
-              let a = pop!([&self.compute_stack, self.compute_top] => f32);
               let b = pop!([&self.compute_stack, self.compute_top] => f32);
+              let a = pop!([&self.compute_stack, self.compute_top] => f32);
 
               push!(&to_bytes!(a + b => f32) => self.compute_stack, [self.compute_top; size as u32]);
             },
 
             8 => {
-              let a = pop!([&self.compute_stack, self.compute_top] => f64);
               let b = pop!([&self.compute_stack, self.compute_top] => f64);
+              let a = pop!([&self.compute_stack, self.compute_top] => f64);
 
               push!(&to_bytes!(a + b => f64) => self.compute_stack, [self.compute_top; size as u32]);
             },
@@ -346,10 +373,104 @@ impl VirtualMachine {
           }
         },
 
-        JMP => {
+        Jmp => {
+          ip += 5;
+
+          ip = pop!([bytecode, ip] => u32)
+        },
+
+        CmpI => {
           ip += 1;
 
-          ip = from_bytes!(&bytecode[ip .. ip + 4] => u32) as usize
+          let b = pop!([&self.compute_stack, self.compute_top] => u128);
+          let a = pop!([&self.compute_stack, self.compute_top] => u128);
+
+          let mut result = 0b000;
+
+          if a == b {
+            result |= CmpResult::Eq
+          }
+
+          if a > b {
+            result |= CmpResult::Gt
+          }
+
+          if a < b {
+            result |= CmpResult::Lt
+          }
+
+          push!((&to_bytes!(result as u8 => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
+        },
+
+        CmpF => {
+          ip += 1;
+
+          let a = pop!([&self.compute_stack, self.compute_top] => f64);
+          let b = pop!([&self.compute_stack, self.compute_top] => f64);
+
+          let mut result = 0b000;
+
+          if a == b {
+            result |= CmpResult::Eq
+          }
+
+          if a < b {
+            result |= CmpResult::Lt
+          }
+
+          if a > b {
+            result |= CmpResult::Gt
+          }
+
+          push!((&to_bytes!(result as u8 => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
+        },
+
+        JEq => {
+          ip += 5;
+
+          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Eq {
+            ip = pop!([bytecode, ip] => u32)
+          }
+        },
+
+        JLt => {
+          ip += 5;
+
+          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Lt {
+            ip = pop!([bytecode, ip] => u32)
+          }
+        },
+
+        JGt => {
+          ip += 5;
+
+          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Gt {
+            ip = pop!([bytecode, ip] => u32)
+          }
+        },
+
+        JNE => {
+          ip += 5;
+
+          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 != CmpResult::Eq {
+            ip = pop!([bytecode, ip] => u32)
+          }
+        },
+
+        JLE => {
+          ip += 5;
+
+          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Lt | CmpResult::Eq {
+            ip = pop!([bytecode, ip] => u32)
+          }
+        },
+
+        JGE => {
+          ip += 5;
+
+          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Gt | CmpResult::Eq {
+            ip = pop!([bytecode, ip] => u32)
+          }
         },
       }
     }

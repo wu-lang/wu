@@ -41,6 +41,7 @@ pub enum ExpressionNode<'e> {
   Array(Vec<Expression<'e>>),
   Function(Vec<Statement<'e>>, Type, Rc<Expression<'e>>),
   Call(Rc<Expression<'e>>, Vec<Expression<'e>>),
+  Loop(Rc<Expression<'e>>),
   EOF,
 }
 
@@ -63,7 +64,7 @@ impl<'e> Expression<'e> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operator {
-  Add, Sub, Mul, Div, Mod, Pow, Concat,
+  Add, Sub, Mul, Div, Mod, Pow, Concat, Eq, Lt, Gt, NEq, LtEq, GtEq,
 }
 
 impl Operator {
@@ -71,13 +72,19 @@ impl Operator {
     use self::Operator::*;
 
     let op_prec = match operator {
-      "+"  => (Add,    0),
-      "-"  => (Sub,    0),
-      "++" => (Concat, 0),
-      "*"  => (Mul,    1),
-      "/"  => (Div,    1),
-      "%"  => (Mod,    1),
-      "^"  => (Pow,    2),
+      "==" => (Eq,     0),
+      "<"  => (Lt,     0),
+      ">"  => (Gt,     0),
+      "!=" => (NEq,    0),
+      "<=" => (LtEq,   0),
+      ">=" => (GtEq,   0),
+      "+"  => (Add,    1),
+      "-"  => (Sub,    1),
+      "++" => (Concat, 1),
+      "*"  => (Mul,    2),
+      "/"  => (Div,    2),
+      "%"  => (Mod,    2),
+      "^"  => (Pow,    3),
       _    => return None,
     };
 
@@ -95,6 +102,12 @@ impl Operator {
       Div    => "/",
       Mod    => "%",
       Pow    => "^",
+      Eq     => "==",
+      Lt     => "<",
+      Gt     => ">",
+      NEq    => "!=",
+      LtEq   => "<=",
+      GtEq   => ">=",
     }
   }
 }

@@ -122,13 +122,13 @@ impl<'c> Compiler<'c> {
       Binary(ref left, ref op, ref right) => {
         use self::Operator::*;
 
-        self.compile_expression(left)?;
-        self.compile_expression(right)?;
-
         let left_type = self.visitor.type_expression(left)?;
 
         match *op {
           Add => {
+            self.compile_expression(left)?;
+            self.compile_expression(right)?;
+
             if left_type.node.is_int() {
               self.emit(Instruction::AddI)
             } else if left_type.node.is_float() {
@@ -136,6 +136,36 @@ impl<'c> Compiler<'c> {
             }
 
             self.emit_byte(left_type.node.byte_size())
+          },
+
+          Eq | Lt | Gt | NEq | LtEq | GtEq => {
+            self.compile_expression(left)?;
+
+            let left_type = self.visitor.type_expression(left)?;
+
+            if left_type.node != TypeNode::I128 {
+              self.emit(Instruction::ConvII);
+
+              self.emit_byte(left_type.node.byte_size());
+              self.emit_byte(16);
+            }
+
+            self.compile_expression(right)?;
+
+            let right_type = self.visitor.type_expression(right)?;
+
+            if right_type.node != TypeNode::I128 {
+              self.emit(Instruction::ConvII);
+
+              self.emit_byte(right_type.node.byte_size());
+              self.emit_byte(16);
+            }
+
+            if left_type.node.is_int() {
+              self.emit(Instruction::CmpI)
+            } else if left_type.node.is_float() {
+              self.emit(Instruction::CmpF)
+            }
           },
 
           _ => (),

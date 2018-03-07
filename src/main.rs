@@ -127,8 +127,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-a: f32 = 10
-b: f64 = a as f64 + 100.0
+a: bool = 1 == 2
   "#;
 
   run(&test4);

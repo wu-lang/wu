@@ -361,6 +361,21 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
+      Loop(ref body) => {
+        let local_symtab  = SymTab::new(&self.symtab, &[]);
+        let local_typetab = TypeTab::new(&self.typetab, &[]);
+
+        let mut visitor = Visitor {
+          source:  self.source,
+          ast:     self.ast,
+          symtab:  local_symtab,
+          typetab: local_typetab,
+          offsets: vec!(0),
+        };
+
+        visitor.visit_expression(body)
+      },
+
       Call(ref expression, ref args) => {
         let expression_type = self.type_expression(expression)?.node;
 
@@ -808,6 +823,8 @@ impl<'v> Visitor<'v> {
         }
       },
 
+      Loop(ref expression) => self.type_expression(expression)?,
+
       Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
 
       Cast(_, ref t) => Type::from(t.node.clone()),
@@ -819,6 +836,18 @@ impl<'v> Visitor<'v> {
           (ref a, ref op, ref b) => match **op {
             Add | Sub | Mul | Div => if a == b {
               Type::from(a.to_owned())
+            } else {
+              return Err(
+                response!(
+                  Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                  self.source.file,
+                  expression.pos
+                )
+              )
+            },
+
+            Eq | Lt | Gt | NEq | LtEq | GtEq => if a == b {
+              Type::from(TypeNode::Bool)
             } else {
               return Err(
                 response!(

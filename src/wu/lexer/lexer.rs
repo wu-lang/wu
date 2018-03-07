@@ -34,7 +34,7 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(
       Rc::new(
         KeyMatcher::new(Keyword, &[
-          "as", "->",
+          "as", "->", "loop",
         ])
       )
     );
@@ -50,7 +50,7 @@ impl<'l> Lexer<'l> {
 
     lexer.matchers.push(
       Rc::new(
-        ConstantCharMatcher::new(Operator, &['+', '-', '*', '/', '<', '>',])
+        ConstantStringMatcher::new(Operator, &["+", "-", "*", "/", "<", ">", "==", "!=", "<=", ">="])
       )
     );
 

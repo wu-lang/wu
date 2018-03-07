@@ -149,6 +149,25 @@ impl<'p> Parser<'p> {
           position
         ),
 
+        Keyword => match self.current_lexeme().as_str() {
+          "loop" => {
+            self.next()?;
+
+            Expression::new(
+              ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+              position
+            )
+          },
+
+          ref c => return Err(
+            response!(
+              Wrong(format!("unexpected keyword `{}`", c)),
+              self.source.file,
+              TokenElement::Ref(self.current())
+            )
+          )
+        }
+
         Symbol => match self.current_lexeme().as_str() {
           "{" => Expression::new(
             ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),

@@ -64,6 +64,45 @@ impl<'t> Matcher<'t> for CommentMatcher {
 
 
 
+pub struct ConstantStringMatcher {
+  token_type: TokenType,
+  constants: &'static [&'static str],
+}
+
+impl ConstantStringMatcher {
+  pub fn new(token_type: TokenType, constants: &'static [&'static str]) -> Self {
+    ConstantStringMatcher {
+      token_type,
+      constants,
+    }
+  }
+}
+
+impl<'t> Matcher<'t> for ConstantStringMatcher {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+    for constant in self.constants {
+      let len = constant.len();
+      let c   = tokenizer.peek_range(len).unwrap();
+
+      if c == *constant {
+        tokenizer.advance_n(len);
+
+        let token = token!(tokenizer, self.token_type.clone(), constant.to_string());
+
+        if c == "\n" {
+          tokenizer.pos.0 += 1;
+          tokenizer.pos.1 = 0;
+        }
+
+        return Ok(Some(token))
+      }
+    }
+    Ok(None)
+  }
+}
+
+
+
 pub struct ConstantCharMatcher {
   token_type: TokenType,
   constants: &'static [char],
@@ -73,7 +112,7 @@ impl ConstantCharMatcher {
   pub fn new(token_type: TokenType, constants: &'static [char]) -> Self {
     ConstantCharMatcher {
       token_type,
-      constants,
+      constants
     }
   }
 }
