@@ -119,6 +119,17 @@ impl<'c> Compiler<'c> {
         self.emit_bytes(&to_bytes!(offset => u32));
       },
 
+      Binary(ref left, ref op, ref right) => {
+        use self::Operator::*;
+
+        self.compile_expression(left)?;
+        self.compile_expression(right)?;
+
+        match *op {
+          _ => (),
+        }
+      }
+
       Cast(ref expression, ref t) => {
         use self::TypeNode::*;
 
@@ -126,10 +137,21 @@ impl<'c> Compiler<'c> {
 
         self.compile_expression(expression)?;
 
+        let mut sign_a = false;
+        let mut sign_b = false;
+
         match (self.visitor.type_expression(expression)?.node, &t.node) {
-          (ref a, ref b) if *b == &F32 || *b == &F64 => match a {
-            &I08 | &I32 | &I64 | &I128 | &U08 | &U32 | &U64 | &U128 => self.emit(Instruction::ConvIF),
-            &F32 | &F64                                             => self.emit(Instruction::ConvFF),
+          (ref a, ref b) if b.is_float() => match a {
+            _ if a.is_int() => {
+              if !a.is_uint() {
+                sign_a = true
+              }
+
+              self.emit(Instruction::ConvIF);
+            },
+
+            _ if a.is_float() => self.emit(Instruction::ConvFF),
+
             c => return Err(
               response!(
                 Wrong(format!("can't cast from `{}`", c)),
@@ -138,13 +160,20 @@ impl<'c> Compiler<'c> {
             )
           },
 
-          (ref a, ref b) if *b == &I08 || *b == &I32 || *b == &I64 || *b == &I128 || *b == &U08 || *b == &U32 || *b == &U64 || *b == &U128 => match a {
-            &F32 | &F64                                             => self.emit(Instruction::ConvFI),
-            &I08 | &I32 | &I64 | &I128 | &U08 | &U32 | &U64 | &U128 => self.emit(Instruction::ConvII),
+          (ref a, ref b) if b.is_int() => match a {
+            _ if a.is_float() => {
+              if !b.is_uint() {
+                sign_b = true
+              }
 
-            c => return Err(
+              self.emit(Instruction::ConvFI);
+            }
+
+            _ if a.is_int() => self.emit(Instruction::ConvII),
+
+            other => return Err(
               response!(
-                Wrong(format!("can't cast from `{}`", c)),
+                Wrong(format!("can't cast from `{}`", other)),
                 expression.pos
               )
             )
@@ -153,8 +182,8 @@ impl<'c> Compiler<'c> {
           (_, ref node) => return Err(response!(Wrong(format!("can't cast to `{}`", node))))
         }
 
-        self.emit_byte(size as u8);
-        self.emit_byte(t.node.byte_size() as u8)
+        self.emit_byte(if sign_a { -size as u8 } else { size as u8 });
+        self.emit_byte(if sign_b { -t.node.byte_size() as u8 } else { t.node.byte_size() as u8 })
       },
 
       _ => (),
@@ -175,8 +204,8 @@ impl<'c> Compiler<'c> {
 
       if right_type.node != t.node {
         match &t.node {
-          &I08 | &I32 | &I64 | &I128 | &U08 | &U32 | &U64 | &U128 => match &right_type.node {
-            &I08 | &I32 | &I64 | &I128 => {
+          c if c.is_int() => match &right_type.node {
+            &I128 => {
               self.emit(Instruction::ConvII);
               self.emit_byte(right_type.node.byte_size() as u8);
               self.emit_byte(t.node.byte_size() as u8)
@@ -186,8 +215,20 @@ impl<'c> Compiler<'c> {
           },
 
           &F32 | &F64 => match &right_type.node {
-            &I08 | &I32 | &I64 => {
+            &I128 => {
               self.emit(Instruction::ConvIF);
+              self.emit_byte(-right_type.node.byte_size() as u8);
+              self.emit_byte(t.node.byte_size() as u8)
+            },
+
+            &U128 => {
+              self.emit(Instruction::ConvIF);
+              self.emit_byte(right_type.node.byte_size() as u8);
+              self.emit_byte(t.node.byte_size() as u8)
+            },
+
+            c if c.is_float() => {
+              self.emit(Instruction::ConvFF);
               self.emit_byte(right_type.node.byte_size() as u8);
               self.emit_byte(t.node.byte_size() as u8)
             },
@@ -221,17 +262,17 @@ impl<'c> Compiler<'c> {
 
 
   fn emit(&mut self, code: Instruction) {
-    println!("{}", code);
+    print!("\n{}", code);
     self.bytecode.push(code as u8)
   }
 
   fn emit_byte(&mut self, byte: u8) {
-    println!("\t{}", byte);
+    print!("\t{} ", byte);
     self.bytecode.push(byte)
   }
 
   fn emit_bytes(&mut self, bytes: &[u8]) {
-    println!("\t{:?}", bytes);
+    print!("\t{:?} ", bytes);
     self.bytecode.extend(bytes)
   }
 }

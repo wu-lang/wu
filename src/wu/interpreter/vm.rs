@@ -16,6 +16,8 @@ pub enum Instruction {
   ConvFI    = 0x05,
   ConvII    = 0x06,
   ConvFF    = 0x07,
+  AddI      = 0x08,
+  AddF      = 0x09,
 }
 
 impl fmt::Display for Instruction {
@@ -31,6 +33,8 @@ impl fmt::Display for Instruction {
       ConvFI    => "convfi",
       ConvII    => "convii",
       ConvFF    => "convff",
+      AddI      => "addi",
+      AddF      => "addf",
     };
 
     write!(f, "{}", name)
@@ -241,7 +245,69 @@ impl VirtualMachine {
           }
         },
 
-        _ => (),
+        ConvFF => {
+          ip += 1;
+
+          let size_from = bytecode[ip];
+
+          ip += 1;
+
+          let size_to = bytecode[ip];
+
+          ip += 1;
+
+          let value = from_bytes!(&read(&self.compute_stack, self.compute_top - size_from as u32, size_from as u32) => u64);
+
+          if size_to == 4 {
+
+            let new_value      = value as f32;
+            let converted_size = mem::size_of::<f32>() as u32;
+
+            memmove!(&to_bytes!(new_value => f32) => self.compute_stack, [self.compute_top; converted_size]);
+
+            self.compute_top += converted_size
+
+          } else if size_to == 8 {
+
+            let new_value      = value as f64;
+            let converted_size = mem::size_of::<f64>() as u32;
+
+            memmove!(&to_bytes!(new_value => f64) => self.compute_stack, [self.compute_top; converted_size]);
+
+            self.compute_top += converted_size
+          }
+        },
+
+        AddI => {
+          ip += 1;
+
+          let size = bytecode[ip];
+
+          ip += 1;
+
+          match size {
+            1 => {
+              let a = pop!([&self.compute_stack, self.compute_top] => u8);
+              let b = pop!([&self.compute_stack, self.compute_top] => u8);
+
+              memmove!(&to_bytes!(a.wrapping_add(b) => u8) => self.compute_stack, [self.compute_top; size as u32]);
+            },
+
+            _ => unreachable!()
+          }
+        },
+
+        AddF => {
+          ip += 1;
+
+          let size = bytecode[ip];
+
+          ip += 1;
+
+          match size {
+            _ => unreachable!()
+          }
+        }
       }
     }
 

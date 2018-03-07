@@ -34,35 +34,25 @@ pub enum TypeNode {
 }
 
 impl TypeNode {
-  pub fn byte_size(&self) -> u8 {
+  pub fn byte_size(&self) -> i8 {
     use self::TypeNode::*;
 
     match *self {
-      I08  => mem::size_of::<i8>()   as u8,
-      I32  => mem::size_of::<i32>()  as u8,
-      I64  => mem::size_of::<i64>()  as u8,
-      I128 => mem::size_of::<i128>() as u8,
+      I08  => mem::size_of::<i8>()   as i8,
+      I32  => mem::size_of::<i32>()  as i8,
+      I64  => mem::size_of::<i64>()  as i8,
+      I128 => mem::size_of::<i128>() as i8,
 
-      F32  => mem::size_of::<f32>() as u8,
-      F64  => mem::size_of::<f32>() as u8,
+      F32  => mem::size_of::<f32>() as i8,
+      F64  => mem::size_of::<f64>() as i8,
 
-      U08  => mem::size_of::<u8>()   as u8,
-      U32  => mem::size_of::<u32>()  as u8,
-      U64  => mem::size_of::<u64>()  as u8,
-      U128 => mem::size_of::<u128>() as u8,
+      U08  => mem::size_of::<u8>()   as i8,
+      U32  => mem::size_of::<u32>()  as i8,
+      U64  => mem::size_of::<u64>()  as i8,
+      U128 => mem::size_of::<u128>() as i8,
 
-      Char => mem::size_of::<char>() as u8,
-      Bool => mem::size_of::<bool>() as u8,
-
-      Set(ref content) => {
-        let mut acc = 0;
-
-        for element in content {
-          acc += element.node.byte_size()
-        }
-
-        acc
-      }
+      Char => mem::size_of::<char>() as i8,
+      Bool => mem::size_of::<bool>() as i8,
 
       ref other => panic!("no type size: {:?}", other),
     }
@@ -71,14 +61,37 @@ impl TypeNode {
   pub fn check_expression(&self, other: &ExpressionNode) -> bool {
     use self::TypeNode::*;
 
-    if let &ExpressionNode::Int(_) = other {
-      match *self {
+    match *other {
+      ExpressionNode::Int(_) => match *self {
         I08 | I64 | I128 | F32 | F64 | U08 | U32 | U64 | U128 => true,
-        _ => false,
-      }
-    } else {
-      false
+        _                                                     => false,
+      },
+
+      ExpressionNode::Float(_) => match *self {
+        F32 | F64 => true,
+        _         => false,
+      },
+
+      _ => false
     }
+  }
+
+  pub fn is_int(&self) -> bool {
+    use self::TypeNode::*;
+
+    [I08, I32, I64, I128, U08, U32, U64, U128].contains(&self)
+  }
+
+  pub fn is_uint(&self) -> bool {
+    use self::TypeNode::*;
+
+    [U08, U32, U64, U128].contains(&self)
+  }
+
+  pub fn is_float(&self) -> bool {
+     use self::TypeNode::*;
+
+    [F32, F64].contains(&self)
   }
 }
 

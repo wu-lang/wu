@@ -127,7 +127,12 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-a: u8 = 10
+a: i8 = 1
+b: u32 = a as u32
+c: f32 = a as f32
+d: f64 = b as f64
+e: i32 = c as i32
+f: f32 = d as f32
   "#;
 
   run(&test4);

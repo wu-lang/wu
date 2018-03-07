@@ -31,6 +31,16 @@ macro_rules! memmove {
 
 
 
+#[macro_export]
+macro_rules! pop {
+    ([$stack:expr, $top:expr] => $type:ty) => {{
+        $top -= mem::size_of::<$type>() as u32;
+        from_bytes!(&read($stack, $top, mem::size_of::<$type> as u32) =>$type)
+    }}
+}
+
+
+
 pub mod vm;
 pub mod compiler;
 
