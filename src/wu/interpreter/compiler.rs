@@ -143,28 +143,62 @@ impl<'c> Compiler<'c> {
 
             let left_type = self.visitor.type_expression(left)?;
 
-            if left_type.node != TypeNode::I128 {
-              self.emit(Instruction::ConvII);
+            if left_type.node.is_float() {
+              if left_type.node != TypeNode::F64 {
+                self.emit(Instruction::ConvFF);
 
-              self.emit_byte(left_type.node.byte_size());
-              self.emit_byte(16);
+                self.emit_byte(left_type.node.byte_size());
+                self.emit_byte(8);
+              }
+            } else if left_type.node.is_int() {
+              if left_type.node != TypeNode::I128 {
+                self.emit(Instruction::ConvII);
+
+                self.emit_byte(left_type.node.byte_size());
+                self.emit_byte(16);
+              }
             }
 
             self.compile_expression(right)?;
 
             let right_type = self.visitor.type_expression(right)?;
 
-            if right_type.node != TypeNode::I128 {
-              self.emit(Instruction::ConvII);
+            if right_type.node.is_float() {
+              if right_type.node != TypeNode::F64 {
+                self.emit(Instruction::ConvFF);
 
-              self.emit_byte(right_type.node.byte_size());
-              self.emit_byte(16);
+                self.emit_byte(right_type.node.byte_size());
+                self.emit_byte(8);
+              }
+            } else if right_type.node.is_int() {
+              if right_type.node != TypeNode::I128 {
+                self.emit(Instruction::ConvII);
+
+                self.emit_byte(right_type.node.byte_size());
+                self.emit_byte(16);
+              }
             }
 
-            if left_type.node.is_int() {
-              self.emit(Instruction::CmpI)
-            } else if left_type.node.is_float() {
-              self.emit(Instruction::CmpF)
+            match *op {
+              Eq => if left_type.node.is_int() {
+                self.emit(Instruction::EqI)
+              } else if left_type.node.is_float() {
+                self.emit(Instruction::EqF)
+              },
+
+              Lt => if left_type.node.is_int() {
+                self.emit(Instruction::LtI)
+              } else if left_type.node.is_float() {
+                self.emit(Instruction::LtF)
+              },
+
+              Gt => if left_type.node.is_int() {
+                self.emit(Instruction::GtI)
+              } else if left_type.node.is_float() {
+                self.emit(Instruction::GtF)
+              },
+
+              _ => (),
             }
           },
 
@@ -226,6 +260,10 @@ impl<'c> Compiler<'c> {
 
         self.emit_byte(if sign_a { -(size as i8) as u8 } else { size as u8 });
         self.emit_byte(if sign_b { -(t.node.byte_size() as i8) as u8 } else { t.node.byte_size() as u8 })
+      },
+
+      If(ref condition, ref body, ref elses) => {
+
       },
 
       _ => (),

@@ -18,17 +18,16 @@ pub enum Instruction {
   ConvFF    = 0x07,
   AddI      = 0x08,
   AddF      = 0x09,
-  Jmp       = 0x10,
+  JmpF       = 0x10,
 
-  CmpI      = 0x11,
-  CmpF      = 0x12,
+  EqI       = 0x11,
+  EqF       = 0x12,
+  GtI       = 0x13,
+  GtF       = 0x14,
+  LtI       = 0x15,
+  LtF       = 0x16,
 
-  JEq       = 0x13,
-  JLt       = 0x14,
-  JGt       = 0x15,
-  JNE       = 0x16,
-  JLE       = 0x17,
-  JGE       = 0x18,
+  PushF     = 0x17,
 }
 
 impl fmt::Display for Instruction {
@@ -46,28 +45,20 @@ impl fmt::Display for Instruction {
       ConvFF    => "convff",
       AddI      => "addi",
       AddF      => "addf",
-      Jmp       => "jmp",
-      CmpI      => "cmpi",
-      CmpF      => "cmpf",
+      JmpF      => "jmpf",
 
-      JEq       => "jeq",
-      JLt       => "jlt",
-      JGt       => "jgt",
-      JNE       => "jne",
-      JLE       => "jle",
-      JGE       => "jge",
+      EqI       => "eqi",
+      EqF       => "eqf",
+      GtI       => "gti",
+      GtF       => "gtf",
+      LtI       => "lti",
+      LtF       => "ltf",
+
+      PushF     => "pushf",
     };
 
     write!(f, "{}", name)
   }
-}
-
-
-
-mod CmpResult {
-  pub const Eq: u8 = 0b001;
-  pub const Gt: u8 = 0b010;
-  pub const Lt: u8 = 0b100;
 }
 
 
@@ -373,104 +364,66 @@ impl VirtualMachine {
           }
         },
 
-        Jmp => {
+        JmpF => {
           ip += 5;
 
-          ip = pop!([bytecode, ip] => u32)
+          if !pop!([&self.compute_stack, self.compute_top] => bool) {
+            ip = pop!([bytecode, ip] => u32)
+          }
         },
 
-        CmpI => {
+        EqI => {
           ip += 1;
 
-          let b = pop!([&self.compute_stack, self.compute_top] => u128);
-          let a = pop!([&self.compute_stack, self.compute_top] => u128);
+          let b = pop!([&self.compute_stack, self.compute_top] => i128);
+          let a = pop!([&self.compute_stack, self.compute_top] => i128);
 
-          let mut result = 0b000;
-
-          if a == b {
-            result |= CmpResult::Eq
-          }
-
-          if a > b {
-            result |= CmpResult::Gt
-          }
-
-          if a < b {
-            result |= CmpResult::Lt
-          }
-
-          push!((&to_bytes!(result as u8 => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
+          push!((&to_bytes!(a == b => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
         },
 
-        CmpF => {
+        EqF => {
           ip += 1;
 
-          let a = pop!([&self.compute_stack, self.compute_top] => f64);
           let b = pop!([&self.compute_stack, self.compute_top] => f64);
+          let a = pop!([&self.compute_stack, self.compute_top] => f64);
 
-          let mut result = 0b000;
-
-          if a == b {
-            result |= CmpResult::Eq
-          }
-
-          if a < b {
-            result |= CmpResult::Lt
-          }
-
-          if a > b {
-            result |= CmpResult::Gt
-          }
-
-          push!((&to_bytes!(result as u8 => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
+          push!((&to_bytes!(a == b => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
         },
 
-        JEq => {
-          ip += 5;
+        GtI => {
+          ip += 1;
 
-          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Eq {
-            ip = pop!([bytecode, ip] => u32)
-          }
+          let b = pop!([&self.compute_stack, self.compute_top] => i128);
+          let a = pop!([&self.compute_stack, self.compute_top] => i128);
+
+          push!((&to_bytes!(a > b => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
         },
 
-        JLt => {
-          ip += 5;
+        GtF => {
+          ip += 1;
 
-          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Lt {
-            ip = pop!([bytecode, ip] => u32)
-          }
+          let b = pop!([&self.compute_stack, self.compute_top] => f64);
+          let a = pop!([&self.compute_stack, self.compute_top] => f64);
+
+          push!((&to_bytes!(a > b => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
         },
 
-        JGt => {
-          ip += 5;
+        LtI => {
+          ip += 1;
 
-          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Gt {
-            ip = pop!([bytecode, ip] => u32)
-          }
+          let b = pop!([&self.compute_stack, self.compute_top] => i128);
+          let a = pop!([&self.compute_stack, self.compute_top] => i128);
+
+          push!((&to_bytes!(a < b => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
         },
 
-        JNE => {
-          ip += 5;
+        LtF => {
+          ip += 1;
 
-          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 != CmpResult::Eq {
-            ip = pop!([bytecode, ip] => u32)
-          }
-        },
+          let b = pop!([&self.compute_stack, self.compute_top] => f64);
+          let a = pop!([&self.compute_stack, self.compute_top] => f64);
 
-        JLE => {
-          ip += 5;
-
-          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Lt | CmpResult::Eq {
-            ip = pop!([bytecode, ip] => u32)
-          }
-        },
-
-        JGE => {
-          ip += 5;
-
-          if pop!([&self.compute_stack, self.compute_top] => u8) as u8 == CmpResult::Gt | CmpResult::Eq {
-            ip = pop!([bytecode, ip] => u32)
-          }
+          push!((&to_bytes!(a < b => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
         },
       }
     }

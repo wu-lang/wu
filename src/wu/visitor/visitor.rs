@@ -376,6 +376,86 @@ impl<'v> Visitor<'v> {
         visitor.visit_expression(body)
       },
 
+      If(ref condition, ref body, ref elses) => {
+        self.visit_expression(&*condition)?;
+
+        let condition_type = self.type_expression(&*condition)?.node;
+
+        if condition_type == TypeNode::Bool {
+
+          let body_type = {
+            let local_symtab  = SymTab::new(&self.symtab, &[]);
+            let local_typetab = TypeTab::new(&self.typetab, &[]);
+
+            let mut visitor = Visitor {
+              source:  self.source,
+              ast:     self.ast,
+              symtab:  local_symtab,
+              typetab: local_typetab,
+              offsets: vec!(0),
+            };
+
+            visitor.visit_expression(body)?;
+            visitor.type_expression(body)?
+          };
+
+          if let &Some(ref elses) = elses {
+            for &(ref maybe_condition, ref body, ref position) in elses {
+              if let Some(ref condition) = *maybe_condition {
+                let condition_type = self.type_expression(condition)?.node;
+
+                if condition_type != TypeNode::Bool {
+                  return Err(
+                    response!(
+                      Wrong(format!("mismatched condition, must be `bool` got `{}`", condition_type)),
+                      self.source.file,
+                      condition.pos
+                    )
+                  )
+                }
+              }
+
+              let else_body_type = {
+                let local_symtab  = SymTab::new(&self.symtab, &[]);
+                let local_typetab = TypeTab::new(&self.typetab, &[]);
+
+                let mut visitor = Visitor {
+                  source:  self.source,
+                  ast:     self.ast,
+                  symtab:  local_symtab,
+                  typetab: local_typetab,
+                  offsets: vec!(0),
+                };
+
+                visitor.visit_expression(body)?;
+                visitor.type_expression(body)?
+              };
+
+              if body_type != else_body_type {
+                return Err(
+                  response!(
+                    Wrong(format!("mismatched types, expected `{}` got `{}`", body_type, else_body_type)),
+                    self.source.file,
+                    condition.pos
+                  )
+                )
+              }
+            }
+          }
+
+          Ok(())
+
+        } else {
+          return Err(
+            response!(
+              Wrong(format!("mismatched condition, must be `bool` got `{}`", condition_type)),
+              self.source.file,
+              expression.pos
+            )
+          )
+        }
+      },
+
       Call(ref expression, ref args) => {
         let expression_type = self.type_expression(expression)?.node;
 

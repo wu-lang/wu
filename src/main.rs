@@ -127,7 +127,11 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-a: bool = 1 == 2
+if 1 < 3 {
+  a := 10000
+} else {
+  a := true
+}
   "#;
 
   run(&test4);

@@ -154,10 +154,70 @@ impl<'p> Parser<'p> {
             self.next()?;
 
             Expression::new(
-              ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+              ExpressionNode::Loop(
+                Rc::new(
+                  Expression::new(
+                    ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+                    position.clone()
+                  )
+                )
+              ),
               position
             )
           },
+
+          "if" => {
+            self.next()?;
+
+            let condition   = Rc::new(self.parse_expression()?);
+            let if_position = self.span_from(position.clone());
+            let body        = Rc::new(
+              Expression::new(
+                ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+                position
+              )
+            );
+
+            let mut elses = Vec::new();
+
+            loop {
+              let branch_position = self.current_position();
+
+              match self.current_lexeme().as_str() {
+                "elif" => {
+                  self.next()?;
+
+                  let condition = self.parse_expression()?;
+                  let position  = self.current_position();
+                  let body      = Expression::new(
+                    ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+                    position
+                  );
+
+                  elses.push((Some(condition), body, branch_position))
+                },
+
+                "else" => {
+                  self.next()?;
+
+                  let position  = self.current_position();
+                  let body      = Expression::new(
+                    ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+                    position
+                  );
+
+                  elses.push((None, body, branch_position))
+                },
+
+                _ => break,
+              }
+            }
+
+            Expression::new(
+              ExpressionNode::If(condition, body, if elses.len() > 0 { Some(elses) } else { None }),
+              if_position
+            )
+          }
 
           ref c => return Err(
             response!(
