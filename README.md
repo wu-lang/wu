@@ -13,14 +13,13 @@ A full walk-through of the language can be found over at the [wu-lang documentat
 
 ### A decent language
 
-The language is generally structured around the idea that code should feel reasonably good in your brains and eyes when writing it, and that just because a language finds itself in the upper areas of the stack, it doesn't need to miss out on all the cool low-level control features.
-
-Thus Wu comes with a very ~~buff~~ *strong* type-system with a wide spectrum of size-specific primitive data types, straight out of the box.
+The language is generally structured around the opinion, that the control and cool features Rust provide are too nice for a language to miss out on.
+Wu is thus highly inspired by Rust, while grabbing a lot of concepts from MoonScript, Jonathan Blow's Jai and the general functional family.
 
 ### Taster
 
 ```
-module dunderklumpen! {
+module functions {
   fib :: (a: i128) i128 -> match a {
     | 0 -> 0
     | 1 -> 1
@@ -33,8 +32,8 @@ module dunderklumpen! {
   }
 }
 
-foo: i128 = dunderklumpen! fib(1000)
-bar      := dunderklumpen! fac(100)
+foo: i128 = functions fib(1000)
+bar      := functions fac(100)
 ```
 
 ## Disclaimer

@@ -49,6 +49,8 @@ fn run(content: &str) {
 
               vm.execute(compiler.bytecode.as_slice());
 
+              println!();
+
               println!("stack: {:?}", &vm.compute_stack[..16]);
               println!("vars:  {:?}", &vm.var_stack[..16]);
             },
@@ -127,10 +129,12 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-if 1 < 3 {
-  a := 10000
+if 1 > 2 {
+  3
+} elif 4 < 0 {
+  6
 } else {
-  a := true
+  7
 }
   "#;
 
