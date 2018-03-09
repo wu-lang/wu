@@ -4,6 +4,8 @@ use super::*;
 use super::super::error::Response::Wrong;
 use std::mem;
 
+use colored::Colorize;
+
 
 
 pub struct Compiler<'c> {
@@ -67,10 +69,14 @@ impl<'c> Compiler<'c> {
     Ok(())
   }
 
-  fn compile_expression(&mut self, expression: &'c Expression) -> Result<(), ()> {
+  fn compile_expression(&mut self, expression: &'c Expression<'c>) -> Result<(), ()> {
     use self::ExpressionNode::*;
 
     match expression.node {
+      Block(ref content) => for element in content {
+        self.compile_statement(element)?
+      },
+
       Int(ref n) => {
         self.emit(Instruction::Push);
         self.emit_byte(mem::size_of::<u128>() as u8);
@@ -263,6 +269,65 @@ impl<'c> Compiler<'c> {
       },
 
       If(ref condition, ref body, ref elses) => {
+        println!("\n\nif:");
+
+        let mut jumps = Vec::new();
+
+        self.compile_expression(condition)?;
+
+        self.emit(Instruction::JmpF);
+
+        jumps.push(self.bytecode.len());       // reference, for changing tmp address
+        self.emit_bytes(&to_bytes!(0 => u32)); // the temporary adress
+
+        self.emit(Instruction::PushF);
+        self.compile_expression(body)?;
+        self.emit(Instruction::PopF);
+
+        if let &Some(ref elses) = elses {
+          for (index, &(ref maybe_condition, ref body, _)) in elses.iter().enumerate() {
+            if let &Some(ref condition) = maybe_condition {
+              println!("\n\nelif:");
+
+              self.emit(Instruction::Dump);
+              self.emit_byte(16);
+
+              let address = to_bytes!(self.bytecode.len() as u32 => u32);
+
+              for (offset, byte) in address.iter().enumerate() {
+                self.bytecode[jumps.last().unwrap() + offset] = *byte;
+              }
+
+              println!("\n\n\t{} -> {:?}", "[altered last jump]".bold(), address);
+
+              self.compile_expression(condition)?;
+
+              if elses.len() - 1 > index {
+                self.emit(Instruction::JmpF);
+
+                jumps.push(self.bytecode.len());       // reference, for changing tmp address
+                self.emit_bytes(&to_bytes!(0 => u32)); // the temporary adress
+              }
+
+              self.emit(Instruction::PushF);
+              self.compile_expression(body)?;
+              self.emit(Instruction::PopF);
+            } else {
+              println!("\n\nelse:");
+              let address = to_bytes!(self.bytecode.len() as u32 => u32);
+
+              for (offset, byte) in address.iter().enumerate() {
+                self.bytecode[jumps.last().unwrap() + offset] = *byte
+              }
+
+              println!("\n\t{} -> {:?}", "[altered last jump]".bold(), address);
+    
+              self.emit(Instruction::PushF);
+              self.compile_expression(body)?;
+              self.emit(Instruction::PopF)
+            }
+          }
+        }
 
       },
 

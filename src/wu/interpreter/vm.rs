@@ -18,7 +18,7 @@ pub enum Instruction {
   ConvFF    = 0x07,
   AddI      = 0x08,
   AddF      = 0x09,
-  JmpF       = 0x10,
+  JmpF      = 0x10,
 
   EqI       = 0x11,
   EqF       = 0x12,
@@ -28,6 +28,9 @@ pub enum Instruction {
   LtF       = 0x16,
 
   PushF     = 0x17,
+  PopF      = 0x18,
+
+  Dump      = 0x19,
 }
 
 impl fmt::Display for Instruction {
@@ -55,6 +58,9 @@ impl fmt::Display for Instruction {
       LtF       => "ltf",
 
       PushF     => "pushf",
+      PopF      => "popf",
+
+      Dump      => "dump",
     };
 
     write!(f, "{}", name)
@@ -365,10 +371,12 @@ impl VirtualMachine {
         },
 
         JmpF => {
-          ip += 5;
+          ip += 1;
 
           if !pop!([&self.compute_stack, self.compute_top] => bool) {
-            ip = pop!([bytecode, ip] => u32)
+            let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32);
+
+            ip = address
           }
         },
 
@@ -424,6 +432,28 @@ impl VirtualMachine {
           let a = pop!([&self.compute_stack, self.compute_top] => f64);
 
           push!((&to_bytes!(a < b => u8)) => self.compute_stack, [self.compute_top; 1 as u32])
+        },
+
+        PushF => {
+          ip += 1;
+
+          self.frames.push(self.var_top)
+        },
+
+        PopF => {
+          ip += 1;
+
+          self.frames.pop();
+        },
+
+        Dump => {
+          ip += 1;
+
+          let size = bytecode[ip as usize];
+
+          ip += 1;
+
+          self.compute_top -= size as u32;
         },
       }
     }
