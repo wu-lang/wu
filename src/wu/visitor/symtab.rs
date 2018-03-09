@@ -6,13 +6,13 @@ use std::rc::Rc;
 
 
 #[derive(Clone)]
-pub struct SymTab<'s> {
-  pub parent: Option<&'s SymTab<'s>>,
+pub struct SymTab {
+  pub parent: Option<Rc<SymTab>>,
   pub names:  RefCell<HashMap<String, usize>>,
 }
 
-impl<'s> SymTab<'s> {
-  pub fn new(parent: &'s Self, names: &[String]) -> Self {
+impl SymTab {
+  pub fn new(parent: Rc<Self>, names: &[String]) -> Self {
     let mut hash_names = HashMap::new();
 
     for (i, name) in names.iter().enumerate() {

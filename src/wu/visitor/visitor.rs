@@ -61,10 +61,12 @@ impl TypeNode {
   pub fn check_expression(&self, other: &ExpressionNode) -> bool {
     use self::TypeNode::*;
 
+    println!("{:?}", other);
+
     match *other {
       ExpressionNode::Int(_) => match *self {
-        I08 | I64 | I128 | F32 | F64 | U08 | U32 | U64 | U128 => true,
-        _                                                     => false,
+        I08 | I32 | I64 | I128 | F32 | F64 | U08 | U32 | U64 | U128 => true,
+        _ => false,
       },
 
       ExpressionNode::Float(_) => match *self {
@@ -282,8 +284,9 @@ impl Display for Type {
 
 
 pub struct Visitor<'v> {
-  pub symtab:  SymTab<'v>,
-  pub typetab: TypeTab<'v>,
+  pub tabs:       Vec<(SymTab, TypeTab)>,
+  pub tab_frames: Vec<(SymTab, TypeTab)>,
+
   pub source:  &'v Source,
   pub ast:     &'v Vec<Statement<'v>>,
 
@@ -293,8 +296,9 @@ pub struct Visitor<'v> {
 impl<'v> Visitor<'v> {
   pub fn new(source: &'v Source, ast: &'v Vec<Statement<'v>>) -> Self {
     Visitor {
-      symtab:  SymTab::global(),
-      typetab: TypeTab::global(),
+      tabs:       vec!((SymTab::global(), TypeTab::global())),
+      tab_frames: Vec::new(), // very intelligent hack
+
       source,
       ast,
       offsets: vec!(0),
@@ -333,7 +337,7 @@ impl<'v> Visitor<'v> {
     use self::ExpressionNode::*;
 
     match expression.node {
-      Identifier(ref name) => if self.symtab.get_name(name).is_none() {
+      Identifier(ref name) => if self.current_tab().0.get_name(name).is_none() {
         Err(
           response!(
             Wrong(format!("no such value `{}` in this scope", name)),
@@ -354,27 +358,25 @@ impl<'v> Visitor<'v> {
       },
 
       Block(ref statements) => {
+        let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &[]);
+        let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
+
+        self.offsets.push(0);
+
+        self.tabs.push((local_symtab, local_typetab));
+
         for statement in statements {
           self.visit_statement(statement)?
         }
 
+        self.offsets.pop();
+
+        self.tab_frames.push(self.tabs.pop().unwrap());
+
         Ok(())
       },
 
-      Loop(ref body) => {
-        let local_symtab  = SymTab::new(&self.symtab, &[]);
-        let local_typetab = TypeTab::new(&self.typetab, &[]);
-
-        let mut visitor = Visitor {
-          source:  self.source,
-          ast:     self.ast,
-          symtab:  local_symtab,
-          typetab: local_typetab,
-          offsets: vec!(0),
-        };
-
-        visitor.visit_expression(body)
-      },
+      Loop(ref body) => self.visit_expression(body),
 
       If(ref condition, ref body, ref elses) => {
         self.visit_expression(&*condition)?;
@@ -384,19 +386,13 @@ impl<'v> Visitor<'v> {
         if condition_type == TypeNode::Bool {
 
           let body_type = {
-            let local_symtab  = SymTab::new(&self.symtab, &[]);
-            let local_typetab = TypeTab::new(&self.typetab, &[]);
+            let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &[]);
+            let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
 
-            let mut visitor = Visitor {
-              source:  self.source,
-              ast:     self.ast,
-              symtab:  local_symtab,
-              typetab: local_typetab,
-              offsets: vec!(0),
-            };
+            self.visit_expression(body)?;
+            let t = self.type_expression(body)?;
 
-            visitor.visit_expression(body)?;
-            visitor.type_expression(body)?
+            t
           };
 
           if let &Some(ref elses) = elses {
@@ -416,19 +412,13 @@ impl<'v> Visitor<'v> {
               }
 
               let else_body_type = {
-                let local_symtab  = SymTab::new(&self.symtab, &[]);
-                let local_typetab = TypeTab::new(&self.typetab, &[]);
+                let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &[]);
+                let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
 
-                let mut visitor = Visitor {
-                  source:  self.source,
-                  ast:     self.ast,
-                  symtab:  local_symtab,
-                  typetab: local_typetab,
-                  offsets: vec!(0),
-                };
+                self.visit_expression(body)?;
+                let t = self.type_expression(body)?;
 
-                visitor.visit_expression(body)?;
-                visitor.type_expression(body)?
+                t
               };
 
               if body_type != else_body_type {
@@ -512,20 +502,16 @@ impl<'v> Visitor<'v> {
           }
         }
 
-        let local_symtab  = SymTab::new(&self.symtab, &param_names.as_slice());
-        let local_typetab = TypeTab::new(&self.typetab, param_types.as_slice());
+        let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &param_names.as_slice());
+        let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), param_types.as_slice());
 
-        let mut visitor = Visitor {
-          source:  self.source,
-          ast:     self.ast,
-          symtab:  local_symtab,
-          typetab: local_typetab,
-          offsets: vec!(0),
-        };
+        self.tabs.push((local_symtab, local_typetab));
 
-        visitor.visit_expression(body)?;
+        self.visit_expression(body)?;
 
-        let body_type = visitor.type_expression(body)?;
+        let body_type = self.type_expression(body)?;
+
+        self.tab_frames.push(self.tabs.pop().unwrap());
 
         if return_type != &body_type {
           Err(
@@ -570,13 +556,13 @@ impl<'v> Visitor<'v> {
     if let &StatementNode::Variable(ref variable_type, ref left, ref right) = variable {
       match left.node {
         Identifier(ref name) => {
-          let index = if let Some((index, _)) = self.symtab.get_name(name) {
+          let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
             index
           } else {
-            self.symtab.add_name(name)
+            self.current_tab().0.add_name(name)
           };
 
-          self.typetab.grow();
+          self.current_tab().1.grow();
 
           if let &Some(ref right) = right {
             self.visit_expression(&right)?;
@@ -593,7 +579,8 @@ impl<'v> Visitor<'v> {
                   )
                 )
               } else {
-                self.typetab.set_type(index, 0, (variable_type.to_owned(), *self.offsets.last().unwrap()))?;
+                let offset = *self.offsets.last().unwrap();
+                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset))?;
 
                 let len = self.offsets.len();
 
@@ -603,7 +590,8 @@ impl<'v> Visitor<'v> {
             } else {
               let size = right_type.node.byte_size() as u32;
 
-              self.typetab.set_type(index, 0, (right_type, *self.offsets.last().unwrap()))?;
+              let offset = *self.offsets.last().unwrap();
+              self.current_tab().1.set_type(index, 0, (right_type, offset))?;
 
               let len = self.offsets.len();
 
@@ -611,7 +599,9 @@ impl<'v> Visitor<'v> {
             }
 
           } else {
-            self.typetab.set_type(index, 0, (variable_type.to_owned(), *self.offsets.last().unwrap()))?;
+            let offset = *self.offsets.last().unwrap();
+
+            self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset))?;
 
             let len = self.offsets.len();
 
@@ -635,11 +625,11 @@ impl<'v> Visitor<'v> {
 
             for (content_index, expression) in names.iter().enumerate() {            
               if let Identifier(ref name) = expression.node {
-                let index = if let Some((index, _)) = self.symtab.get_name(name) {
+                let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
                   index
                 } else {
-                  self.typetab.grow();
-                  self.symtab.add_name(name)
+                  self.current_tab().1.grow();
+                  self.current_tab().0.add_name(name)
                 };
 
                 if let Some(right) = right_content.get(content_index) {                
@@ -658,7 +648,9 @@ impl<'v> Visitor<'v> {
                           )
                         )
                       } else {
-                        self.typetab.set_type(index, 0, (variable_type.to_owned(), *self.offsets.last().unwrap()))?;
+                        let offset = *self.offsets.last().unwrap();
+
+                        self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset))?;
                         
                         let len = self.offsets.len();
 
@@ -674,9 +666,10 @@ impl<'v> Visitor<'v> {
                       )
                     }
                   } else {                  
-                    let size = right_type.node.byte_size() as u32;
+                    let size   = right_type.node.byte_size() as u32;
+                    let offset = *self.offsets.last().unwrap();
 
-                    self.typetab.set_type(index, 0, (right_type, *self.offsets.last().unwrap()))?;
+                    self.current_tab().1.set_type(index, 0, (right_type, offset))?;
                     
                     let len = self.offsets.len();
 
@@ -696,14 +689,16 @@ impl<'v> Visitor<'v> {
           } else {
             for expression in names {            
               if let Identifier(ref name) = expression.node {
-                let index = if let Some((index, _)) = self.symtab.get_name(name) {
+                let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
                   index
                 } else {
-                  self.typetab.grow();
-                  self.symtab.add_name(name)
+                  self.current_tab().1.grow();
+                  self.current_tab().0.add_name(name)
                 };
 
-                self.typetab.set_type(index, 0, (variable_type.to_owned(), *self.offsets.last().unwrap()))?;
+                let offset = *self.offsets.last().unwrap();
+
+                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset))?;
                 
                 let len = self.offsets.len();
 
@@ -734,13 +729,13 @@ impl<'v> Visitor<'v> {
     if let &StatementNode::Constant(ref constant_type, ref left, ref right) = constant {
       match left.node {
         Identifier(ref name) => {
-          let index = if let Some((index, _)) = self.symtab.get_name(name) {
+          let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
             index
           } else {
-            self.symtab.add_name(name)
+            self.current_tab().0.add_name(name)
           };
 
-          self.typetab.grow();
+          self.current_tab().1.grow();
 
           match right.node {
             Function(..) | Block(_) => (),
@@ -759,16 +754,18 @@ impl<'v> Visitor<'v> {
                 )
               )
             } else {
-              self.typetab.set_type(index, 0, (constant_type.to_owned(), *self.offsets.last().unwrap()))?;
+              let offset = *self.offsets.last().unwrap();
+              self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), offset))?;
 
               let len = self.offsets.len();
 
               self.offsets[len - 1] += constant_type.node.byte_size() as u32
             }
           } else {
-            let size = right_type.node.byte_size() as u32;
+            let size   = right_type.node.byte_size() as u32;
+            let offset = *self.offsets.last().unwrap();
 
-            self.typetab.set_type(index, 0, (right_type, *self.offsets.last().unwrap()))?;
+            self.current_tab().1.set_type(index, 0, (right_type, offset))?;
 
             let len = self.offsets.len();
 
@@ -796,11 +793,11 @@ impl<'v> Visitor<'v> {
 
           for (content_index, expression) in names.iter().enumerate() {            
             if let Identifier(ref name) = expression.node {
-              let index = if let Some((index, _)) = self.symtab.get_name(name) {
+              let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
                 index
               } else {
-                self.typetab.grow();
-                self.symtab.add_name(name)
+                self.current_tab().1.grow();
+                self.current_tab().0.add_name(name)
               };
 
               if let Some(right) = right_content.get(content_index) {                
@@ -819,7 +816,9 @@ impl<'v> Visitor<'v> {
                         )
                       )
                     } else {
-                      self.typetab.set_type(index, 0, (constant_type.to_owned(), *self.offsets.last().unwrap()))?;
+                      let offset = *self.offsets.last().unwrap();
+
+                      self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), offset))?;
 
                       let len = self.offsets.len();
 
@@ -837,7 +836,9 @@ impl<'v> Visitor<'v> {
                 } else {                  
                   let size = right_type.node.byte_size() as u32;
 
-                  self.typetab.set_type(index, 0, (right_type, *self.offsets.last().unwrap()))?;
+                  let offset = *self.offsets.last().unwrap();
+
+                  self.current_tab().1.set_type(index, 0, (right_type, offset))?;
 
                   let len = self.offsets.len();
 
@@ -877,8 +878,8 @@ impl<'v> Visitor<'v> {
     use self::ExpressionNode::*;
 
     let t = match expression.node {
-      Identifier(ref name) => if let Some((index, env_index)) = self.symtab.get_name(name) {
-        self.typetab.get_type(index, env_index)?
+      Identifier(ref name) => if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
+        self.current_tab().1.get_type(index, env_index)?
       } else {
         return Err(
           response!(
@@ -1013,5 +1014,13 @@ impl<'v> Visitor<'v> {
     };
 
     Ok(node)
+  }
+
+
+
+  pub fn current_tab(&mut self) -> &mut (SymTab, TypeTab) {
+    let len = self.tabs.len() - 1;
+
+    &mut self.tabs[len]
   }
 }

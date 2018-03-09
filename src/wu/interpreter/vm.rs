@@ -2,6 +2,8 @@ use std::fmt;
 use std::mem;
 use std::default;
 
+use colored::Colorize;
+
 #[macro_use]
 use super::*;
 
@@ -97,7 +99,12 @@ impl VirtualMachine {
 
     loop {
       match unsafe { mem::transmute::<u8, Instruction>(bytecode[ip as usize]) } {
-        Halt => break,
+        Halt => {
+          if ip as usize != bytecode.len() - 1 {
+            println!("{} -> {}/{} {:?}", "something weird is going on heeere".yellow().bold(), ip, bytecode.len(), &bytecode[(ip - 20) as usize .. ip as usize])
+          }
+          break
+        },
 
         Push => {
           ip += 1;
@@ -377,6 +384,8 @@ impl VirtualMachine {
             let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32);
 
             ip = address
+          } else {
+            ip += 4
           }
         },
 

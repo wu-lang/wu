@@ -40,7 +40,7 @@ bar      := functions fac(100)
 
 Wu is built by a minimal team of people, all of which are basically kids working on the compiler when bored in school. The whole thing is currently in its very early stages, but is propably fine, go use it in production.
 
-### Contributers
+## Contributers
 
 - [nilq](https://github.com/nilq)
 

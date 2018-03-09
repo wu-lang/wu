@@ -51,8 +51,8 @@ fn run(content: &str) {
 
               println!();
 
-              println!("stack: {:?}", &vm.compute_stack[..16]);
-              println!("vars:  {:?}", &vm.var_stack[..16]);
+              println!("stack: {:?}", &vm.compute_stack[..32]);
+              println!("vars:  {:?}", &vm.var_stack[..32]);
             },
 
             _ => (),
@@ -129,12 +129,8 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-if 1 > 2 {
-  3
-} elif 4 < 0 {
-  6
-} else {
-  7
+if 1 < 2 {
+  a := 3
 }
   "#;
 

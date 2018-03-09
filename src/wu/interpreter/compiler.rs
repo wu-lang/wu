@@ -73,8 +73,19 @@ impl<'c> Compiler<'c> {
     use self::ExpressionNode::*;
 
     match expression.node {
-      Block(ref content) => for element in content {
-        self.compile_statement(element)?
+      Block(ref content) => {
+        self.visitor.tabs.push(self.visitor.tab_frames.get(0).unwrap().to_owned());
+        self.visitor.tab_frames.remove(0);
+
+        self.emit(Instruction::PushF);
+
+        for element in content {
+          self.compile_statement(element)?
+        }
+
+        self.visitor.tabs.pop();
+
+        self.emit(Instruction::PopF);
       },
 
       Int(ref n) => {
@@ -116,9 +127,9 @@ impl<'c> Compiler<'c> {
       },
 
       Identifier(ref name) => {
-        let (index, env_index) = self.visitor.symtab.get_name(name).unwrap();
-        let offset             = self.visitor.typetab.get_offset(index, env_index).unwrap();
-        let size               = self.visitor.typetab.get_type(index, env_index).unwrap().node.byte_size();
+        let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
+        let offset             = self.visitor.current_tab().1.get_offset(index, env_index).unwrap();
+        let size               = self.visitor.current_tab().1.get_type(index, env_index).unwrap().node.byte_size();
 
         self.emit(Instruction::PushDeref);
         self.emit_byte(size as u8);
@@ -280,9 +291,7 @@ impl<'c> Compiler<'c> {
         jumps.push(self.bytecode.len());       // reference, for changing tmp address
         self.emit_bytes(&to_bytes!(0 => u32)); // the temporary adress
 
-        self.emit(Instruction::PushF);
         self.compile_expression(body)?;
-        self.emit(Instruction::PopF);
 
         if let &Some(ref elses) = elses {
           for (index, &(ref maybe_condition, ref body, _)) in elses.iter().enumerate() {
@@ -309,9 +318,7 @@ impl<'c> Compiler<'c> {
                 self.emit_bytes(&to_bytes!(0 => u32)); // the temporary adress
               }
 
-              self.emit(Instruction::PushF);
               self.compile_expression(body)?;
-              self.emit(Instruction::PopF);
             } else {
               println!("\n\nelse:");
               let address = to_bytes!(self.bytecode.len() as u32 => u32);
@@ -322,13 +329,18 @@ impl<'c> Compiler<'c> {
 
               println!("\n\t{} -> {:?}", "[altered last jump]".bold(), address);
     
-              self.emit(Instruction::PushF);
               self.compile_expression(body)?;
-              self.emit(Instruction::PopF)
             }
           }
-        }
+        } else {
+          let address = to_bytes!(self.bytecode.len() as u32 => u32);
 
+          for (offset, byte) in address.iter().enumerate() {
+            self.bytecode[jumps.last().unwrap() + offset] = *byte;
+          }
+
+          println!("\n\t{} -> {:?}", "[altered last jump]".bold(), address);
+        }
       },
 
       _ => (),
@@ -393,8 +405,8 @@ impl<'c> Compiler<'c> {
         self.emit_byte(right_type.node.byte_size() as u8);
       }
 
-      let (index, env_index) = self.visitor.symtab.get_name(name).unwrap();
-      let offset             = self.visitor.typetab.get_offset(index, env_index).unwrap();
+      let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
+      let offset             = self.visitor.current_tab().1.get_offset(index, env_index).unwrap();
 
       let address = &to_bytes!(offset => u32);
 

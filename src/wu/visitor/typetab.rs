@@ -2,16 +2,18 @@ use std::cell::RefCell;
 use super::{ Type, TypeNode, };
 use super::super::error::Response::Wrong;
 
+use std::rc::Rc;
+
 
 
 #[derive(Clone)]
-pub struct TypeTab<'t> {
-  pub parent:  Option<&'t TypeTab<'t>>,
+pub struct TypeTab {
+  pub parent:  Option<Rc<TypeTab>>,
   pub types:   RefCell<Vec<(Type, u32)>>, // type and offset
 }
 
-impl<'t> TypeTab<'t> {
-  pub fn new(parent: &'t Self, types: &'t [(Type, u32)]) -> Self {
+impl TypeTab {
+  pub fn new(parent: Rc<Self>, types: &[(Type, u32)]) -> Self {
     TypeTab {
       parent: Some(parent),
       types:  RefCell::new(types.to_owned()),
