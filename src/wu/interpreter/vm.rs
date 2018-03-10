@@ -33,6 +33,11 @@ pub enum Instruction {
   PopF      = 0x18,
 
   Dump      = 0x19,
+
+  Call      = 0x20,
+  Ret       = 0x21,
+
+  Jmp       = 0x22,
 }
 
 impl fmt::Display for Instruction {
@@ -63,6 +68,11 @@ impl fmt::Display for Instruction {
       PopF      => "popf",
 
       Dump      => "dump",
+
+      Call      => "call",
+      Ret       => "ret",
+
+      Jmp       => "jmp",
     };
 
     write!(f, "{}", name)
@@ -74,10 +84,14 @@ impl fmt::Display for Instruction {
 pub struct VirtualMachine {
   pub var_stack:     [u8; 262144],
   pub compute_stack: [u8; 262144],
+  pub call_stack:    [u8; 262144],
+
+
   pub frames:        Vec<u32>,
 
   var_top:     u32,
   compute_top: u32,
+  call_top:    u32,
 }
 
 impl VirtualMachine {
@@ -85,10 +99,13 @@ impl VirtualMachine {
     VirtualMachine {
       var_stack:     [0; 262144],
       compute_stack: [0; 262144],
+      call_stack:    [0; 262144],
+
       frames:        vec!(0),
 
       var_top:     0,
       compute_top: 0,
+      call_top:    0,
     }
   }
 
@@ -116,9 +133,7 @@ impl VirtualMachine {
           let value = &read(&bytecode, ip as u32, size as u32);
           ip += size as u32;
 
-          memmove!(value => self.compute_stack, [self.compute_top; size as u32]);      
-
-          self.compute_top += size as u32
+          push!(value => self.compute_stack, [self.compute_top; size as u32]);
         },
 
         Pop => {
@@ -139,7 +154,7 @@ impl VirtualMachine {
           memmove!(value => self.var_stack, [address + *self.frames.last().unwrap(); size as u32]);
 
           if self.var_top < (address + size as u32) {
-            self.var_top = address + size as u32
+            self.var_top = address + size as u32;
           }
         }
 
@@ -158,11 +173,7 @@ impl VirtualMachine {
 
           self.var_top -= size as u32;
 
-          memmove!(value => self.compute_stack, [self.compute_top; size as u32]);
-
-          if self.compute_top < (address + size as u32) {
-            self.compute_top = address + size as u32
-          }
+          push!(value => self.compute_stack, [self.compute_top; size as u32]);
         },
 
         // Int to Float ; size_from size_to ; convif i8 f32
@@ -463,6 +474,26 @@ impl VirtualMachine {
           ip += 1;
 
           self.compute_top -= size as u32;
+        },
+
+        Call => {
+          ip += 1;
+
+          let address = pop!([&self.compute_stack, self.compute_top] => u32);    // the address of the called function
+          push!((&to_bytes!(ip => u32)) => self.call_stack, [self.call_top; 4]); // address for the `ret` to return to
+
+          ip = address
+        },
+
+        Ret => {
+          ip = pop!([&self.call_stack, self.call_top] => u32)
+        },
+
+        Jmp => {
+          ip += 1;
+
+          let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32);
+          ip = address
         },
       }
     }

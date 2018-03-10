@@ -136,6 +136,75 @@ impl<'c> Compiler<'c> {
         self.emit_bytes(&to_bytes!(offset => u32));
       },
 
+      Function(ref params, ref return_type, ref body) => {
+        use self::StatementNode::*;
+
+        println!("\nfunc -> {}:", return_type);
+
+        self.emit(Instruction::Jmp);
+
+        let jump = self.bytecode.len();        // reference, for changing tmp address
+        self.emit_bytes(&to_bytes!(0 => u32)); // the temporary adress
+
+        let function_address = &to_bytes!(self.bytecode.len() as u32 => u32);
+
+        self.visitor.tabs.push(self.visitor.tab_frames.get(0).unwrap().to_owned());
+        self.visitor.tab_frames.remove(0);
+
+        for param in params {
+          match param.node {
+            Variable(ref t, ref left, ref right) => if right.is_none() {
+              self.emit(Instruction::Pop);
+              self.emit_byte(t.node.byte_size());
+
+              if let ExpressionNode::Identifier(ref name) = left.node {
+                let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
+                let offset             = self.visitor.current_tab().1.get_offset(index, env_index).unwrap();
+
+                let address = &to_bytes!(offset => u32);
+
+                self.emit_bytes(address);
+              } else {
+                unreachable!()
+              }
+            } else {
+              panic!("this argument kind ain't implemented yet")
+            },
+
+            _ => panic!("this argument kind ain't implemented yet")
+          }
+        }
+
+        self.compile_expression(body)?;
+
+        self.visitor.tabs.pop();
+
+        self.emit(Instruction::Ret);
+
+        let address = to_bytes!(self.bytecode.len() as u32 => u32);
+
+        for (offset, byte) in address.iter().enumerate() {
+          self.bytecode[jump + offset] = *byte
+        }
+
+        println!("\n\t{} -> {:?}", "[altered last jump]".bold(), address);
+
+        self.emit(Instruction::Push);
+        self.emit_byte(4);
+        self.emit_bytes(function_address);
+
+        println!()
+      },
+
+      Call(ref caller, ref args) => {
+        for arg in args {
+          self.compile_expression(arg)?
+        }
+
+        self.compile_expression(caller)?;
+        self.emit(Instruction::Call);
+      },
+
       Binary(ref left, ref op, ref right) => {
         use self::Operator::*;
 
@@ -282,7 +351,7 @@ impl<'c> Compiler<'c> {
       If(ref condition, ref body, ref elses) => {
         println!("\n\nif:");
 
-        let mut jumps = Vec::new();
+        let mut jumps = Vec::new();            // TODO: reimplement jump buffer
 
         self.compile_expression(condition)?;
 
@@ -304,8 +373,10 @@ impl<'c> Compiler<'c> {
               let address = to_bytes!(self.bytecode.len() as u32 => u32);
 
               for (offset, byte) in address.iter().enumerate() {
-                self.bytecode[jumps.last().unwrap() + offset] = *byte;
+                self.bytecode[jumps.last().unwrap() + offset] = *byte
               }
+
+              jumps.pop();
 
               println!("\n\n\t{} -> {:?}", "[altered last jump]".bold(), address);
 

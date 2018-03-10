@@ -54,14 +54,14 @@ impl TypeNode {
       Char => mem::size_of::<char>() as u8,
       Bool => mem::size_of::<bool>() as u8,
 
+      Func(..) => 4, // address size
+
       ref other => panic!("no type size: {:?}", other),
     }
   }
 
   pub fn check_expression(&self, other: &ExpressionNode) -> bool {
     use self::TypeNode::*;
-
-    println!("{:?}", other);
 
     match *other {
       ExpressionNode::Int(_) => match *self {
@@ -441,13 +441,15 @@ impl<'v> Visitor<'v> {
       },
 
       Call(ref expression, ref args) => {
+        self.visit_expression(expression)?;
+
         let expression_type = self.type_expression(expression)?.node;
 
         if let TypeNode::Func(ref params, ..) = expression_type {
           for (index, param) in params.iter().enumerate() {
             let arg_type = self.type_expression(&args[index])?;
 
-            if param != &arg_type {
+            if !param.node.check_expression(&args[index].node) && param != &arg_type {
               return Err(
                 response!(
                   Wrong(format!("mismatched argument, expected `{}` got `{}`", expression_type, arg_type)),
@@ -481,7 +483,13 @@ impl<'v> Visitor<'v> {
           match param.node {
             Constant(ref t, ref name, _) | Variable(ref t, ref name, _) => if let Identifier(ref name) = name.node {
               param_names.push(name.clone());
-              param_types.push((t.clone(), t.node.byte_size() as u32));
+
+              let offset = *self.offsets.last().unwrap();
+
+              param_types.push((t.clone(), offset));
+
+              let len = self.offsets.len();
+              self.offsets[len - 1] += t.node.byte_size() as u32
             } else {
               return Err(
                 response!(
@@ -500,12 +508,14 @@ impl<'v> Visitor<'v> {
         let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), param_types.as_slice());
 
         self.tabs.push((local_symtab, local_typetab));
+        self.offsets.push(0);
 
         self.visit_expression(body)?;
 
-        let body_type = self.type_expression(body)?;
+        let body_type = self.type_expression(body)?;        
 
         self.tab_frames.push(self.tabs.pop().unwrap());
+        self.offsets.pop();
 
         if return_type != &body_type {
           Err(
