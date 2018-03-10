@@ -386,9 +386,6 @@ impl<'v> Visitor<'v> {
         if condition_type == TypeNode::Bool {
 
           let body_type = {
-            let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &[]);
-            let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
-
             self.visit_expression(body)?;
             let t = self.type_expression(body)?;
 
@@ -396,7 +393,7 @@ impl<'v> Visitor<'v> {
           };
 
           if let &Some(ref elses) = elses {
-            for &(ref maybe_condition, ref body, ref position) in elses {
+            for &(ref maybe_condition, ref body, _) in elses {
               if let Some(ref condition) = *maybe_condition {
                 let condition_type = self.type_expression(condition)?.node;
 
@@ -412,9 +409,6 @@ impl<'v> Visitor<'v> {
               }
 
               let else_body_type = {
-                let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &[]);
-                let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
-
                 self.visit_expression(body)?;
                 let t = self.type_expression(body)?;
 
@@ -426,7 +420,7 @@ impl<'v> Visitor<'v> {
                   response!(
                     Wrong(format!("mismatched types, expected `{}` got `{}`", body_type, else_body_type)),
                     self.source.file,
-                    condition.pos
+                    body.pos
                   )
                 )
               }
@@ -874,6 +868,19 @@ impl<'v> Visitor<'v> {
 
 
 
+  pub fn type_statement(&mut self, statement: &'v Statement<'v>) -> Result<Type, ()> {
+    use self::StatementNode::*;
+
+    let t = match statement.node {
+      Expression(ref expression) => self.type_expression(expression)?,
+      _                          => Type::from(TypeNode::Nil)
+    };
+
+    Ok(t)
+  }
+
+
+
   pub fn type_expression(&mut self, expression: &'v Expression<'v>) -> Result<Type, ()> {
     use self::ExpressionNode::*;
 
@@ -904,7 +911,8 @@ impl<'v> Visitor<'v> {
         }
       },
 
-      Loop(ref expression) => self.type_expression(expression)?,
+      Loop(ref expression)     |
+      If(_, ref expression, _) => self.type_expression(expression)?,
 
       Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
 
@@ -975,6 +983,11 @@ impl<'v> Visitor<'v> {
         }
 
         Type::set(type_content)
+      },
+
+      Block(ref content) => {
+        // temporary simple typing
+        self.type_statement(content.last().unwrap())?
       },
 
       _ => Type::from(TypeNode::Nil)
