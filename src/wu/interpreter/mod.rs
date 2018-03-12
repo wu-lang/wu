@@ -14,6 +14,8 @@ macro_rules! to_bytes {
 #[macro_export]
 macro_rules! from_bytes {
   ($raw:expr => $t:ty) => {{
+    use std::default;
+
     let mut b: [u8; mem::size_of::<$t>()] = default::Default::default();
     b.copy_from_slice($raw);
     unsafe { mem::transmute::<_,$t>(b) }

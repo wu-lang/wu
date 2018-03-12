@@ -51,8 +51,8 @@ fn run(content: &str) {
 
               println!();
 
-              println!("stack: {:?}", &vm.compute_stack[..32]);
-              println!("vars:  {:?}", &vm.var_stack[..32]);
+              println!("stack: {:?}", &vm.compute_stack[..128]);
+              println!("vars:  {:?}", &vm.var_stack[..128]);
             },
 
             _ => (),
@@ -129,11 +129,16 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-add :: (a: i128, b: i128) i128 -> a + b
-
-add(10, 10)
-
-((a: i128, b: i128) i128 -> a + b)(10, 20)
+if 0 < 1 {
+  b := 2
+  b
+} elif false {
+  ø := 3 
+  ø
+} else {
+  c := 0 * 100
+  c
+}
   "#;
 
   run(&test4);

@@ -34,25 +34,25 @@ pub enum TypeNode {
 }
 
 impl TypeNode {
-  pub fn byte_size(&self) -> u8 {
+  pub fn byte_size(&self) -> i8 {
     use self::TypeNode::*;
 
     match *self {
-      I08  => mem::size_of::<i8>()   as u8,
-      I32  => mem::size_of::<i32>()  as u8,
-      I64  => mem::size_of::<i64>()  as u8,
-      I128 => mem::size_of::<i128>() as u8,
+      I08  => mem::size_of::<i8>()   as i8,
+      I32  => mem::size_of::<i32>()  as i8,
+      I64  => mem::size_of::<i64>()  as i8,
+      I128 => mem::size_of::<i128>() as i8,
 
-      F32  => mem::size_of::<f32>() as u8,
-      F64  => mem::size_of::<f64>() as u8,
+      F32  => mem::size_of::<f32>() as i8,
+      F64  => mem::size_of::<f64>() as i8,
 
-      U08  => mem::size_of::<u8>()   as u8,
-      U32  => mem::size_of::<u32>()  as u8,
-      U64  => mem::size_of::<u64>()  as u8,
-      U128 => mem::size_of::<u128>() as u8,
+      U08  => -(mem::size_of::<u8>()   as i8),
+      U32  => -(mem::size_of::<u32>()  as i8),
+      U64  => -(mem::size_of::<u64>()  as i8),
+      U128 => -(mem::size_of::<u128>() as i8),
 
-      Char => mem::size_of::<char>() as u8,
-      Bool => mem::size_of::<bool>() as u8,
+      Char => mem::size_of::<char>() as i8,
+      Bool => mem::size_of::<bool>() as i8,
 
       Func(..) => 4, // address size
 
@@ -358,21 +358,10 @@ impl<'v> Visitor<'v> {
       },
 
       Block(ref statements) => {
-        let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &[]);
-        let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
-
-        self.offsets.push(0);
-
-        self.tabs.push((local_symtab, local_typetab));
-
         for statement in statements {
           self.visit_statement(statement)?
         }
-
-        self.offsets.pop();
-
-        self.tab_frames.push(self.tabs.pop().unwrap());
-
+        
         Ok(())
       },
 
@@ -385,12 +374,12 @@ impl<'v> Visitor<'v> {
 
         if condition_type == TypeNode::Bool {
 
-          let body_type = {
-            self.visit_expression(body)?;
-            let t = self.type_expression(body)?;
+          self.push_scope();
 
-            t
-          };
+          self.visit_expression(body)?;
+          let body_type = self.type_expression(body)?;
+
+          self.pop_scope();
 
           if let &Some(ref elses) = elses {
             for &(ref maybe_condition, ref body, _) in elses {
@@ -408,12 +397,12 @@ impl<'v> Visitor<'v> {
                 }
               }
 
-              let else_body_type = {
-                self.visit_expression(body)?;
-                let t = self.type_expression(body)?;
+              self.push_scope();
 
-                t
-              };
+              self.visit_expression(body)?;
+              let else_body_type = self.type_expression(body)?;
+
+              self.pop_scope();
 
               if body_type != else_body_type {
                 return Err(
@@ -479,6 +468,8 @@ impl<'v> Visitor<'v> {
         let mut param_names = Vec::new();
         let mut param_types = Vec::new();
 
+        self.push_scope();
+
         for param in params {
           match param.node {
             Constant(ref t, ref name, _) | Variable(ref t, ref name, _) => if let Identifier(ref name) = name.node {
@@ -504,18 +495,10 @@ impl<'v> Visitor<'v> {
           }
         }
 
-        let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &param_names.as_slice());
-        let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), param_types.as_slice());
-
-        self.tabs.push((local_symtab, local_typetab));
-        self.offsets.push(0);
-
         self.visit_expression(body)?;
+        let body_type = self.type_expression(body)?;
 
-        let body_type = self.type_expression(body)?;        
-
-        self.tab_frames.push(self.tabs.pop().unwrap());
-        self.offsets.pop();
+        self.pop_scope();
 
         if return_type != &body_type {
           Err(
@@ -592,14 +575,14 @@ impl<'v> Visitor<'v> {
               }
 
             } else {
-              let size = right_type.node.byte_size() as u32;
+              let size = right_type.node.byte_size().abs() as u32;
 
               let offset = *self.offsets.last().unwrap();
               self.current_tab().1.set_type(index, 0, (right_type, offset))?;
 
               let len = self.offsets.len();
 
-              self.offsets[len - 1] += size
+              self.offsets[len - 1] += size;
             }
 
           } else {
@@ -766,7 +749,7 @@ impl<'v> Visitor<'v> {
               self.offsets[len - 1] += constant_type.node.byte_size() as u32
             }
           } else {
-            let size   = right_type.node.byte_size() as u32;
+            let size   = right_type.node.byte_size().abs() as u32;
             let offset = *self.offsets.last().unwrap();
 
             self.current_tab().1.set_type(index, 0, (right_type, offset))?;
@@ -995,10 +978,7 @@ impl<'v> Visitor<'v> {
         Type::set(type_content)
       },
 
-      Block(ref content) => {
-        // temporary simple typing
-        self.type_statement(content.last().unwrap())?
-      },
+      Block(ref statements) => self.type_statement(statements.last().unwrap())?, // temporary
 
       _ => Type::from(TypeNode::Nil)
     };
@@ -1045,5 +1025,22 @@ impl<'v> Visitor<'v> {
     let len = self.tabs.len() - 1;
 
     &mut self.tabs[len]
+  }
+
+
+
+  fn push_scope(&mut self) {
+    self.offsets.push(0);
+
+    let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &[]);
+    let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
+
+    self.tabs.push((local_symtab, local_typetab))
+  }
+
+  fn pop_scope(&mut self) {
+    self.offsets.pop();
+
+    self.tab_frames.push(self.tabs.pop().unwrap());
   }
 }

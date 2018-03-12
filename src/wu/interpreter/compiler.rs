@@ -11,6 +11,8 @@ use colored::Colorize;
 pub struct Compiler<'c> {
   pub bytecode: Vec<u8>,
   pub visitor:  &'c mut Visitor<'c>,
+
+  frame_index: usize,
 }
 
 impl<'c> Compiler<'c> {
@@ -18,6 +20,7 @@ impl<'c> Compiler<'c> {
     Compiler {
       bytecode: Vec::new(),
       visitor,
+      frame_index: 0,
     }
   }
 
@@ -77,15 +80,14 @@ impl<'c> Compiler<'c> {
         self.visitor.tabs.push(self.visitor.tab_frames.get(0).unwrap().to_owned());
         self.visitor.tab_frames.remove(0);
 
-        self.emit(Instruction::PushF);
+        self.visitor.current_tab().0.visualize(0);
+        
 
         for element in content {
           self.compile_statement(element)?
         }
 
         self.visitor.tabs.pop();
-
-        self.emit(Instruction::PopF);
       },
 
       Int(ref n) => {
@@ -151,11 +153,15 @@ impl<'c> Compiler<'c> {
         self.visitor.tabs.push(self.visitor.tab_frames.get(0).unwrap().to_owned());
         self.visitor.tab_frames.remove(0);
 
+        self.visitor.current_tab().0.visualize(0);
+
+        self.emit(Instruction::PushF);
+
         for param in params {
           match param.node {
             Variable(ref t, ref left, ref right) => if right.is_none() {
               self.emit(Instruction::Pop);
-              self.emit_byte(t.node.byte_size());
+              self.emit_byte(t.node.byte_size() as u8);
 
               if let ExpressionNode::Identifier(ref name) = left.node {
                 let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
@@ -179,6 +185,8 @@ impl<'c> Compiler<'c> {
 
         self.visitor.tabs.pop();
 
+        self.emit(Instruction::PopF);
+
         self.emit(Instruction::Ret);
 
         let address = to_bytes!(self.bytecode.len() as u32 => u32);
@@ -187,7 +195,7 @@ impl<'c> Compiler<'c> {
           self.bytecode[jump + offset] = *byte
         }
 
-        println!("\n\t{} -> {:?}", "[altered last jump]".bold(), address);
+        println!("\n\t{} -> {:?}", "[altered last jmp]".bold(), address);
 
         self.emit(Instruction::Push);
         self.emit_byte(4);
@@ -197,7 +205,7 @@ impl<'c> Compiler<'c> {
       },
 
       Call(ref caller, ref args) => {
-        for arg in args {
+        for arg in args.iter().rev() {
           self.compile_expression(arg)?
         }
 
@@ -220,8 +228,34 @@ impl<'c> Compiler<'c> {
             } else if left_type.node.is_float() {
               self.emit(Instruction::AddF)
             }
+            
+            self.emit_byte(left_type.node.byte_size() as u8)
+          },
 
-            self.emit_byte(left_type.node.byte_size())
+          Sub => {
+            self.compile_expression(left)?;
+            self.compile_expression(right)?;
+
+            if left_type.node.is_int() {
+              self.emit(Instruction::SubI)
+            } else if left_type.node.is_float() {
+              self.emit(Instruction::SubF)
+            }
+
+            self.emit_byte(left_type.node.byte_size() as u8)
+          },
+
+          Mul => {
+            self.compile_expression(left)?;
+            self.compile_expression(right)?;
+
+            if left_type.node.is_int() {
+              self.emit(Instruction::MulI)
+            } else if left_type.node.is_float() {
+              self.emit(Instruction::MulF)
+            }
+
+            self.emit_byte(left_type.node.byte_size() as u8)
           },
 
           Eq | Lt | Gt | NEq | LtEq | GtEq => {
@@ -233,14 +267,14 @@ impl<'c> Compiler<'c> {
               if left_type.node != TypeNode::F64 {
                 self.emit(Instruction::ConvFF);
 
-                self.emit_byte(left_type.node.byte_size());
+                self.emit_byte(left_type.node.byte_size() as u8);
                 self.emit_byte(8);
               }
             } else if left_type.node.is_int() {
               if left_type.node != TypeNode::I128 {
                 self.emit(Instruction::ConvII);
 
-                self.emit_byte(left_type.node.byte_size());
+                self.emit_byte(left_type.node.byte_size() as u8);
                 self.emit_byte(16);
               }
             }
@@ -253,14 +287,14 @@ impl<'c> Compiler<'c> {
               if right_type.node != TypeNode::F64 {
                 self.emit(Instruction::ConvFF);
 
-                self.emit_byte(right_type.node.byte_size());
+                self.emit_byte(right_type.node.byte_size() as u8);
                 self.emit_byte(8);
               }
             } else if right_type.node.is_int() {
               if right_type.node != TypeNode::I128 {
                 self.emit(Instruction::ConvII);
 
-                self.emit_byte(right_type.node.byte_size());
+                self.emit_byte(right_type.node.byte_size() as u8);
                 self.emit_byte(16);
               }
             }
@@ -362,6 +396,12 @@ impl<'c> Compiler<'c> {
 
         self.compile_expression(body)?;
 
+        self.emit(Instruction::Jmp);
+        jumps.insert(0, self.bytecode.len());
+
+        self.emit_bytes(&to_bytes!(0 => u32));
+
+
         if let &Some(ref elses) = elses {
           for (index, &(ref maybe_condition, ref body, _)) in elses.iter().enumerate() {
             if let &Some(ref condition) = maybe_condition {
@@ -372,13 +412,13 @@ impl<'c> Compiler<'c> {
 
               let address = to_bytes!(self.bytecode.len() as u32 => u32);
 
+              let jump = jumps.pop().unwrap();
+
               for (offset, byte) in address.iter().enumerate() {
-                self.bytecode[jumps.last().unwrap() + offset] = *byte
+                self.bytecode[jump + offset] = *byte
               }
 
-              jumps.pop();
-
-              println!("\n\n\t{} -> {:?}", "[altered last jump]".bold(), address);
+              println!("\n\n\t{} -> {:?}", "[altered last jmpf]".bold(), address);
 
               self.compile_expression(condition)?;
 
@@ -390,15 +430,23 @@ impl<'c> Compiler<'c> {
               }
 
               self.compile_expression(body)?;
+
+              self.emit(Instruction::Jmp);
+              jumps.insert(0, self.bytecode.len());
+
+              self.emit_bytes(&to_bytes!(0 => u32));
+
             } else {
               println!("\n\nelse:");
               let address = to_bytes!(self.bytecode.len() as u32 => u32);
 
+              let jump = jumps.pop().unwrap();
+
               for (offset, byte) in address.iter().enumerate() {
-                self.bytecode[jumps.last().unwrap() + offset] = *byte
+                self.bytecode[jump + offset] = *byte
               }
 
-              println!("\n\t{} -> {:?}", "[altered last jump]".bold(), address);
+              println!("\n\t{} -> {:?}", "[altered last jmpf]".bold(), address);
     
               self.compile_expression(body)?;
             }
@@ -410,7 +458,17 @@ impl<'c> Compiler<'c> {
             self.bytecode[jumps.last().unwrap() + offset] = *byte;
           }
 
-          println!("\n\t{} -> {:?}", "[altered last jump]".bold(), address);
+          println!("\n\t{} -> {:?}", "[altered last jmpf]".bold(), address);
+        }
+
+        for jump in jumps { // take care of last jmps
+          let address = to_bytes!(self.bytecode.len() as u32 => u32);
+
+          for (offset, byte) in address.iter().enumerate() {
+            self.bytecode[jump + offset] = *byte
+          }
+
+          println!("\n\t{} -> {:?}", "[altered jmp]".bold(), address);
         }
       },
 
