@@ -310,6 +310,8 @@ impl<'v> Visitor<'v> {
       self.visit_statement(&statement)?
     }
 
+    self.tab_frames.push(self.tabs.last().unwrap().clone());
+
     Ok(())
   }
 
@@ -358,10 +360,15 @@ impl<'v> Visitor<'v> {
       },
 
       Block(ref statements) => {
+
+        self.push_scope();
+
         for statement in statements {
           self.visit_statement(statement)?
         }
-        
+
+        self.pop_scope();
+
         Ok(())
       },
 
@@ -468,8 +475,6 @@ impl<'v> Visitor<'v> {
         let mut param_names = Vec::new();
         let mut param_types = Vec::new();
 
-        self.push_scope();
-
         for param in params {
           match param.node {
             Constant(ref t, ref name, _) | Variable(ref t, ref name, _) => if let Identifier(ref name) = name.node {
@@ -494,6 +499,18 @@ impl<'v> Visitor<'v> {
             _ => unreachable!()
           }
         }
+
+        self.offsets.push(0);
+
+        let parent = self.current_tab().clone();
+
+        self.tabs.push(
+          (
+            SymTab::new(Rc::new(parent.0), &param_names),
+            TypeTab::new(Rc::new(parent.1), &param_types)
+          )
+        );
+
 
         self.visit_expression(body)?;
         let body_type = self.type_expression(body)?;
@@ -1029,16 +1046,16 @@ impl<'v> Visitor<'v> {
 
 
 
-  fn push_scope(&mut self) {
+  pub fn push_scope(&mut self) {
     self.offsets.push(0);
 
     let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &[]);
     let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
 
-    self.tabs.push((local_symtab, local_typetab))
+    self.tabs.push((local_symtab.clone(), local_typetab.clone()));
   }
 
-  fn pop_scope(&mut self) {
+  pub fn pop_scope(&mut self) {
     self.offsets.pop();
 
     self.tab_frames.push(self.tabs.pop().unwrap());

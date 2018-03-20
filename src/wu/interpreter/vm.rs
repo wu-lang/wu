@@ -175,7 +175,7 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32) + self.frames.last().unwrap_or(&0);
+          let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32) + self.frames.last().unwrap();
 
           ip += 4;
 

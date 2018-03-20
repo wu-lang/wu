@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TypeTab {
   pub parent:  Option<Rc<TypeTab>>,
   pub types:   RefCell<Vec<(Type, u32)>>, // type and offset

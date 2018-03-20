@@ -129,16 +129,15 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-if 0 < 1 {
-  b := 2
-  b
-} elif false {
-  ø := 3 
-  ø
+fac :: (a: i128) i128 -> if a < 3 {
+  a
 } else {
-  c := 0 * 100
-  c
+  fac(a - 1) * a
 }
+
+æ := fac(1)
+ø := fac(2)
+å := fac(3)
   "#;
 
   run(&test4);

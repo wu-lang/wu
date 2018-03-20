@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SymTab {
   pub parent: Option<Rc<SymTab>>,
   pub names:  RefCell<HashMap<String, usize>>,

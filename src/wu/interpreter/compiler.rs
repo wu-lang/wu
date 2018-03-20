@@ -17,6 +17,10 @@ pub struct Compiler<'c> {
 
 impl<'c> Compiler<'c> {
   pub fn new(visitor: &'c mut Visitor<'c>) -> Self {
+    /*let tabs: Vec<(SymTab, TypeTab)> = visitor.tab_frames.iter().map(|x| x.to_owned()).rev().collect();*/
+
+    visitor.tabs = vec!(visitor.tab_frames.pop().unwrap());
+
     Compiler {
       bytecode: Vec::new(),
       visitor,
@@ -77,17 +81,17 @@ impl<'c> Compiler<'c> {
 
     match expression.node {
       Block(ref content) => {
-        self.visitor.tabs.push(self.visitor.tab_frames.get(0).unwrap().to_owned());
-        self.visitor.tab_frames.remove(0);
+        self.emit(Instruction::PushF);
 
-        self.visitor.current_tab().0.visualize(0);
-        
+        self.visitor.tabs.push(self.visitor.tab_frames.pop().unwrap());
 
         for element in content {
           self.compile_statement(element)?
         }
 
         self.visitor.tabs.pop();
+
+        self.emit(Instruction::PopF);
       },
 
       Int(ref n) => {
@@ -150,12 +154,7 @@ impl<'c> Compiler<'c> {
 
         let function_address = &to_bytes!(self.bytecode.len() as u32 => u32);
 
-        self.visitor.tabs.push(self.visitor.tab_frames.get(0).unwrap().to_owned());
-        self.visitor.tab_frames.remove(0);
-
-        self.visitor.current_tab().0.visualize(0);
-
-        self.emit(Instruction::PushF);
+        self.visitor.tabs.push(self.visitor.tab_frames.pop().unwrap());
 
         for param in params {
           match param.node {
@@ -183,9 +182,7 @@ impl<'c> Compiler<'c> {
 
         self.compile_expression(body)?;
 
-        self.visitor.tabs.pop();
-
-        self.emit(Instruction::PopF);
+        self.visitor.tabs.pop(); // grr
 
         self.emit(Instruction::Ret);
 
