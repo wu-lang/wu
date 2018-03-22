@@ -36,6 +36,18 @@ bar      := functions fac(100)
 
 ```
 
+## Running
+
+Currently the Wu compiler relies on the Rust's experimental 128 bit integer types and thus a nightly version of the Rust compiler is required to build the project.
+
+Installation of Nightly Rust can be done as shown in the following.
+
+```
+curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly
+```
+
+[Further Nightly information](https://doc.rust-lang.org/1.13.0/book/nightly-rust.html)
+
 ## Disclaimer
 
 Wu is built by a minimal team of people, all of which are basically kids working on the compiler when bored in class. The whole thing is currently in its very early stages, but is propably fine, go use it in production.
