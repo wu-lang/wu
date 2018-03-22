@@ -51,8 +51,9 @@ fn run(content: &str) {
 
               println!();
 
-              println!("stack: {:?}", &vm.compute_stack[..128]);
-              println!("vars:  {:?}", &vm.var_stack[..128]);
+              println!("stack: {:?}", &vm.compute_stack[..64]);
+              println!();
+              println!("vars:  {:?}", &vm.var_stack[..256]);
             },
 
             _ => (),
@@ -135,9 +136,9 @@ fac :: (a: i128) i128 -> if a < 3 {
   fac(a - 1) * a
 }
 
-æ := fac(1)
-ø := fac(2)
-å := fac(3)
+a := fac(3) as i8
+b := fac(4) as i8
+c := fac(5) as i8
   "#;
 
   run(&test4);

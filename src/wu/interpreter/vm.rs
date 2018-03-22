@@ -42,6 +42,8 @@ pub enum Instruction {
   SubF      = 0x24,
   MulI      = 0x25,
   MulF      = 0x26,
+
+  PushG     = 0x27,
 }
 
 impl fmt::Display for Instruction {
@@ -82,6 +84,8 @@ impl fmt::Display for Instruction {
       SubF      => "subf",
       MulI      => "muli",
       MulF      => "mulf",
+
+      PushG     => "pushg",
     };
 
     write!(f, "{}", name)
@@ -95,8 +99,7 @@ pub struct VirtualMachine {
   pub compute_stack: [u8; 262144],
   pub call_stack:    [u8; 262144],
 
-
-  pub frames:        Vec<u32>,
+  pub frames: Vec<u32>,
 
   var_top:     u32,
   compute_top: u32,
@@ -161,21 +164,25 @@ impl VirtualMachine {
 
           self.compute_top -= size as u32;
 
-          memmove!(value => self.var_stack, [address + *self.frames.last().unwrap_or(&0); size as u32]);
+          memmove!(value => self.var_stack, [address + *self.frames.last().unwrap(); size as u32]);
 
-          if self.var_top < (address + size as u32) {
-            self.var_top = address + size as u32;
-          }
+          if self.var_top < (address + self.frames.last().unwrap() + size as u32) {
+            self.var_top = address + self.frames.last().unwrap() + size as u32
+          }          
         },
 
         PushDeref => {
+          ip += 1;
+
+          let scope_offset = bytecode[ip as usize];
+
           ip += 1;
 
           let size = bytecode[ip as usize];
 
           ip += 1;
 
-          let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32) + self.frames.last().unwrap();
+          let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32) + self.frames[self.frames.len() - scope_offset as usize - 1];
 
           ip += 4;
 
@@ -471,13 +478,13 @@ impl VirtualMachine {
         PushF => {
           ip += 1;
 
-          self.frames.push(self.var_top);
+          self.frames.push(self.var_top)
         },
 
         PopF => {
           ip += 1;
 
-          self.var_top = self.frames.pop().unwrap_or(0 as u32)
+          self.var_top = self.frames.pop().unwrap()
         },
 
         Dump => {
@@ -490,7 +497,7 @@ impl VirtualMachine {
           self.compute_top -= size as u32;
         },
 
-        Call => {          
+        Call => {
           ip += 1;
 
           let address = pop!([&self.compute_stack, self.compute_top] => u32);    // the address of the called function
@@ -609,8 +616,6 @@ impl VirtualMachine {
               let b = pop!([&self.compute_stack, self.compute_top] => i128);
               let a = pop!([&self.compute_stack, self.compute_top] => i128);
 
-              println!("hmmm: {} * {}", a, b);
-
               push!(&to_bytes!(a.wrapping_mul(b) => i128) => self.compute_stack, [self.compute_top; size as u32]);
             },
 
@@ -642,6 +647,22 @@ impl VirtualMachine {
 
             _ => unreachable!()
           }
+        },
+
+        PushG => {
+          ip += 1;
+
+          let size = bytecode[ip as usize];
+
+          ip += 1;
+
+          let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32);
+
+          ip += 4;
+
+          let value = &read(&self.var_stack, address, size as u32);
+
+          push!(value => self.compute_stack, [self.compute_top; size as u32]);
         },
       }
     }

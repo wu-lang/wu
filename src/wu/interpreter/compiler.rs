@@ -84,12 +84,14 @@ impl<'c> Compiler<'c> {
         self.emit(Instruction::PushF);
 
         self.visitor.tabs.push(self.visitor.tab_frames.pop().unwrap());
+        self.visitor.depth += 1;
 
         for element in content {
           self.compile_statement(element)?
         }
 
         self.visitor.tabs.pop();
+        self.visitor.depth -= 1;
 
         self.emit(Instruction::PopF);
       },
@@ -135,11 +137,21 @@ impl<'c> Compiler<'c> {
       Identifier(ref name) => {
         let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
         let offset             = self.visitor.current_tab().1.get_offset(index, env_index).unwrap();
+        let depth              = self.visitor.depth - self.visitor.current_tab().1.get_depth(index, env_index).unwrap();
         let size               = self.visitor.current_tab().1.get_type(index, env_index).unwrap().node.byte_size();
 
-        self.emit(Instruction::PushDeref);
-        self.emit_byte(size as u8);
-        self.emit_bytes(&to_bytes!(offset => u32));
+        println!("{:#?}", self.visitor.current_tab().1);
+
+        if self.visitor.current_tab().1.get_depth(index, env_index).unwrap() != 0 {
+          self.emit(Instruction::PushDeref);
+          self.emit_byte(depth as u8);
+          self.emit_byte(size as u8);
+          self.emit_bytes(&to_bytes!(offset => u32));
+        } else {
+          self.emit(Instruction::PushG);
+          self.emit_byte(size as u8);
+          self.emit_bytes(&to_bytes!(offset => u32));
+        }
       },
 
       Function(ref params, ref return_type, ref body) => {
@@ -155,6 +167,7 @@ impl<'c> Compiler<'c> {
         let function_address = &to_bytes!(self.bytecode.len() as u32 => u32);
 
         self.visitor.tabs.push(self.visitor.tab_frames.pop().unwrap());
+        self.visitor.depth += 1;
 
         for param in params {
           match param.node {
@@ -183,6 +196,7 @@ impl<'c> Compiler<'c> {
         self.compile_expression(body)?;
 
         self.visitor.tabs.pop(); // grr
+        self.visitor.depth -= 1;
 
         self.emit(Instruction::Ret);
 
@@ -207,6 +221,15 @@ impl<'c> Compiler<'c> {
         }
 
         self.compile_expression(caller)?;
+        /*if let Identifier(ref name) = caller.node {
+          let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
+          let offset             = self.visitor.current_tab().1.get_offset(index, env_index).unwrap();
+          let size               = self.visitor.current_tab().1.get_type(index, env_index).unwrap().node.byte_size();
+
+          self.emit(Instruction::PushG);
+          self.emit_byte(size as u8);
+          self.emit_bytes(&to_bytes!(offset => u32));
+        }*/
         self.emit(Instruction::Call);
       },
 
@@ -550,12 +573,12 @@ impl<'c> Compiler<'c> {
   }
 
   fn emit_byte(&mut self, byte: u8) {
-    print!("\t{} ", byte);
+    print!("\t{} ", byte as i8);
     self.bytecode.push(byte)
   }
 
   fn emit_bytes(&mut self, bytes: &[u8]) {
-    print!("\t{:?} ", bytes);
+    print!("\t{:?} ", bytes.iter().map(|x| *x as i8).collect::<Vec<i8>>());
     self.bytecode.extend(bytes)
   }
 }

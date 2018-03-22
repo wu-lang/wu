@@ -291,6 +291,7 @@ pub struct Visitor<'v> {
   pub ast:     &'v Vec<Statement<'v>>,
 
   pub offsets: Vec<u32>,
+  pub depth:   u32,
 }
 
 impl<'v> Visitor<'v> {
@@ -302,6 +303,7 @@ impl<'v> Visitor<'v> {
       source,
       ast,
       offsets: vec!(0),
+      depth:   0,
     }
   }
 
@@ -360,7 +362,6 @@ impl<'v> Visitor<'v> {
       },
 
       Block(ref statements) => {
-
         self.push_scope();
 
         for statement in statements {
@@ -482,7 +483,12 @@ impl<'v> Visitor<'v> {
 
               let offset = *self.offsets.last().unwrap();
 
-              param_types.push((t.clone(), offset));
+              self.depth += 1;
+
+              param_types.push((t.clone(), offset, self.depth));
+
+              // simply pushing without pushing
+              self.depth += 1;
 
               let len = self.offsets.len();
               self.offsets[len - 1] += t.node.byte_size() as u32
@@ -516,6 +522,8 @@ impl<'v> Visitor<'v> {
         let body_type = self.type_expression(body)?;
 
         self.pop_scope();
+
+        self.depth -= 1;
 
         if return_type != &body_type {
           Err(
@@ -584,7 +592,9 @@ impl<'v> Visitor<'v> {
                 )
               } else {
                 let offset = *self.offsets.last().unwrap();
-                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset))?;
+                let depth  = self.depth;
+                
+                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset, depth))?;
 
                 let len = self.offsets.len();
 
@@ -595,7 +605,9 @@ impl<'v> Visitor<'v> {
               let size = right_type.node.byte_size().abs() as u32;
 
               let offset = *self.offsets.last().unwrap();
-              self.current_tab().1.set_type(index, 0, (right_type, offset))?;
+              let depth  = self.depth;
+              
+              self.current_tab().1.set_type(index, 0, (right_type, offset, depth))?;
 
               let len = self.offsets.len();
 
@@ -604,8 +616,10 @@ impl<'v> Visitor<'v> {
 
           } else {
             let offset = *self.offsets.last().unwrap();
+            let depth  = self.depth;
+            
 
-            self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset))?;
+            self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset, depth))?;
 
             let len = self.offsets.len();
 
@@ -653,8 +667,9 @@ impl<'v> Visitor<'v> {
                         )
                       } else {
                         let offset = *self.offsets.last().unwrap();
+                        let depth  = self.depth;
 
-                        self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset))?;
+                        self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset, depth))?;
                         
                         let len = self.offsets.len();
 
@@ -672,8 +687,10 @@ impl<'v> Visitor<'v> {
                   } else {                  
                     let size   = right_type.node.byte_size() as u32;
                     let offset = *self.offsets.last().unwrap();
+                    let depth  = self.depth;
+                    
 
-                    self.current_tab().1.set_type(index, 0, (right_type, offset))?;
+                    self.current_tab().1.set_type(index, 0, (right_type, offset, depth))?;
                     
                     let len = self.offsets.len();
 
@@ -701,8 +718,9 @@ impl<'v> Visitor<'v> {
                 };
 
                 let offset = *self.offsets.last().unwrap();
+                let depth  = self.depth;
 
-                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset))?;
+                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset, depth))?;
                 
                 let len = self.offsets.len();
 
@@ -759,7 +777,9 @@ impl<'v> Visitor<'v> {
               )
             } else {
               let offset = *self.offsets.last().unwrap();
-              self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), offset))?;
+              let depth  = self.depth;
+
+              self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), offset, depth))?;
 
               let len = self.offsets.len();
 
@@ -768,8 +788,9 @@ impl<'v> Visitor<'v> {
           } else {
             let size   = right_type.node.byte_size().abs() as u32;
             let offset = *self.offsets.last().unwrap();
+            let depth  = self.depth;
 
-            self.current_tab().1.set_type(index, 0, (right_type, offset))?;
+            self.current_tab().1.set_type(index, 0, (right_type, offset, depth))?;
 
             let len = self.offsets.len();
 
@@ -821,8 +842,9 @@ impl<'v> Visitor<'v> {
                       )
                     } else {
                       let offset = *self.offsets.last().unwrap();
+                      let depth  = self.depth;
 
-                      self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), offset))?;
+                      self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), offset, depth))?;
 
                       let len = self.offsets.len();
 
@@ -841,8 +863,9 @@ impl<'v> Visitor<'v> {
                   let size = right_type.node.byte_size() as u32;
 
                   let offset = *self.offsets.last().unwrap();
+                  let depth  = self.depth;
 
-                  self.current_tab().1.set_type(index, 0, (right_type, offset))?;
+                  self.current_tab().1.set_type(index, 0, (right_type, offset, depth))?;
 
                   let len = self.offsets.len();
 
@@ -1053,11 +1076,15 @@ impl<'v> Visitor<'v> {
     let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
 
     self.tabs.push((local_symtab.clone(), local_typetab.clone()));
+
+    self.depth += 1
   }
 
   pub fn pop_scope(&mut self) {
     self.offsets.pop();
 
     self.tab_frames.push(self.tabs.pop().unwrap());
+
+    self.depth -= 1
   }
 }
