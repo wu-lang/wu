@@ -18,13 +18,19 @@ The language provides and is made to be an alternative to Python and MoonScript/
 ### Taster
 
 ```
-fib :: (a: i32) i32 -> if a > 2 {
-  fib(a - 1) + fib(a - 2)
-} else {
-  a
+fac :: (n: i32) i32 -> match n {
+  | 0 -> 0
+  | 1 -> 1
+  | _ -> fac(n - 1) * n
 }
 
-foo: i128 = fib(100000) as i128
+last := 0
+
+loop {
+  last = fac(last + 1)
+
+  print("here we go: " ++ last)
+}
 ```
 
 ## Building
