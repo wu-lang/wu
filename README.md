@@ -11,29 +11,20 @@ A full walk-through of the language can be found over at the [wu-lang documentat
 
 ### A decent language
 
-Wu strives to be a decently fast, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai language and the sugar of MoonScript and the functional family.
+Apart from being the best language ever, Wu strives to be a decently fast, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai language and the sugar of MoonScript and the functional family.
 
 The language provides and is made to be an alternative to Python and MoonScript/Lua for better scalability and less gross runtime errors.
 
 ### Taster
 
 ```
-module functions {
-  fib :: (a: i128) i128 -> match a {
-    | 0 -> 0
-    | 1 -> 1
-    | _ -> fib(a - 1) + fib(a - 2)
-  }
-  
-  fac :: (a: i128) i128 -> match a {
-    | 0 or 1 -> a
-    | _      -> fac(a - 1) * a
-  }
+fib :: (a: i32) i32 -> if a > 2 {
+  fib(a - 1) + fib(a - 2)
+} else {
+  a
 }
 
-foo: i128 = functions fib(1000)
-bar      := functions fac(100)
-
+foo: i128 = fib(100000) as i128
 ```
 
 ## Building
