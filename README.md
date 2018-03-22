@@ -36,7 +36,7 @@ bar      := functions fac(100)
 
 ```
 
-## Running
+## Building
 
 Currently the Wu compiler relies on the Rust's experimental 128 bit integer types and thus a nightly version of the Rust compiler is required to build the project.
 
