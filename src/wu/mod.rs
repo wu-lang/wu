@@ -1,8 +1,8 @@
-pub mod lexer;
-pub mod parser;
-pub mod visitor;
-pub mod codegen;
-
+#[macro_use]
 pub mod error;
 
-pub use self::error::*;
+pub mod lexer;
+pub mod source;
+pub mod parser;
+pub mod visitor;
+pub mod interpreter;

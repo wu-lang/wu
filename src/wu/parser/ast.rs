@@ -1,153 +1,120 @@
-use super::lexer::*;
-use super::visitor::*;
-
 use std::rc::Rc;
+use std::fmt;
+
+use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum StatementNode {
-    Expression(Expression),
-
-    Return(Option<Expression>),
-
-    Definition {
-        kind:  TypeNode,
-        left:  Expression,
-        right: Option<Expression>,
-    },
-
-    ConstDefinition {
-        kind:  TypeNode,
-        left:  Expression,
-        right: Expression,
-    },
-
-    Assignment {
-        left:  Expression,
-        right: Expression,
-    },
-
-    Struct {
-        name:    String,
-        members: Vec<(String, TypeNode)>
-    },
-
-    While {
-        condition: Expression,
-        body:      Expression,
-    },
-
-    Module {
-        name:    String,
-        content: Option<Expression>,
-    },
-
-    Expose {
-        origin: Expression,
-        expose: Option<Vec<String>>,
-    },
-
-    Extern(Rc<Statement>),
-
-    If(IfNode),
+pub enum StatementNode<'s> {
+  Expression(Expression<'s>),
+  Variable(Type, Expression<'s>, Option<Expression<'s>>),
+  Constant(Type, Expression<'s>, Expression<'s>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Statement(pub StatementNode, pub TokenPosition);
+pub struct Statement<'s> {
+  pub node: StatementNode<'s>,
+  pub pos:  TokenElement<'s>,
+}
 
-impl Statement {
-    pub fn new(node: StatementNode, position: TokenPosition) -> Statement {
-        Statement(node, position)
+impl<'s> Statement<'s> {
+  pub fn new(node: StatementNode<'s>, pos: TokenElement<'s>) -> Self {
+    Statement {
+      node,
+      pos,
     }
+  }
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpressionNode<'e> {
+  Int(u128),
+  Float(f64),
+  String(String),
+  Char(char),
+  Bool(bool),
+  Identifier(String),
+  Binary(Rc<Expression<'e>>, Operator, Rc<Expression<'e>>),
+  Block(Vec<Statement<'e>>),
+  Set(Vec<Expression<'e>>),
+  Cast(Rc<Expression<'e>>, Type),
+  Array(Vec<Expression<'e>>),
+  Function(Vec<Statement<'e>>, Type, Rc<Expression<'e>>),
+  Call(Rc<Expression<'e>>, Vec<Expression<'e>>),
+  Loop(Rc<Expression<'e>>),
+  If(Rc<Expression<'e>>, Rc<Expression<'e>>, Option<Vec<(Option<Expression<'e>>, Expression<'e>, TokenElement<'e>)>>),
+  EOF,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExpressionNode {
-    Float(f64),
-    Int(i64),
-    Bool(bool),
-    Str(String),
-    Array(Vec<Expression>),
-    Identifier(String),
-    Binary {left: Rc<Expression>, op: Operator, right: Rc<Expression>,},
-    Function {params: Vec<(String, TypeNode, Option<Rc<Expression>>)>, return_type: TypeNode, body: Rc<Expression>},
-    Call(Rc<Expression>, Vec<Expression>),
-    Block(Vec<Statement>),
-    Index(Rc<Expression>, Rc<Expression>),
-    Constructor(Rc<Expression>, Vec<(String, Rc<Expression>)>),
-    Unary(Operator, Rc<Expression>),
-    EOF,
+pub struct Expression<'e> {
+  pub node: ExpressionNode<'e>,
+  pub pos:  TokenElement<'e>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Expression(pub ExpressionNode, pub TokenPosition);
-
-impl Expression {
-    pub fn new(node: ExpressionNode, position: TokenPosition) -> Expression {
-        Expression(node, position)
+impl<'e> Expression<'e> {
+  pub fn new(node: ExpressionNode<'e>, pos: TokenElement<'e>) -> Self {
+    Expression {
+      node,
+      pos,
     }
+  }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct IfNode {
-    pub condition: Expression,
-    pub body:      Expression,
-    pub elses:     Option<Vec<(Option<Expression>, Expression, TokenPosition)>>,
-}
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operator {
-    Pow,
-    Mul,
-    Div,
-    Mod,
-    Add,
-    Sub,
-    Equal,
-    NEqual,
-    Lt,
-    Gt,
-    LtEqual,
-    GtEqual,
-    Concat,
-    PipeLeft,
-    PipeRight,
-    Compound(Rc<Operator>),
-    Len,
-    Not,
+  Add, Sub, Mul, Div, Mod, Pow, Concat, Eq, Lt, Gt, NEq, LtEq, GtEq,
 }
 
 impl Operator {
-    pub fn from(v: &str) -> Option<(Operator, u8)> {
-        use self::Operator::*;
+  pub fn from_str(operator: &str) -> Option<(Operator, u8)> {
+    use self::Operator::*;
 
-        match v {
-            "^"   => Some((Pow, 0)),
-            "#"   => Some((Len, 0)),
-            "!"   => Some((Not, 0)),
-            "*"   => Some((Mul, 1)),
-            "/"   => Some((Div, 1)),
-            "%"   => Some((Mod, 1)),
-            "+"   => Some((Add, 2)),
-            "-"   => Some((Sub, 2)),
-            "++"  => Some((Concat, 2)),
-            "=="  => Some((Equal, 3)),
-            "!="  => Some((NEqual, 3)),
+    let op_prec = match operator {
+      "==" => (Eq,     0),
+      "<"  => (Lt,     0),
+      ">"  => (Gt,     0),
+      "!=" => (NEq,    0),
+      "<=" => (LtEq,   0),
+      ">=" => (GtEq,   0),
+      "+"  => (Add,    1),
+      "-"  => (Sub,    1),
+      "++" => (Concat, 1),
+      "*"  => (Mul,    2),
+      "/"  => (Div,    2),
+      "%"  => (Mod,    2),
+      "^"  => (Pow,    3),
+      _    => return None,
+    };
 
-            "+="  => Some((Compound(Rc::new(Add)), 3)),
-            "-="  => Some((Compound(Rc::new(Sub)), 3)),
-            "*="  => Some((Compound(Rc::new(Mul)), 3)),
-            "%="  => Some((Compound(Rc::new(Mod)), 3)),
-            "/="  => Some((Compound(Rc::new(Div)), 3)),
-            "^="  => Some((Compound(Rc::new(Pow)), 3)),
-            "++=" => Some((Compound(Rc::new(Concat)), 3)),
+    Some(op_prec)
+  }
 
-            "<"   => Some((Lt, 3)),
-            ">"   => Some((Gt, 3)),
-            "<="  => Some((LtEqual, 3)),
-            ">="  => Some((GtEqual, 3)),
-            "<|"  => Some((PipeLeft, 4)),
-            "|>"  => Some((PipeRight, 4)),
-            _     => None,
-        }
+  pub fn as_str(&self) -> &str {
+    use self::Operator::*;
+    
+    match *self {
+      Add    => "+",
+      Sub    => "-",
+      Concat => "++",
+      Mul    => "*",
+      Div    => "/",
+      Mod    => "%",
+      Pow    => "^",
+      Eq     => "==",
+      Lt     => "<",
+      Gt     => ">",
+      NEq    => "!=",
+      LtEq   => "<=",
+      GtEq   => ">=",
     }
+  }
+}
+
+impl fmt::Display for Operator {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{}", self.as_str())
+  }
 }

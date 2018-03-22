@@ -1,85 +1,37 @@
-use super::lexer::TokenPosition;
+use std::fmt;
 use colored::Colorize;
 
-#[derive(Debug)]
-pub enum ResponseType {
-    Wrong,
-    Weird,
-    Group(Vec<ResponseNode>),
+pub enum Response<T: fmt::Display> {
+  Wrong(T),
+  Weird(T),
+  Note(T),
 }
 
-#[derive(Debug)]
-pub struct ResponseNode {
-    pub position: Option<TokenPosition>,
-    pub kind:     ResponseType,
-    pub message:  String,
+use self::Response::*;
+
+#[macro_export]
+macro_rules! response {
+    ( $( $r:expr ),+ ) => {{
+        $(
+            print!("{}", $r);
+        )*
+        println!("");
+    }};
 }
 
-impl ResponseNode {
-    pub fn display(&self, lines: &[String], path: &str) {
-        let (color, kind) = match self.kind {
-            ResponseType::Wrong => ("red",    "wrong"),
-            ResponseType::Weird => ("yellow", "weird"),
-            _                   => ("red",    "wrong"),
+impl<T: fmt::Display> fmt::Display for Response<T> {
+    fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let (color, message_type, message) = match *self {
+            Wrong(ref m) => ("red",    "wrong", m),
+            Weird(ref m) => ("yellow", "weird", m),
+            Note(ref m)  => ("white",  "note",  m),
         };
 
-        let message = format!(
-            "{}{}{}\n",
+        let message_type = format!("\n{}: ", message_type).color(color).bold();
+        let message      = format!("{}", message);
 
-            kind.color(color).bold(),
-            ": ".white().bold(),
-            self.message.bold(),
-        );
+        let message      = format!("{}{}", message_type, message);
 
-        if let Some(ref position) = self.position {
-            let line_number = if position.line == 0 {
-                position.line
-            } else {
-                position.line - 1
-            };
-
-            let prefix = format!("{:5} |  ", line_number + 1).blue().bold();
-            let line   = format!("{:5} {}\n{}{}", " ", "|".blue().bold(), prefix, lines.get(if line_number == 1 && lines.len() == 1 { 0 } else { line_number }).unwrap_or(lines.last().unwrap()));
-
-            let indicator = format!(
-                                "{:6}{}{:offset$}{:^<count$}", " ", "|".bold().blue(), " ", " ".color(color).bold(),
-                                offset = position.col,
-                                count  = 2,
-                            );
-
-            let path_line = format!("{:5}{}{}", " ", "--> ".blue().bold(), path);
-
-            println!("{}{}\n{}\n{}", message, path_line, line, indicator)
-        } else {
-            if let ResponseType::Group(ref responses) = self.kind {
-                for response in responses {
-                    response.display(lines, path)
-                }
-
-                println!()
-            }
-
-            println!("{}", message);
-        }
+        write!(f, "{}", message)
     }
 }
-
-pub fn make_error(position: Option<TokenPosition>, message: String) -> ResponseNode {
-    ResponseNode {
-        position,
-        kind: ResponseType::Wrong,
-        message,
-    }
-}
-
-pub fn weird(position: Option<TokenPosition>, message: String, lines: &Vec<String>, path: &str) {
-    let warning = ResponseNode {
-        position,
-        kind: ResponseType::Weird,
-        message,
-    };
-
-    warning.display(lines, path)
-}
-
-pub type Response<T> = Result<T, ResponseNode>;

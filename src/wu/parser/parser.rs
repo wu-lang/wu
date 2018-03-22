@@ -1,1190 +1,857 @@
-use super::lexer::*;
-use super::visitor::{TypeNode, Type, TypeMode};
 use super::*;
+use super::super::error::Response::Wrong;
 
 use std::rc::Rc;
 
 pub struct Parser<'p> {
-    pub tokens: Vec<Token>,
-    pub top:    usize,
-
-    // for displaying pretty warnings without returning Err
-    pub lines:  &'p [String],
-    pub path:   &'p str,
-
-    pub inside: String,
+  index:  usize,
+  tokens: Vec<&'p Token<'p>>,
+  source: &'p Source,
 }
 
 impl<'p> Parser<'p> {
-    pub fn new(tokens: Vec<Token>, lines: &'p [String], path: &'p str) -> Self {
-        Parser {
-            tokens,
-            top: 0,
-            lines,
-            path,
-            inside: String::new(),
-        }
+  pub fn new(tokens: Vec<&'p Token<'p>>, source: &'p Source) -> Self {
+    Parser {
+      tokens,
+      source,
+      index: 0,
+    }
+  }
+
+
+
+  pub fn parse(&mut self) -> Result<Vec<Statement<'p>>, ()> {
+    let mut ast = Vec::new();
+
+    while self.remaining() > 0 {
+      ast.push(self.parse_statement()?)
     }
 
-    pub fn parse(&mut self) -> Response<Vec<Statement>> {
-        let mut statements: Vec<Statement> = Vec::new();
+    Ok(ast)
+  }
 
-        while self.remaining() > 1 {
-            statements.push(self.statement()?)
-        }
+  fn parse_statement(&mut self) -> Result<Statement<'p>, ()> {
+    use self::TokenType::*;
 
-        Ok(statements)
+    while self.current_type() == &EOL && self.remaining() != 0 {
+      self.next()?
     }
 
-    fn statement(&mut self) -> Response<Statement> {
-        use self::TokenType::*;
-
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        let position = self.position();
-
-        let node = match self.current_type() {
-            Keyword => match self.current_content().as_str() {
-                "return" => {
-                    self.next()?;
-                    self.skip_types(vec![Whitespace])?;
-
-                    if self.current_content() == "\n" {
-                        self.next()?;
-
-                        StatementNode::Return(None)
-                    } else {
-                        let ret = StatementNode::Return(Some(self.expression()?));
-
-                        if self.current_content() == "\n" {
-                            self.next()?;
-                        }
-
-                        ret
-                    }
-                },
-
-                "extern" => {
-                    self.next()?;
-                    self.skip_types(vec![Whitespace])?;
-
-                    StatementNode::Extern(Rc::new(self.statement()?))
-                },
-
-                "expose" => {
-                    self.next()?;
-                    self.skip_types(vec![Whitespace])?;
-
-                    let position = self.position();
-                    let origin   = Expression::new(ExpressionNode::Identifier(self.consume_type(Identifier)?), position);
-
-                    self.skip_types(vec![Whitespace])?;
-
-                    self.consume_content("(")?;
-
-                    self.skip_types(vec![Whitespace])?;
-
-                    let mut expose = Vec::new();
-
-                    if self.current_content() == "*" {
-                        expose.push("*".to_string());
-
-                        self.next()?;
-                        self.skip_types(vec![Whitespace])?;
-
-                        self.consume_content(")")?;
-                        self.skip_types(vec![Whitespace])?;
-
-                        self.consume_content("\n")?;
-
-                    } else {
-                        loop {
-                            if self.current_content() == "*" {
-                                return Err(make_error(Some(self.position()), "'*' must be used alone".to_string()))
-                            }
-
-                            if self.current_type() == Identifier {
-                                expose.push(self.current_content());
-                                self.next()?
-                            } else {
-                                return Err(make_error(Some(self.position()), format!("can't expose '{}'", self.current_content())))
-                            }
-                            self.skip_types(vec![Whitespace])?;
-
-                            if self.current_content() != "\n" {
-                                if self.current_content() == ")" {
-                                    self.next()?;
-                                    self.skip_types(vec![Whitespace])?;
-                                    self.consume_content("\n")?;
-
-                                    break
-                                } else {
-                                    self.consume_content(",")?;
-                                    self.skip_types(vec![Whitespace])?;
-                                }
-                            } else {
-                                self.next()?;
-                                break
-                            }
-                        }
-                    }
-
-                    StatementNode::Expose {
-                        origin,
-                        expose: Some(expose),
-                    }
-                }
-
-                "module" => {
-                    self.next()?;
-                    self.skip_types(vec![Whitespace])?;
-
-                    let name = self.consume_type(Identifier)?;
-
-                    self.skip_types(vec![Whitespace])?;
-
-                    if self.current_content() == "\n" {
-                        StatementNode::Module {
-                            name,
-                            content: None,
-                        }
-                    } else {
-                        self.expect_content("{")?;
-
-                        let content = self.atom()?;
-
-                        StatementNode::Module {
-                            name,
-                            content: Some(content),
-                        }
-                    }
-                },
-
-                "while" => {
-                    self.next()?;
-
-                    self.skip_types(vec![Whitespace])?;
-
-                    let condition = self.expression()?;
-
-                    self.skip_types(vec![Whitespace])?;
-
-                    self.expect_content("{")?;
-
-                    let body = self.atom()?;
-
-                    StatementNode::While {
-                        condition,
-                        body,
-                    }
-                }
-
-                "struct" => {
-                    self.next()?;
-
-                    self.skip_types(vec![Whitespace])?;
-
-                    let name = self.consume_type(Identifier)?;
-
-                    self.skip_types(vec![Whitespace])?;
-
-                    let members = self.block_of(&Self::member_, ("{", "}"))?;
-
-                    StatementNode::Struct {
-                        name,
-                        members,
-                    }
-                },
-
-                "if"    => StatementNode::If(self.if_node()?),
-                "match" => StatementNode::If(self.match_node()?),
-
-                _ => StatementNode::Expression(self.expression()?),
-            },
-
-            Identifier => {
-                let backup_top = self.top;
-
-                let position        = self.position();
-                let name            = self.consume_type(TokenType::Identifier)?;
-                let identifier_node = self.maybe_index(Expression::new(ExpressionNode::Identifier(name), position))?;
-
-                self.skip_types(vec![TokenType::Whitespace])?;
-
-                match self.current_content().as_str() {
-                    ":" => {
-                        self.next()?;
-
-                        if self.current_content() == ":" {
-                            self.next()?;
-
-                            let right = self.expression()?;
-
-                            self.skip_types(vec![TokenType::Whitespace])?;
-                            if self.remaining() > 0 {
-                                self.consume_content("\n")?;
-                            }
-
-                            StatementNode::ConstDefinition {
-                                kind:  TypeNode::Nil,
-                                left:  identifier_node,
-                                right: right,
-                            }
-
-                        } else if self.current_content() == "=" {
-                            self.consume_content("=")?;
-
-                            let right = self.expression()?;
-
-                            self.skip_types(vec![TokenType::Whitespace])?;
-                            if self.remaining() > 0 {
-                                self.consume_content("\n")?;
-                            }
-
-                            StatementNode::Definition {
-                                kind:  TypeNode::Nil,
-                                left:  identifier_node,
-                                right: Some(right),
-                            }
-
-                        } else {
-                            self.skip_types(vec![TokenType::Whitespace])?;
-
-                            let kind = self.type_node()?;
-
-                            self.skip_types(vec![TokenType::Whitespace])?;
-
-                            if self.current_content() == "=" {
-                                self.next()?;
-
-                                let right = self.expression()?;
-
-                                self.skip_types(vec![TokenType::Whitespace])?;
-                                if self.remaining() > 0 {
-                                    self.consume_content("\n")?;
-                                }
-
-                                StatementNode::Definition {
-                                    kind,
-                                    left:  identifier_node,
-                                    right: Some(right),
-                                }
-                            } else if self.current_content() == ":" {
-                                self.next()?;
-
-                                let right = self.expression()?;
-
-                                self.skip_types(vec![TokenType::Whitespace])?;
-                                if self.remaining() > 0 {
-                                    self.consume_content("\n")?;
-                                }
-
-                                StatementNode::ConstDefinition {
-                                    kind,
-                                    left: identifier_node,
-                                    right,
-                                }
-
-                            } else {
-                                if self.remaining() > 0 {
-                                    self.consume_content("\n")?;
-                                }
-
-                                StatementNode::Definition {
-                                    kind,
-                                    left:  identifier_node,
-                                    right: None,
-                                }
-                            }
-                        }
-                    },
-
-                    "=" => {
-                        self.next()?;
-
-                        let right = self.expression()?;
-
-                        if self.current_content() == "\n" {
-                            self.next()?
-                        }
-
-                        StatementNode::Assignment {
-                            left: identifier_node,
-                            right,
-                        }
-                    },
-
-                    _ => {
-                        self.top = backup_top;
-                        StatementNode::Expression(self.expression()?)
-                    }
-                }
-            },
-            _ => StatementNode::Expression(self.expression()?)
-        };
-
-        Ok(Statement::new(node, position))
-    }
-
-    fn if_node(&mut self) -> Response<IfNode> {
-        self.consume_content("if")?;
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        let condition = self.expression()?;
-
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        self.expect_content("{")?;
-
-        let position = self.position();
-        let body = Expression::new(ExpressionNode::Block(self.block_of(&Self::statement_, ("{", "}"))?), position);
-
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        if self.current_content() == "elif" || self.current_content() == "else" {
-            let mut elses = Vec::new();
-
-            let mut else_flag = false;
-
-            loop {
-                let current_position = self.position();
-                let current          = self.current_content();
-
-                if else_flag && (current == "elif" || current == "else") {
-                    return Err(make_error(Some(self.position()), format!("irrelevant '{}' following previous 'else'", current)))
-                } else {
-                    match current.as_str() {
-                        "elif" => {
-                            self.next()?;
-                            self.skip_types(vec![TokenType::Whitespace])?;
-
-                            let condition = self.expression()?;
-
-                            self.skip_types(vec![TokenType::Whitespace])?;
-
-                            self.expect_content("{")?;
-
-                            let position = self.position();
-                            let body = Expression::new(ExpressionNode::Block(self.block_of(&Self::statement_, ("{", "}"))?), position);
-
-                            elses.push((Some(condition), body, current_position));
-
-                            self.skip_types(vec![TokenType::Whitespace])?;
-                        },
-
-                        "else" => {
-                            else_flag = true;
-
-                            self.next()?;
-                            self.skip_types(vec![TokenType::Whitespace])?;
-
-                            self.expect_content("{")?;
-
-                            let position = self.position();
-                            let body = Expression::new(ExpressionNode::Block(self.block_of(&Self::statement_, ("{", "}"))?), position);
-
-                            elses.push((None, body, current_position));
-
-                            self.skip_types(vec![TokenType::Whitespace])?;
-                        },
-
-                        _ => break,
-                    }
-                }
-            }
-
-            Ok(IfNode { condition, body, elses: Some(elses) })
-        } else {
-            Ok(IfNode { condition, body, elses: None })
-        }
-    }
-
-    fn match_node(&mut self) -> Response<IfNode> {
-        self.consume_content("match")?;
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        let left = Rc::new(self.expression()?);
-
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        let mut elses = Vec::new();
-
-        let mut found = false;
-
-        let mut condition = Expression::new(ExpressionNode::EOF, self.position());
-        let mut body      = Expression::new(ExpressionNode::EOF, self.position());;
-
-        self.consume_content("{")?;
-
-        let mut nested = 1;
-        while nested != 0 {
-            if self.current_content() == "}" {
-                self.next()?;
-                nested -= 1
-            } else if self.current_content() == "{" {
-                self.next()?;
-                nested += 1
-            }
-
-            if nested == 0 {
-                break
-            }
-
-            self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-            let position = self.position();
-
-            self.consume_content("|")?;
-            self.skip_types(vec![TokenType::Whitespace])?;
-
-            let right = Rc::new(self.expression()?);
-
-            let else_binding = match right.0 {
-                ExpressionNode::Identifier(_) => vec!(Statement::new(StatementNode::ConstDefinition {
-                    kind: TypeNode::Nil,
-                    left: (*right).clone(),
-                    right: (*left).clone(),
-                }, right.1)),
-
-                _ => Vec::new(),
-            };
-
-            self.skip_types(vec![TokenType::Whitespace])?;
-            self.consume_content("->")?;
-            self.skip_types(vec![TokenType::Whitespace])?;
-
-            let arm_body = Expression::new(ExpressionNode::Block([&else_binding[..], &vec![self.statement()?][..]].concat()), position);
-
-            if found {
-                if !else_binding.is_empty() {
-                    elses.push((None, arm_body, position))
-                } else {
-                    elses.push((Some(Expression::new(ExpressionNode::Binary {left: Rc::clone(&left), op: Operator::Equal, right}, left.1)), arm_body, position))
-                }
-            } else if !else_binding.is_empty() {
-                condition = Expression::new(ExpressionNode::Bool(true), left.1);
-                body      = arm_body;
-                found = true
-            } else {
-                condition = Expression::new(ExpressionNode::Binary {left: Rc::clone(&left), op: Operator::Equal, right}, left.1);
-                body      = arm_body;
-                found = true
-            }
-
-            self.next()?;
-            self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-        }
-
-        self.next()?; // skips "}"
-
-        Ok(IfNode{ condition, body, elses: Some(elses) })
-    }
-
-    fn type_node(&mut self) -> Response<TypeNode> {
-        use self::TypeNode::*;
-
-        let t = match self.current_content().as_str() {
-            "int"     => Int,
-            "float"   => Float,
-            "string"  => Str,
-            "bool"    => Bool,
-            "["       => {
-                self.next()?;
-
-                self.skip_types(vec![TokenType::Whitespace])?;
-
-                let content = Type::new(self.type_node()?, TypeMode::Just);
-
-                self.skip_types(vec![TokenType::Whitespace])?;
-
-                self.consume_content("]")?;
-
-                Array(Rc::new(content))
-            }
-            "("       => {
-                self.next()?;
-
-                let mut params = Vec::new();
-
-                let mut nested = 1;
-
-                while nested != 0 {
-                    if self.current_content() == ")" {
-                        self.next()?;
-                        nested -= 1;
-                    } else if self.current_content() == "(" {
-                        nested += 1
-                    }
-
-                    if nested == 0 {
-                        break
-                    }
-
-                    self.skip_types(vec![TokenType::Whitespace])?;
-
-                    params.push(Type::new(self.type_node()?, TypeMode::Just));
-
-                    self.skip_types(vec![TokenType::Whitespace])?;
-
-                    if self.current_content() == "," {
-                        self.next()?
-                    }
-                }
-
-                self.skip_types(vec![TokenType::Whitespace])?;
-
-                let retty = Type::new(self.type_node()?, TypeMode::Just);
-
-                return Ok(Fun(params, Rc::new(retty)))
-            },
-
-            _ => return Ok(Id(self.consume_type(TokenType::Identifier)?)),
-        };
-
-        self.next()?;
-
-        Ok(t)
-    }
-
-    // grouping atoms into e.g. operations
-    fn expression(&mut self) -> Response<Expression> {
-        let expression = self.atom()?;
-
-        if expression.0 == ExpressionNode::EOF {
-            Ok(expression)
-        } else {
-            let backup_top = self.top;
-
-            self.skip_types(vec![TokenType::Whitespace])?;
-
-            if self.current_type() == TokenType::Operator {
-                self.binary(expression)
-            } else {
-                self.top = backup_top;
-
-                Ok(expression)
-            }
-        }
-    }
-
-    fn atom(&mut self) -> Response<Expression> {
+    let statement = match *self.current_type() {
+      _ => {
         use self::ExpressionNode::*;
 
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        if self.remaining() == 0 {
-            return Ok(Expression::new(EOF, self.position()))
-        }
-
-        let position = self.position();
-
-        let node = match self.current_type() {
-            TokenType::Int        => Int(self.consume_type(TokenType::Int)?.parse().unwrap()),
-            TokenType::Float      => Float(self.consume_type(TokenType::Float)?.parse().unwrap()),
-            TokenType::Str        => Str(self.consume_type(TokenType::Str)?),
-            TokenType::Bool       => Bool(self.consume_type(TokenType::Bool)? == "true"),
-            TokenType::Identifier => Identifier(self.consume_type(TokenType::Identifier)?),
-
-            TokenType::Operator => {
-                let (op, _) = Operator::from(&self.consume_type(TokenType::Operator)?).unwrap();
-
-                self.skip_types(vec![TokenType::Whitespace])?;
-
-                Unary(op, Rc::new(self.atom()?))
-            }
-
-            TokenType::Symbol => match self.current_content().as_str() {
-                "{" => {
-                    Block(self.block_of(&Self::statement_, ("{", "}"))?)
-                },
-
-                "[" => {
-                    Array(self.block_of(&Self::arg_, ("[" ,"]"))?)
-                },
-
-                "(" => {
-                    let backup_top = self.top;
-                    self.next()?;
-
-                    let mut nested = 1;
-
-                    while nested != 0 {
-                        if self.current_content() == ")" {
-                            nested -= 1
-                        } else if self.current_content() == "(" {
-                            nested += 1
-                        }
-
-                        if nested == 0 {
-                            break
-                        }
-
-                        self.next()?
-                    }
-
-                    self.next()?;
-
-                    self.skip_types(vec![TokenType::Whitespace])?;
-
-                    if self.current_content() != "->" {
-                        match self.type_node() {
-                            _ => ()
-                        }
-
-                        self.skip_types(vec![TokenType::Whitespace])?;
-                    }
-
-                    if self.current_content() != "->" {
-                        self.top = backup_top;
-
-                        let content = self.block_of(&Self::expression_, ("(", ")"))?;
-
-                        if content.len() > 1 {
-                            return Err(make_error(Some(content[0].1), "claused expression can only contain one item".to_string()))
-                        }
-
-                        content[0].clone().0
-                    } else {
-                        self.top = backup_top;
-                        self.function()?
-                    }
-                },
-
-                t => return Err(make_error(Some(self.position()), format!("unexpected symbol: {}", t)))
-            },
-
-            TokenType::Whitespace | TokenType::EOL => {
-                self.next()?;
-                return Ok(self.atom()?)
-            },
-
-            TokenType::Keyword => match self.current_content().as_str() {
-                "if" | "match" => Block(vec![self.statement()?]),
-                key  => return Err(make_error(Some(position), format!("unexpected keyword '{}'", key)))
-            },
-
-            t => return Err(make_error(Some(position), format!("unexpected token '{:?}'", t))),
-        };
-
-        self.maybe_index(Expression::new(node, position))
-    }
-
-    fn statement_(self: &mut Self) -> Response<Option<Statement>> {
-        let statement = self.statement()?;
-
-        let statement = match statement.0 {
-            StatementNode::Expression(ref e) => if e.0 == ExpressionNode::EOF {
-                None
-            } else {
-                Some(statement.clone())
-            },
-
-            _ => Some(statement),
-        };
-
-        Ok(statement)
-    }
-
-    fn function(&mut self) -> Response<ExpressionNode> {
-        let params = self.block_of(&Self::param_, ("(", ")"))?;
-
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        let mut return_type = TypeNode::Nil;
-
-        if self.current_content() != "->" {
-            return_type = self.type_node()?;
-
-            self.skip_types(vec![TokenType::Whitespace])?;
-        }
-
-        self.consume_content("->")?;
-
-        let body = Rc::new(self.expression()?);
-
-        Ok(ExpressionNode::Function {params, return_type, body})
-    }
-
-    fn param_(self: &mut Self) -> Response<Option<(String, TypeNode, Option<Rc<Expression>>)>> {
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        if self.remaining() < 2 {
-            return Ok(None)
-        }
-
-        let name = self.consume_type(TokenType::Identifier)?;
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        self.consume_content(":")?;
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        let kind = self.type_node()?;
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        let value = if self.current_content() == "=" {
-            self.next()?;
-            self.skip_types(vec![TokenType::Whitespace])?;
-
-            Some(Rc::new(self.expression()?))
-        } else {
-            None
-        };
-
-        if self.remaining() > 1 {
-            if self.current_content() == "," {
-                self.consume_content(",")?;
-            } else {
-                self.consume_type(TokenType::EOL)?;
-            }
-        }
-
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        Ok(Some((name, kind, value)))
-    }
-
-    fn member_(self: &mut Self) -> Response<Option<(String, TypeNode)>> {
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        if self.remaining() < 2 {
-            return Ok(None)
-        }
-
-        let name = self.consume_type(TokenType::Identifier)?;
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        self.consume_content(":")?;
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        let kind = self.type_node()?;
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        if self.remaining() > 1 {
-            if self.current_content() == "," {
-                self.consume_content(",")?;
-            } else {
-                self.consume_type(TokenType::EOL)?;
-            }
-        }
-
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        Ok(Some((name, kind)))
-    }
-
-    fn member_construct_(self: &mut Self) -> Response<Option<(String, Rc<Expression>)>> {
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        if self.remaining() < 2 {
-            return Ok(None)
-        }
-
-        let name = self.consume_type(TokenType::Identifier)?;
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        self.consume_content(":")?;
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        let expression = Rc::new(self.expression()?);
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        if self.remaining() > 1 {
-            if self.current_content() == "," {
-                self.consume_content(",")?;
-            } else {
-                self.consume_type(TokenType::EOL)?;
-            }
-        }
-
-        self.skip_types(vec![TokenType::Whitespace, TokenType::EOL])?;
-
-        Ok(Some((name, expression)))
-    }
-
-    fn expression_(self: &mut Self) -> Response<Option<Expression>> {
-        let expression = self.expression()?;
-
-        match expression.0 {
-            ExpressionNode::EOF => Ok(None),
-            _                   => Ok(Some(expression)),
-        }
-    }
-
-    fn block_of<B>(&mut self, match_with: &Fn(&mut Self) -> Response<Option<B>>, delimeters: (&str, &str)) -> Response<Vec<B>> {
-        let backup_inside = self.inside.clone();
-        self.inside       = delimeters.0.to_owned();
-
-        self.consume_content(delimeters.0)?;
-
-        let mut stack  = Vec::new();
-        let mut nested = 1;
-
-        // find all tokens between the two delimiters f.x. between "{" "}"
-        // and add them to the stack
-        while nested != 0 {
-            if self.current_content() == delimeters.1 {
-                nested -= 1
-            } else if self.current_content() == delimeters.0 {
-                nested += 1
-            }
-
-            if nested == 0 {
-                break
-            }
-
-            stack.push(self.current().clone());
-
-            self.next()?
-        }
-
-        self.next()?;
-
-        if !stack.is_empty() {
-            let mut parser  = Parser::new(stack, self.lines, self.path);
-            parser.inside   = self.inside.clone();
-
-            let mut stack_b = Vec::new();
-
-            // Use the provided function to find the things we want
-            while let Some(n) = match_with(&mut parser)? {
-                stack_b.push(n)
-            }
-
-            self.inside = backup_inside;
-
-            Ok(stack_b)
-        } else {
-            Ok(Vec::new())
-        }
-
-    }
-
-    fn maybe_construct(&mut self, atom: Expression) -> Response<Expression> {
-        use self::ExpressionNode::*;
-
-        match atom.0 {
-            Identifier(_) | Index(..) => {
-                let backup_top = self.top;
-
-                self.skip_types(vec![TokenType::Whitespace])?;
-
-                let node = match self.current_content().as_str() {
-                    "{" => {
-                        let members = self.block_of(&Self::member_construct_, ("{", "}"))?;
-
-                        return Ok(Expression::new(
-                            ExpressionNode::Constructor(Rc::new(atom.clone()), members),
-                            atom.1,
-                        ));
-                    },
-
-                    _ => atom.clone(),
+        let expression = self.parse_expression()?;
+
+        match expression.node {
+          Identifier(_) | Set(_) => {
+            if self.remaining() > 0 {
+              if self.current_type() == &TokenType::Symbol {
+                let statement = match self.current_lexeme().as_str() {
+                  ":"   => self.parse_declaration(expression)?,
+                  ref c => return Err(
+                    response!(
+                      Wrong(format!("unexpected symbol `{}`", c)),
+                      self.source.file,
+                      TokenElement::Ref(self.current())
+                    )
+                  )
                 };
 
-                self.top = backup_top;
+                statement
+              } else {
+                let position = expression.pos.clone();
 
-                Ok(node)
-            },
-
-            _ => Ok(atom)
-        }
-    }
-
-    fn maybe_call(&mut self, atom: Expression) -> Response<Expression> {
-        use self::ExpressionNode::*;
-
-        let backup_top = self.top;
-
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        let node = match self.current_content().as_str() {
-            "(" => {
-                let args = self.block_of(&Self::arg_, ("(", ")"))?;
-                let pos  = atom.1;
-
-                return self.maybe_index(Expression(Call(Rc::new(atom), args), pos))
-            },
-
-            _ => atom,
-        };
-
-        self.top = backup_top;
-
-        Ok(node)
-    }
-
-    fn maybe_index(&mut self, atom: Expression) -> Response<Expression> {
-        use self::ExpressionNode::*;
-
-        let backup_top = self.top;
-
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        if self.remaining() > 0 {
-            let node = match self.current_type() {
-                TokenType::Identifier => {
-                    let position = self.position();
-                    let indexing = Expression(Str(self.consume_type(TokenType::Identifier)?), position);
-
-                    self.skip_types(vec![TokenType::Whitespace])?;
-
-                    return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing)), position))
-                }
-                _ => match self.current_content().as_str() {
-                    "[" => {
-                        let position = self.position();
-                        let indexing = self.block_of(&Self::expression_, ("[", "]"))?;
-
-                        if indexing.len() > 1 {
-                            return Err(make_error(Some(atom.1), "indexing with multiple expressions".to_owned()))
-                        } else if indexing.is_empty() {
-                            return Err(make_error(Some(atom.1), "indexing with nothing".to_owned()))
-                        }
-
-                        self.skip_types(vec![TokenType::Whitespace])?;
-
-                        return self.maybe_index(Expression(Index(Rc::new(atom), Rc::new(indexing[0].clone())), position))
-                    },
-
-                    _ => atom,
-                }
-            };
-
-            self.top = backup_top;
-
-            let maybe_call = self.maybe_call(node)?;
-
-            self.maybe_construct(maybe_call)
-        } else {
-            self.top = backup_top;
-            Ok(atom)
-        }
-    }
-
-    fn arg_(self: &mut Self) -> Response<Option<Expression>> {
-        let expression = Self::expression_(self);
-        
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        if self.remaining() > 1 || self.current_content() == "," {
-            self.consume_content(",")?;
-        }
-
-        self.skip_types(vec![TokenType::Whitespace])?;
-
-        expression
-    }
-
-    // parsing operations using the Dijkstra shunting yard algorithm
-    fn binary(&mut self, expression: Expression) -> Response<Expression> {
-        let mut ex_stack = vec![expression];                // initial expression on the stack
-        let mut op_stack: Vec<(Operator, u8)> = Vec::new(); // the operator stack
-
-        let position = self.position();
-        op_stack.push(Operator::from(&self.consume_type(TokenType::Operator)?).unwrap()); // find operator
-
-        // covering bad case
-        if self.current_content() == "\n" {
-            return Err(make_error(Some(position), "EOL is not good".to_string()))
-        }
-
-        // the right hand of operation
-        let atom = self.atom()?;
-
-        if atom.0 != ExpressionNode::EOF {
-            // pushing right hand of operation onto the stack
-            ex_stack.push(atom)
-        } else {
-            return Err(make_error(Some(atom.1), "EOF is not good".to_string()))
-        }
-
-        let mut done = false;
-
-        // loop for getting nested operations
-        while ex_stack.len() > 1 {
-            if !done {
-                self.skip_types(vec![TokenType::Whitespace])?;
-
-                if self.current_type() != TokenType::Operator { // stop looking when running into non-op
-                    done = true;
-                    continue
-                }
-
-                if self.remaining() == 0 {
-                    return Err(make_error(Some(self.position()), "missing right hand expression".to_owned()))
-                }
-
-                let position         = self.position();
-                let (op, precedence) = Operator::from(&self.consume_type(TokenType::Operator)?).unwrap(); // the next operator has been found
-
-                // we're now comparing precedence, sorting the operators
-                if precedence >= op_stack.last().unwrap().1 {
-                    // in this case, found operator is assembled and pushed onto the stack later
-                    let left  = ex_stack.pop().unwrap();
-                    let right = ex_stack.pop().unwrap();
-
-                    // the first operation, with lower precedence is pushed onto the stack
-                    ex_stack.push(
-                        Expression::new(
-                            ExpressionNode::Binary {
-                                right: Rc::new(left),
-                                op:    op_stack.pop().unwrap().0,
-                                left:  Rc::new(right),
-                            },
-                            position,
-                        )
-                    );
-
-                    // right hand of the higher precedence operation is found
-                    let atom = self.atom()?;
-
-                    if atom.0 == ExpressionNode::EOF {
-                        return Err(make_error(Some(atom.1), "EOF is not good".to_string()))
-                    }
-
-                    ex_stack.push(atom); // and is pushed onto the stack
-                    op_stack.push((op, precedence)); // along with the operator from before
-
-                } else { // otherwise, we just push the lower precedence operation onto the stack
-                    let term = self.atom()?;
-
-                    ex_stack.push(term);
-                    op_stack.push((op, precedence));
-                }
-            }
-
-            let left  = ex_stack.pop().unwrap();
-            let right = ex_stack.pop().unwrap();
-
-            ex_stack.push(
-                Expression::new(
-                    ExpressionNode::Binary {
-                        right: Rc::new(left),
-                        op:    op_stack.pop().unwrap().0,
-                        left:  Rc::new(right),
-                    },
-                    position,
+                Statement::new(
+                  StatementNode::Expression(expression),
+                  position
                 )
-            );
-        }
-
-        Ok(ex_stack.pop().unwrap())
-    }
-
-    // skipping tokens
-    fn next(&mut self) -> Response<()> {
-        if self.top <= self.tokens.len() {
-            self.top += 1;
-            Ok(())
-        } else {
-            panic!();
-            Err(make_error(None, "nexting outside token stack".to_owned()))
-        }
-    }
-
-    // going backwards
-    fn back(&mut self) -> Response<()> {
-        if self.top > 0 {
-            self.top -= 1;
-            Ok(())
-        } else {
-            Err(make_error(None, "backing outside token stack".to_owned()))
-        }
-    }
-
-    // primarily for skipping whitespace
-    fn skip_types(&mut self, tokens: Vec<TokenType>) -> Response<()> {
-        loop {
-            if self.remaining() > 1 {
-                if tokens.contains(&self.current_type()) {
-                    self.next()?
-                } else {
-                    break
-                }
+              }
             } else {
-                break
+              let position = expression.pos.clone();
+
+              Statement::new(
+                StatementNode::Expression(expression),
+                position,
+              )
             }
+          },
+
+          _ => {
+            let position = expression.pos.clone();
+
+            Statement::new(
+              StatementNode::Expression(expression),
+              position,
+            )
+          },
         }
+      }
+    };
 
-        Ok(())
+    self.newline()?;
+
+    Ok(statement)
+  }
+
+  fn parse_expression(&mut self) -> Result<Expression<'p>, ()> {
+    let atom = self.parse_atom()?;
+
+    if self.current_type() == &TokenType::Operator {
+      self.parse_binary(atom)
+    } else {
+      Ok(atom)
     }
+  }
 
-    fn remaining(&self) -> usize {
-        if self.top >= self.tokens.len() {
-            0
-        } else {
-            self.tokens.len() - self.top
-        }
-    }
+  fn parse_atom(&mut self) -> Result<Expression<'p>, ()> {
+    use self::TokenType::*;
 
-    // getting the top of the token stack
-    pub fn current(&self) -> &Token {
-        if self.top > self.tokens.len() - 1 {
-            return &self.tokens[self.tokens.len() - 1];
-        }
-        &self.tokens[self.top]
-    }
+    if self.remaining() == 0 {
+      Ok(
+        Expression::new(
+          ExpressionNode::EOF,
+          self.current_position()
+        )
+      )
+    } else {
+      let token_type = self.current_type().clone();
+      let position   = self.current_position();
 
-    // easy access
-    pub fn current_content(&self) -> String {
-        self.current().content.clone()
-    }
+      let expression = match token_type {
+        Int => Expression::new(
+          ExpressionNode::Int(self.eat()?.parse::<u128>().unwrap()),
+          position
+        ),
 
-    pub fn current_type(&self) -> TokenType {
-        self.current().token_type.clone()
-    }
+        Float => Expression::new(
+          ExpressionNode::Float(self.eat()?.parse::<f64>().unwrap()),
+          position
+        ),
 
-    pub fn position(&self) -> TokenPosition {
-        self.current().position
-    }
+        Char => Expression::new(
+          ExpressionNode::Char(self.eat()?.chars().last().unwrap()),
+          position
+        ),
 
-    pub fn expect_type(&self, token: TokenType) -> Response<()> {
-        if self.current().token_type == token {
-            Ok(())
-        } else {
-            Err(make_error(
-                Some(self.current().position),
-                format!("expected type '{:?}', found '{}'", token, self.current_content())
-            ))
-        }
-    }
+        String => Expression::new(
+          ExpressionNode::String(self.eat()?),
+          position
+        ),
 
-    pub fn consume_type(&mut self, token: TokenType) -> Response<String> {
-        if self.current().token_type == token {
-            let content = self.current_content();
+        Identifier => Expression::new(
+          ExpressionNode::Identifier(self.eat()?),
+          position
+        ),
+
+        Bool => Expression::new(
+          ExpressionNode::Bool(self.eat()? == "true"),
+          position
+        ),
+
+        Keyword => match self.current_lexeme().as_str() {
+          "loop" => {
             self.next()?;
-            Ok(content)
-        } else {
-            Err(make_error(
-                Some(self.current().position),
-                format!("expected type '{:?}', found '{:?}'", token, self.current_content())
-            ))
-        }
-    }
 
-    pub fn expect_content(&self, content: &str) -> Response<()> {
-        if self.current_content() == content {
-            Ok(())
-        } else {
-            Err(make_error(
-                Some(self.current().position),
-                format!("expected '{}', found '{}'", if content != "\n" { content } else { "new line" }, self.current_content())
-            ))
-        }
-    }
+            Expression::new(
+              ExpressionNode::Loop(
+                Rc::new(
+                  Expression::new(
+                    ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+                    position.clone()
+                  )
+                )
+              ),
+              position
+            )
+          },
 
-    // checks if the provided string matches the current tokens content and then
-    // steps to the next token and returns the content of the original token
-    pub fn consume_content(&mut self, content: &str) -> Response<String> {
-        if self.current().content == content {
-            let content = self.current_content();
+          "if" => {
             self.next()?;
-            Ok(content)
-        } else {
-            Err(make_error(
-                Some(self.current().position),
-                format!("expected '{}', found '{}'", if content != "\n" { content } else { "new line" }, self.current_content())
-            ))
+
+            let condition   = Rc::new(self.parse_expression()?);
+            let if_position = self.span_from(position.clone());
+            let body        = Rc::new(
+              Expression::new(
+                ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+                position
+              )
+            );
+
+            let mut elses = Vec::new();
+
+            loop {
+              let branch_position = self.current_position();
+
+              match self.current_lexeme().as_str() {
+                "elif" => {
+                  self.next()?;
+
+                  let condition = self.parse_expression()?;
+                  let position  = self.current_position();
+                  let body      = Expression::new(
+                    ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+                    position
+                  );
+
+                  elses.push((Some(condition), body, branch_position))
+                },
+
+                "else" => {
+                  self.next()?;
+
+                  let position  = self.current_position();
+                  let body      = Expression::new(
+                    ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+                    position
+                  );
+
+                  elses.push((None, body, branch_position))
+                },
+
+                _ => break,
+              }
+            }
+
+            Expression::new(
+              ExpressionNode::If(condition, body, if elses.len() > 0 { Some(elses) } else { None }),
+              if_position
+            )
+          }
+
+          ref c => return Err(
+            response!(
+              Wrong(format!("unexpected keyword `{}`", c)),
+              self.source.file,
+              TokenElement::Ref(self.current())
+            )
+          )
         }
+
+        Symbol => match self.current_lexeme().as_str() {
+          "{" => Expression::new(
+            ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+            position
+          ),
+
+          "[" => Expression::new(
+            ExpressionNode::Array(self.parse_block_of(("[", "]"), &Self::_parse_expression_comma)?),
+            self.span_from(position)
+          ),
+
+          "(" => {
+            let backup_index = self.index;
+
+            self.next()?;
+
+            let mut nested = 1;
+
+            while nested != 0 {
+              if self.current_lexeme() == ")" {
+                nested -= 1
+              } else if self.current_lexeme() == "(" {
+                nested += 1
+              }
+
+              if nested == 0 {
+                break
+              }
+
+              self.next()?
+            }
+
+            self.next()?;
+
+            if self.current_lexeme() != "->" && self.remaining() > 0 && self.current_lexeme() != "\n" {
+              println!("{:?}", self.parse_type());
+            }
+
+            if self.current_lexeme() == "->" {
+              self.index = backup_index;
+
+              let left_position = self.current_position();
+
+              let params = self.parse_block_of(("(", ")"), &Self::_parse_declaration_comma)?;              
+
+              let return_type = if self.current_lexeme() == "->" {
+                Type::from(TypeNode::Nil)
+              } else {
+                self.parse_type()?
+              };
+
+              let position = self.span_from(left_position);
+
+              self.eat_lexeme("->")?;
+
+              let body = self.parse_expression()?;
+
+              Expression::new(
+                ExpressionNode::Function(params, return_type, Rc::new(body)),
+                position
+              )
+
+            } else {
+              self.index = backup_index;
+
+              let content = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
+
+              if content.len() == 1 {
+                Expression::new(
+                  content[0].clone().node,
+                  self.span_from(position)
+                )
+              } else if content.len() > 1 {
+                Expression::new(
+                  ExpressionNode::Set(content),
+                  self.span_from(position)
+                )
+              } else {
+                return Err(
+                  response!(
+                    Wrong("unhandled empty clause `()`"),
+                    self.source.file,
+                    TokenElement::Ref(self.current())
+                  )
+                )
+              }
+            }
+          },
+
+          ref c => return Err(
+            response!(
+              Wrong(format!("unexpected symbol `{}`", c)),
+              self.source.file,
+              TokenElement::Ref(self.current())
+            )
+          )
+        }
+
+        ref token_type => return Err(
+          response!(
+            Wrong(format!("unexpected token `{}`", token_type)),
+            self.source.file,
+            TokenElement::Ref(self.current())
+          )
+        )
+      };
+
+      self.parse_postfix(expression)
     }
+  }
+
+
+  fn parse_postfix(&mut self, expression: Expression<'p>) -> Result<Expression<'p>, ()> {
+    match *self.current_type() {
+      TokenType::Symbol => match self.current_lexeme().as_str() {
+        "(" => {
+          let args = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
+
+          let call = Expression::new(
+            ExpressionNode::Call(Rc::new(expression.clone()), args),
+            self.span_from(expression.pos)
+          );
+
+          self.parse_postfix(call)
+        }
+
+        _ => Ok(expression)
+      },
+
+      TokenType::Keyword => match self.current_lexeme().as_str() {
+        "as" => {
+          self.next()?;
+
+          let t        = self.parse_type()?;
+          let position = expression.pos.clone();
+
+          self.parse_postfix(
+            Expression::new(
+              ExpressionNode::Cast(Rc::new(expression), t),
+              position
+            )
+          )
+        },
+
+        _ => Ok(expression)
+      },
+
+      _ => Ok(expression)
+    }
+  }
+
+  // basic precedence climbing
+  fn parse_binary(&mut self, left: Expression<'p>) -> Result<Expression<'p>, ()> {
+    let left_position = left.pos.clone();
+
+    let mut expression_stack = vec!(left);
+    let mut operator_stack   = vec!(Operator::from_str(&self.eat()?).unwrap());
+
+    expression_stack.push(self.parse_atom()?);
+
+    while operator_stack.len() > 0 {
+      while self.current_type() == &TokenType::Operator {
+        let position               = self.current_position();
+        let (operator, precedence) = Operator::from_str(&self.eat()?).unwrap();
+
+        if precedence < operator_stack.last().unwrap().1 {
+          let right = expression_stack.pop().unwrap();
+          let left  = expression_stack.pop().unwrap();
+
+          expression_stack.push(
+            Expression::new(
+              ExpressionNode::Binary(Rc::new(left), operator_stack.pop().unwrap().0, Rc::new(right)),
+              self.current_position(),
+            )
+          );
+
+          if self.remaining() > 0 {
+            expression_stack.push(self.parse_atom()?);
+            operator_stack.push((operator, precedence))
+          } else {
+            return Err(
+              response!(
+                Wrong("reached EOF in operation"),
+                self.source.file,
+                position
+              )
+            )
+          }
+        } else {
+          expression_stack.push(self.parse_atom()?);
+          operator_stack.push((operator, precedence))
+        }
+      }
+
+      let right = expression_stack.pop().unwrap();
+      let left  = expression_stack.pop().unwrap();
+
+      expression_stack.push(
+        Expression::new(
+          ExpressionNode::Binary(Rc::new(left), operator_stack.pop().unwrap().0, Rc::new(right)),
+          self.current_position(),
+        )
+      );
+    }
+
+    let expression = expression_stack.pop().unwrap();
+
+    Ok(
+      Expression::new(
+        expression.node,
+        self.span_from(left_position)
+      )
+    )
+  }
+
+  fn parse_declaration(&mut self, left: Expression<'p>) -> Result<Statement<'p>, ()> {
+    match self.current_lexeme().as_str() {
+      ":" => {
+        self.next()?;
+
+        let position = left.pos.clone();
+
+        match self.current_lexeme().as_str() {
+          ":" => {
+            self.next()?;
+
+            let right    = self.parse_expression()?;
+
+            Ok(
+              Statement::new(
+                StatementNode::Constant(
+                  Type::new(TypeNode::Nil, TypeMode::Immutable),
+                  left,
+                  right,
+                ),
+
+                position,
+              )
+            )
+          },
+
+          "=" => {
+            self.next()?;
+
+            let right    = Some(self.parse_expression()?);
+            let position = left.pos.clone();
+
+            Ok(
+              Statement::new(
+                StatementNode::Variable(
+                  Type::from(TypeNode::Nil),
+                  left,
+                  right,
+                ),
+
+                position,
+              )
+            )
+          },
+
+          _ => {
+            let t = self.parse_type()?;
+
+            match self.current_lexeme().as_str() {
+              ":" => {
+                self.next()?;
+
+                let right = self.parse_expression()?;
+
+                Ok(
+                  Statement::new(
+                    StatementNode::Constant(
+                      Type::new(t.node, TypeMode::Immutable),
+                      left,
+                      right,
+                    ),
+
+                    position,
+                  )
+                )
+              },
+
+              "=" => {
+                self.next()?;
+
+                let right    = Some(self.parse_expression()?);
+                let position = left.pos.clone();
+
+                Ok(
+                  Statement::new(
+                    StatementNode::Variable(
+                      t,
+                      left,
+                      right,
+                    ),
+
+                    position,
+                  )
+                )
+              },
+
+              _ => Ok(
+                Statement::new(
+                  StatementNode::Variable(
+                    t,
+                    left,
+                    None,
+                  ),
+
+                  position,
+                )
+              )
+            }
+          }
+        }
+      },
+
+      _ => Err(
+        response!(
+          Wrong("invalid declaration without `:`"),
+          self.source.file,
+          self.current_position()
+        )
+      )
+    }
+  }
+
+  fn parse_type(&mut self) -> Result<Type, ()> {
+    use self::TokenType::*;
+    use self::TypeNode::*;
+
+    let t = match *self.current_type() {
+      Identifier => match self.eat()?.as_str() {
+        "str"   => Type::from(Str),
+        "char"  => Type::from(TypeNode::Char),
+
+        "i8"    => Type::from(I08),
+        "i32"   => Type::from(I32),
+        "i64"   => Type::from(I64),
+        "i128"  => Type::from(I128),
+
+        "u8"    => Type::from(U08),
+        "u32"   => Type::from(U32),
+        "u64"   => Type::from(U64),
+        "u128"  => Type::from(U128),
+
+        "f32"   => Type::from(F32),
+        "f64"   => Type::from(F64),
+
+        "bool"  => Type::from(TypeNode::Bool),
+        id      => Type::id(id),
+      },
+
+      Symbol => match self.current_lexeme().as_str() {
+        "(" => {
+          let content = self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?;
+
+          if content.len() == 1 {
+            content[0].clone()
+          } else {
+            Type::set(content)
+          }
+        },
+
+        "[" => {
+          self.next()?;
+
+          let t = self.parse_type()?;
+
+          self.eat_lexeme("]")?;
+
+          Type::array(t)
+        }
+
+        _   => return Err(
+          response!(
+            Wrong(format!("unexpected symbol `{}` in type", self.current_lexeme())),
+            self.source.file,
+            self.current_position()
+          )
+        )
+      }
+
+      _ => return Err(
+        response!(
+          Wrong(format!("expected type found `{}`", self.current_lexeme())),
+          self.source.file,
+          self.current_position()
+        )
+      )
+    };
+
+    Ok(t)
+  }
+
+  fn parse_block_of<B>(&mut self, delimeters: (&str, &str), parse_with: &Fn(&mut Self) -> Result<Option<B>, ()>) -> Result<Vec<B>, ()> {
+    self.eat_lexeme(delimeters.0)?;
+
+    let mut block_tokens = Vec::new();
+    let mut nest_count   = 1;
+
+    while nest_count > 0 {
+      if self.current_lexeme() == delimeters.1 {
+        nest_count -= 1
+      } else if self.current_lexeme() == delimeters.0 {
+        nest_count += 1
+      }
+
+      if nest_count == 0 {
+        break
+      } else {
+        block_tokens.push(self.current());
+
+        self.next()?
+      }
+    }
+
+    self.eat_lexeme(delimeters.1)?;
+
+    if !block_tokens.is_empty() {
+      let mut parser = Parser::new(block_tokens, self.source);
+      let mut block  = Vec::new();
+
+      while let Some(element) = parse_with(&mut parser)? {
+        block.push(element)
+      }
+
+      Ok(block)
+    } else {
+      Ok(Vec::new())
+    }
+  }
+
+
+
+  fn _parse_statement(self: &mut Self) -> Result<Option<Statement<'p>>, ()> {
+    if self.remaining() > 0 {
+      Ok(Some(self.parse_statement()?))
+    } else {
+      Ok(None)
+    }
+  }
+
+  fn _parse_expression(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
+    let expression = self.parse_expression()?;
+
+    match expression.node {
+      ExpressionNode::EOF => Ok(None),
+      _                   => Ok(Some(expression)),
+    }
+  }
+
+  fn _parse_expression_comma(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
+    let expression = Self::_parse_expression(self);
+
+    if self.remaining() > 0 {
+      self.eat_lexeme(",")?;
+    }
+
+    expression
+  }
+
+  fn _parse_declaration_comma(self: &mut Self) -> Result<Option<Statement<'p>>, ()> {
+    if self.remaining() == 0 {
+      Ok(None)
+    } else {
+      let position = self.current_position();
+
+      let name = Expression::new(
+        ExpressionNode::Identifier(self.eat_type(&TokenType::Identifier)?),
+        position,
+      );
+
+      let expression = self.parse_declaration(name)?;
+
+      if self.remaining() > 0 {
+        self.eat_lexeme(",")?;
+      }
+
+      Ok(Some(expression))
+    }
+  }
+
+  fn _parse_type_comma(self: &mut Self) -> Result<Option<Type>, ()> {
+    if self.remaining() == 0 {
+      Ok(None)
+    } else {
+      let t = self.parse_type()?;
+
+      if self.remaining() > 0 {
+        self.eat_lexeme(",")?;
+      }
+
+      Ok(Some(t))
+    }
+  }
+
+
+
+  fn newline(&mut self) -> Result<(), ()> {
+    if self.remaining() > 0 {
+      match self.current_lexeme().as_str() {
+        "\n" => self.next(),
+        _    => Err(
+          response!(
+            Wrong(format!("expected new line found: `{}`", self.current_lexeme())),
+            self.source.file,
+            self.current_position()
+          )
+        )
+      }
+    } else {
+      Ok(())
+    }
+  }
+
+
+
+  fn next(&mut self) -> Result<(), ()> {
+    if self.index <= self.tokens.len() {
+      self.index += 1;
+      Ok(())
+    } else {
+      Err(
+        response!(
+          Wrong("moving outside token stack"),
+          self.source.file
+        )
+      )
+    }
+  }
+
+  fn remaining(&self) -> usize {
+    self.tokens.len().saturating_sub(self.index)
+  }
+
+  fn current_position(&self) -> TokenElement<'p> {
+    let current = self.current();
+
+    TokenElement::Pos(
+      current.line,
+      current.slice
+    )
+  }
+
+  fn span_from(&self, left_position: TokenElement<'p>) -> TokenElement<'p> {
+    match left_position {
+      TokenElement::Pos(ref line, ref slice) => if let TokenElement::Pos(_, ref slice2) = self.current_position() {
+        TokenElement::Pos(*line, (slice.0, if slice2.1 < line.1.len() { slice2.1 } else { line.1.len() } ))
+      } else {
+        left_position.clone()
+      },
+
+      _ => left_position.clone(),
+    }
+  }
+
+  fn current(&self) -> &'p Token<'p> {
+    if self.index > self.tokens.len() - 1 {
+      &self.tokens[self.tokens.len() - 1]
+    } else {
+      &self.tokens[self.index]
+    }
+  }
+
+  fn eat(&mut self) -> Result<String, ()> {
+    let lexeme = self.current().lexeme.clone();
+    self.next()?;
+
+    Ok(lexeme)
+  }
+
+  fn eat_lexeme(&mut self, lexeme: &str) -> Result<String, ()> {
+    if self.current_lexeme() == lexeme {
+      let lexeme = self.current().lexeme.clone();
+      self.next()?;
+
+      Ok(lexeme)
+    } else {
+      Err(
+        response!(
+          Wrong(format!("expected `{}`, found `{}`", lexeme, self.current_lexeme())),
+          self.source.file,
+          self.current_position()
+        )
+      )
+    }
+  }
+
+  fn eat_type(&mut self, token_type: &TokenType) -> Result<String, ()> {
+    if self.current_type() == token_type {
+      let lexeme = self.current().lexeme.clone();
+      self.next()?;
+
+      Ok(lexeme)
+    } else {
+      Err(
+        response!(
+          Wrong(format!("expected `{}`, found `{}`", token_type, self.current_type())),
+          self.source.file,
+          self.current_position()
+        )
+      )
+    }
+  }
+
+  fn current_lexeme(&self) -> String {
+    self.current().lexeme.clone()
+  }
+
+  fn current_type(&self) -> &TokenType {
+    &self.current().token_type
+  }
+
+  fn expect_type(&self, token_type: TokenType) -> Result<(), ()> {
+    if self.current_type() == &token_type {
+      Ok(())
+    } else {
+      Err(
+        response!(
+          Wrong(format!("expected `{}`, found `{}`", token_type, self.current_type())),
+          self.source.file
+        )
+      )
+    }
+  }
 }

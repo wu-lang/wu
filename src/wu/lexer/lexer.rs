@@ -1,103 +1,112 @@
 use super::*;
 
+use super::super::error::Response::Wrong;
+
 use std::rc::Rc;
 
-pub fn make_lexer<'l>(data: Vec<char>, lines: &'l [String], path: &'l str) -> Lexer<'l> {
-    let tokenizer = Tokenizer::new(data);
-    let mut lexer = Lexer::new(tokenizer, lines, path);
+pub struct Lexer<'l> {
+  tokenizer: Tokenizer<'l>,
+  matchers:  Vec<Rc<Matcher<'l>>>,
+  source:    &'l Source,
+}
 
-    lexer.matchers_mut().push(Rc::new(FloatLiteralMatcher));
-    lexer.matchers_mut().push(Rc::new(StringLiteralMatcher));
+impl<'l> Lexer<'l> {
+  pub fn new(tokenizer: Tokenizer<'l>, source: &'l Source) -> Self {
+    Lexer {
+      tokenizer,
+      matchers: Vec::new(),
+      source,
+    }
+  }
 
-    let bool_matcher = KeyMatcher::new(TokenType::Bool, &["true", "false"]);
-    lexer.matchers_mut().push(Rc::new(bool_matcher));
+  pub fn default(data: Vec<char>, source: &'l Source) -> Self {
+    use self::TokenType::*;
 
-    lexer.matchers_mut().push(Rc::new(CommentMatcher));
+    let tokenizer = Tokenizer::new(data, source);
+    let mut lexer = Self::new(tokenizer, source);
 
-    let key_matcher = KeyMatcher::new(TokenType::Keyword, &[
-        "return", "->", "if", "elif", "else", "match", "struct", "while", "module", "expose", "extern",
-    ]);
-    lexer.matchers_mut().push(Rc::new(key_matcher));
+    lexer.matchers.push(Rc::new(CommentMatcher));  
 
-    lexer.matchers_mut().push(Rc::new(IdentifierMatcher));
+    lexer.matchers.push(Rc::new(EOLMatcher));
+    lexer.matchers.push(Rc::new(WhitespaceMatcher));
+    lexer.matchers.push(Rc::new(StringLiteralMatcher));
 
-    let eol_matcher = ConstantCharMatcher::new(TokenType::EOL, &['\n']);
-    lexer.matchers_mut().push(Rc::new(eol_matcher));
+    lexer.matchers.push(
+      Rc::new(
+        KeyMatcher::new(Keyword, &[
+          "as", "->", "loop", "if", "else", "elif",
+        ])
+      )
+    );
 
-    let operator_matcher = ConstantStringMatcher::new(TokenType::Operator, &[
-        "+=", "-=", "*=", "/=", "%=", "^=", "++=",
-        "++", "+", "-", "*", "/", "^", ">=", "<=", "==", "!=", "<|", "|>", "<", ">", "%", "!", "#",
-    ]);
+    lexer.matchers.push(
+      Rc::new(
+        KeyMatcher::new(Bool, &["true", "false"])
+      )
+    );
 
-    lexer.matchers_mut().push(Rc::new(operator_matcher));
+    lexer.matchers.push(Rc::new(IdentifierMatcher));
+    lexer.matchers.push(Rc::new(NumberLiteralMatcher));
 
-    let symbol_matcher = ConstantCharMatcher::new(TokenType::Symbol, &[
-        '(', ')', '[', ']', '{', '}', ',', ':', ';', '|', '=', '.'
-    ]);
+    lexer.matchers.push(
+      Rc::new(
+        ConstantStringMatcher::new(Operator, &["+", "-", "*", "/", "<", ">", "==", "!=", "<=", ">="])
+      )
+    );
 
-    lexer.matchers_mut().push(Rc::new(symbol_matcher));
-
-    lexer.matchers_mut().push(Rc::new(WhitespaceMatcher));
+    lexer.matchers.push(
+      Rc::new(
+        ConstantCharMatcher::new(Symbol, &['(', ')', '[', ']', '{', '}', ',', ':', ';', '=', '.', '|'])
+      )
+    );
 
     lexer
+  }
+
+  pub fn match_token(&mut self) -> Result<Option<Token<'l>>, ()> {
+    for matcher in &mut self.matchers {
+      match self.tokenizer.try_match_token(matcher.as_ref())? {
+        Some(t) => return Ok(Some(t)),
+        None    => continue,
+      }
+    }
+
+    Ok(None)
+  }
 }
 
-pub struct Lexer<'l> {
-    tokenizer: Tokenizer,
-    matchers:  Vec<Rc<Matcher>>,
-    lines:     &'l [String],
-    path:      &'l str,
-}
+impl<'l> Iterator for Lexer<'l> {
+  type Item = Result<Token<'l>, ()>;
 
-impl<'t> Lexer<'t> {
-    pub fn new(tokenizer: Tokenizer, lines: &'t [String], path: &'t str) -> Self {
-        Self {
-            tokenizer,
-            matchers: Vec::new(),
-            lines,
-            path,
-        }
+  fn next(&mut self) -> Option<Result<Token<'l>, ()>> {
+    let token = match self.match_token() {
+      Ok(hmm) => match hmm {
+        Some(n) => n,
+        None    => {
+          let pos = self.tokenizer.pos;
+
+          return Some(
+            Err(
+              response!(
+                Wrong("bumped into weird character"),
+                self.source.file,
+                TokenElement::Pos(
+                  (pos.0, &self.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(self.source.lines.last().unwrap_or(&String::new()))),
+                  (pos.1 + 1, pos.1 + 1),
+                )
+              )
+            )
+          )
+        },
+      },
+
+      Err(_) => return Some(Err(())),
+    };
+
+    match token.token_type {
+      TokenType::EOF        => None,
+      TokenType::Whitespace => self.next(),
+      _                     => Some(Ok(token)),
     }
-
-    pub fn match_token(&mut self) -> Response<Option<Token>> {
-        for matcher in &mut self.matchers {
-            match self.tokenizer.try_match_token(matcher.as_ref())? {
-                Some(t) => return Ok(Some(t)),
-                None    => continue,
-            }
-        }
-        Ok(None)
-    }
-
-    pub fn matchers(&self) -> &Vec<Rc<Matcher>> {
-        &self.matchers
-    }
-
-    pub fn matchers_mut(&mut self) -> &mut Vec<Rc<Matcher>> {
-        &mut self.matchers
-    }
-}
-
-impl<'t> Iterator for Lexer<'t> {
-    type Item = Token;
-
-    fn next(&mut self) -> Option<Token> {
-        let token = match self.match_token() {
-            Ok(hmm) => match hmm {
-                Some(n) => n,
-                None    => return None,
-            },
-
-            Err(res) => {
-                res.display(self.lines, self.path);
-                return None
-            },
-        };
-
-        match token.token_type {
-            TokenType::EOF => None,
-            TokenType::Whitespace => self.next(),
-            _ => Some(token),
-        }
-    }
+  }
 }
