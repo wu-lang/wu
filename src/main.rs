@@ -130,7 +130,7 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-fac :: (a: i128, b: i128) i128 -> a + b
+fac :: (a: i32, b: i32) i32 -> a + b
 
 a := fac(1, 2) as i8
 b := fac(3, 4) as i8

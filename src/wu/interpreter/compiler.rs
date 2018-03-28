@@ -214,20 +214,17 @@ impl<'c> Compiler<'c> {
       },
 
       Call(ref caller, ref args) => {
-        for arg in args.iter().rev() {
-          self.compile_expression(arg)?
+        if let TypeNode::Func(ref params, _) = self.visitor.type_expression(caller)?.node {
+          for (index, arg) in args.iter().rev().enumerate() {
+            self.compile_expression(arg)?;
+
+            let right_type = self.visitor.type_expression(arg)?;
+            self.try_cast_emit(&params[index], &right_type);
+          }
         }
 
         self.compile_expression(caller)?;
-        /*if let Identifier(ref name) = caller.node {
-          let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
-          let offset             = self.visitor.current_tab().1.get_offset(index, env_index).unwrap();
-          let size               = self.visitor.current_tab().1.get_type(index, env_index).unwrap().node.byte_size();
 
-          self.emit(Instruction::PushG);
-          self.emit_byte(size as u8);
-          self.emit_bytes(&to_bytes!(offset => u32));
-        }*/
         self.emit(Instruction::Call);
       },
 
@@ -506,44 +503,7 @@ impl<'c> Compiler<'c> {
 
       let right_type = self.visitor.type_expression(right)?;
 
-      if right_type.node != t.node {
-        match &t.node {
-          c if c.is_int() => match &right_type.node {
-            &I128 => {
-              self.emit(Instruction::ConvII);
-              self.emit_byte(right_type.node.byte_size() as u8);
-              self.emit_byte(t.node.byte_size() as u8)
-            },
-
-            _ => (),
-          },
-
-          &F32 | &F64 => match &right_type.node {
-            &I128 => {
-              self.emit(Instruction::ConvIF);
-              self.emit_byte(-(right_type.node.byte_size() as i8) as u8);
-              self.emit_byte(t.node.byte_size() as u8)
-            },
-
-            &U128 => {
-              self.emit(Instruction::ConvIF);
-              self.emit_byte(right_type.node.byte_size() as u8);
-              self.emit_byte(t.node.byte_size() as u8)
-            },
-
-            c if c.is_float() => {
-              self.emit(Instruction::ConvFF);
-              self.emit_byte(right_type.node.byte_size() as u8);
-              self.emit_byte(t.node.byte_size() as u8)
-            },
-
-            _ => (),
-          }
-
-          _ => (),
-        }
-      }
-
+      self.try_cast_emit(t, &right_type);
       self.emit(Instruction::Pop);
 
       if t.node != Nil {
@@ -561,6 +521,56 @@ impl<'c> Compiler<'c> {
     }
 
     Ok(())
+  }
+
+
+  // this is useful when implicitly casting the default
+  // primitive literals to other types; e.g. in arguments or declarations
+  // 
+  // `a: i8 = 100`
+  //
+  // where the integer literal has the default type `i128`
+  // it will automatically be cast to fit the explicit type
+  fn try_cast_emit(&mut self, left_type: &Type, right_type: &Type) {
+    use self::TypeNode::*;
+
+    if right_type.node != left_type.node {
+      match &left_type.node {
+        c if c.is_int() => match &right_type.node {
+          &I128 => {
+            self.emit(Instruction::ConvII);
+            self.emit_byte(right_type.node.byte_size() as u8);
+            self.emit_byte(left_type.node.byte_size() as u8)
+          },
+
+          _ => (),
+        },
+
+        &F32 | &F64 => match &right_type.node {
+          &I128 => {
+            self.emit(Instruction::ConvIF);
+            self.emit_byte(-(right_type.node.byte_size() as i8) as u8);
+            self.emit_byte(left_type.node.byte_size() as u8)
+          },
+
+          &U128 => {
+            self.emit(Instruction::ConvIF);
+            self.emit_byte(right_type.node.byte_size() as u8);
+            self.emit_byte(left_type.node.byte_size() as u8)
+          },
+
+          c if c.is_float() => {
+            self.emit(Instruction::ConvFF);
+            self.emit_byte(right_type.node.byte_size() as u8);
+            self.emit_byte(left_type.node.byte_size() as u8)
+          },
+
+          _ => (),
+        }
+
+        _ => (),
+      }
+    }
   }
 
 
