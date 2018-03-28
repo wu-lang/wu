@@ -130,15 +130,11 @@ f :: 'a'
   "#;
 
   let test4 = r#"
-fac :: (a: i128) i128 -> if a < 3 {
-  a
-} else {
-  fac(a - 1) * a
-}
+fac :: (a: i128, b: i128) i128 -> a + b
 
-a := fac(3) as i8
-b := fac(4) as i8
-c := fac(5) as i8
+a := fac(1, 2) as i8
+b := fac(3, 4) as i8
+c := fac(5, 6) as i8
   "#;
 
   run(&test4);

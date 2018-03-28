@@ -476,6 +476,9 @@ impl<'v> Visitor<'v> {
         let mut param_names = Vec::new();
         let mut param_types = Vec::new();
 
+        // simply pushing without pushing
+        self.depth += 1;
+
         for param in params {
           match param.node {
             Constant(ref t, ref name, _) | Variable(ref t, ref name, _) => if let Identifier(ref name) = name.node {
@@ -483,12 +486,7 @@ impl<'v> Visitor<'v> {
 
               let offset = *self.offsets.last().unwrap();
 
-              self.depth += 1;
-
               param_types.push((t.clone(), offset, self.depth));
-
-              // simply pushing without pushing
-              self.depth += 1;
 
               let len = self.offsets.len();
               self.offsets[len - 1] += t.node.byte_size() as u32
@@ -522,8 +520,6 @@ impl<'v> Visitor<'v> {
         let body_type = self.type_expression(body)?;
 
         self.pop_scope();
-
-        self.depth -= 1;
 
         if return_type != &body_type {
           Err(

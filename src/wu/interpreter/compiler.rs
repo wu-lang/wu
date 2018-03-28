@@ -140,10 +140,8 @@ impl<'c> Compiler<'c> {
         let depth              = self.visitor.depth - self.visitor.current_tab().1.get_depth(index, env_index).unwrap();
         let size               = self.visitor.current_tab().1.get_type(index, env_index).unwrap().node.byte_size();
 
-        println!("{:#?}", self.visitor.current_tab().1);
-
         if self.visitor.current_tab().1.get_depth(index, env_index).unwrap() != 0 {
-          self.emit(Instruction::PushDeref);
+          self.emit(Instruction::PushV);
           self.emit_byte(depth as u8);
           self.emit_byte(size as u8);
           self.emit_bytes(&to_bytes!(offset => u32));

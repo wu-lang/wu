@@ -12,7 +12,7 @@ pub enum Instruction {
   Halt      = 0x00,
   Push      = 0x01,
   Pop       = 0x02,
-  PushDeref = 0x03,
+  PushV     = 0x03,
   ConvIF    = 0x04,
   ConvFI    = 0x05,
   ConvII    = 0x06,
@@ -54,7 +54,7 @@ impl fmt::Display for Instruction {
       Halt      => "halt",
       Push      => "push",
       Pop       => "pop",
-      PushDeref => "pushd",
+      PushV => "pushd",
       ConvIF    => "convif",
       ConvFI    => "convfi",
       ConvII    => "convii",
@@ -171,7 +171,7 @@ impl VirtualMachine {
           }          
         },
 
-        PushDeref => {
+        PushV => {
           ip += 1;
 
           let scope_offset = bytecode[ip as usize];
