@@ -20,30 +20,25 @@ pub enum Instruction {
   AddI      = 0x08,
   AddF      = 0x09,
   JmpF      = 0x10,
-
   EqI       = 0x11,
   EqF       = 0x12,
   GtI       = 0x13,
   GtF       = 0x14,
   LtI       = 0x15,
   LtF       = 0x16,
-
   PushF     = 0x17,
   PopF      = 0x18,
-
   Dump      = 0x19,
-
   Call      = 0x20,
   Ret       = 0x21,
-
   Jmp       = 0x22,
-
   SubI      = 0x23,
   SubF      = 0x24,
   MulI      = 0x25,
   MulF      = 0x26,
-
   PushG     = 0x27,
+  PushD     = 0x28,
+  PopA      = 0x29,
 }
 
 impl fmt::Display for Instruction {
@@ -54,7 +49,7 @@ impl fmt::Display for Instruction {
       Halt      => "halt",
       Push      => "push",
       Pop       => "pop",
-      PushV => "pushd",
+      PushV     => "pushv",
       ConvIF    => "convif",
       ConvFI    => "convfi",
       ConvII    => "convii",
@@ -86,6 +81,9 @@ impl fmt::Display for Instruction {
       MulF      => "mulf",
 
       PushG     => "pushg",
+
+      PushD     => "pushd",
+      PopA      => "popa",
     };
 
     write!(f, "{}", name)
@@ -168,7 +166,7 @@ impl VirtualMachine {
 
           if self.var_top < (address + self.frames.last().unwrap() + size as u32) {
             self.var_top = address + self.frames.last().unwrap() + size as u32
-          }          
+          }
         },
 
         PushV => {
@@ -663,6 +661,50 @@ impl VirtualMachine {
           let value = &read(&self.var_stack, address, size as u32);
 
           push!(value => self.compute_stack, [self.compute_top; size as u32]);
+        },
+
+        PushD => {
+          ip += 1;
+
+          let scope_offset = bytecode[ip as usize];
+
+          ip += 1;
+
+          let size = bytecode[ip as usize];
+
+          ip += 1;
+
+          let address = from_bytes!(&read(&self.compute_stack, self.compute_top - 4, 4) => u32) + self.frames[self.frames.len() - scope_offset as usize - 1];
+        
+          let value = &read(&self.var_stack, address, size as u32);
+
+          push!(value => self.compute_stack, [self.compute_top; size as u32]);
+        },
+
+        PopA => {
+          ip += 1;
+
+          let size = bytecode[ip as usize];
+
+          ip += 1;
+
+          let len = bytecode[ip as usize];
+
+          ip += 1;
+
+          let address = from_bytes!(&bytecode[ip as usize .. ip as usize + 4] => u32);
+
+          ip += 4;
+
+          let chunk = &read(&self.compute_stack, self.compute_top - (size * len) as u32, (size * len) as u32);
+
+          self.compute_top -= (size * len) as u32;
+
+          memmove!(chunk => self.var_stack, [address + *self.frames.last().unwrap(); (size * len) as u32]);
+
+          if self.var_top < address + self.frames.last().unwrap() + (size * len) as u32 {
+            self.var_top = address+self.frames.last().unwrap() + (size * len) as u32
+          }
         },
       }
     }

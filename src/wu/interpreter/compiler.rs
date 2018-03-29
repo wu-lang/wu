@@ -12,18 +12,21 @@ pub struct Compiler<'c> {
   pub bytecode: Vec<u8>,
   pub visitor:  &'c mut Visitor<'c>,
 
+  pub temporary_explicit: Option<&'c Type>,
+
   frame_index: usize,
 }
 
 impl<'c> Compiler<'c> {
   pub fn new(visitor: &'c mut Visitor<'c>) -> Self {
-    /*let tabs: Vec<(SymTab, TypeTab)> = visitor.tab_frames.iter().map(|x| x.to_owned()).rev().collect();*/
-
     visitor.tabs = vec!(visitor.tab_frames.pop().unwrap());
 
     Compiler {
       bytecode: Vec::new(),
       visitor,
+
+      temporary_explicit: None,
+
       frame_index: 0,
     }
   }
@@ -149,6 +152,26 @@ impl<'c> Compiler<'c> {
           self.emit(Instruction::PushG);
           self.emit_byte(size as u8);
           self.emit_bytes(&to_bytes!(offset => u32));
+        }
+      },
+
+      Array(ref content) => {
+        let mut content_type = self.visitor.type_expression(&content[0])?;
+
+        if let Some(explicit) = self.temporary_explicit {
+          if let TypeNode::Array(ref t, _) = explicit.node {
+            if explicit.node != TypeNode::Nil {
+              content_type = (**t).clone()
+            }
+          }
+        };
+
+        for element in content.iter().rev() {
+          self.compile_expression(element)?;
+
+          let element_type = self.visitor.type_expression(element)?;
+
+          self.try_cast_emit(&content_type, &element_type)
         }
       },
 
@@ -495,21 +518,31 @@ impl<'c> Compiler<'c> {
 
 
 
-  fn assign(&mut self, t: &Type, left: &'c Expression<'c>, right: &'c Expression<'c>) -> Result<(), ()> {
+  fn assign(&mut self, t: &'c Type, left: &'c Expression<'c>, right: &'c Expression<'c>) -> Result<(), ()> {
     use self::TypeNode::*;
 
     if let ExpressionNode::Identifier(ref name) = left.node {
+      self.temporary_explicit = Some(t);
+
       self.compile_expression(right)?;
 
       let right_type = self.visitor.type_expression(right)?;
 
       self.try_cast_emit(t, &right_type);
-      self.emit(Instruction::Pop);
 
-      if t.node != Nil {
-        self.emit_byte(t.node.byte_size() as u8);      
+      let t = if t.node == Nil {
+        right_type
       } else {
-        self.emit_byte(right_type.node.byte_size() as u8);
+        t.clone()
+      };
+      
+      if let Array(ref array_type, ref len) = t.node {
+        self.emit(Instruction::PopA);
+        self.emit_byte(array_type.node.byte_size() as u8);
+        self.emit_byte(*len as u8)
+      } else {
+        self.emit(Instruction::Pop);
+        self.emit_byte(t.node.byte_size() as u8)
       }
 
       let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
@@ -518,6 +551,8 @@ impl<'c> Compiler<'c> {
       let address = &to_bytes!(offset => u32);
 
       self.emit_bytes(address);
+
+      self.temporary_explicit = None
     }
 
     Ok(())

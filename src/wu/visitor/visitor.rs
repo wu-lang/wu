@@ -58,8 +58,7 @@ impl TypeNode {
       Func(..) => 4, // address size
 
       Array(ref t, ref len) => t.node.byte_size() * *len as i8,
-
-      ref other => panic!("no type size: {:?}", other),
+      ref other             => panic!("no type size: {:?}", other),
     }
   }
 
