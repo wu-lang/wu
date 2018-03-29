@@ -68,74 +68,17 @@ fn run(content: &str) {
 }
 
 fn main() {
-  let test1 = r#"
-a: int   = 123
-b: float = .123
-c: char  = 'b'
-d: char  = 'a'
-e: str   = r"rawwww"
-f: bool  = true
-
-foo := f
-
-a: int:   123
-b: float: .123
-c: char:  '\n'
-d: char:  'a'
-e: str:   "raw"
-f: bool:  true
-
-bar :: b
-
-hmm: int
-  "#;
-
-  let test2 = r#"
-(a, b, c) := (1, 2, 3)
-(æ, ø): (int, str) = (1000, "world")
-
-(grr): bool: false
-(bar): (float): .123
-
-(d, e, f, g) :: (1, "two", 3, 4, "hey")
-
-a
-b
-c
-d
-e
-f
-g
-grr
-æ
-ø
-  "#;
-
-  let test3 = r#"
-a: int  = 100
-b: bool = false
-
-c := .123
-
-d: str: "communism essentially"
-e: str: r"you can't escape \n\n\n"
-
-f :: 'a'
-
-(g, h): (int, bool) = (1000, false)
-
-(one, two, three, four, five) := (1, "two", .3, '4', false)
-
-(foo): float =( (1/2) +  (1))
-  "#;
-
-  let test4 = r#"
+  let test0 = r"
 fac :: (a: i32, b: i32) i32 -> a + b
 
 a := fac(1, 2) as i8
 b := fac(3, 4) as i8
 c := fac(5, 6) as i8
-  "#;
+  ";
 
-  run(&test4);
+  let test1 = r"
+a: [i8; 3] = [ 1, 2, 3 ]
+  ";
+
+  run(&test1);
 }

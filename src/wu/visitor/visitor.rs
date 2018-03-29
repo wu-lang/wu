@@ -1,4 +1,5 @@
 use super::*;
+use super::super::parser::Parser;
 use super::super::error::Response::Wrong;
 
 use std::fmt::{ self, Formatter, Write, Display };
@@ -29,7 +30,7 @@ pub enum TypeNode {
   Nil,
   Id(String),
   Set(Vec<Type>),
-  Array(Rc<Type>),
+  Array(Rc<Type>, u32),
   Func(Vec<Type>, Rc<Type>),
 }
 
@@ -56,6 +57,8 @@ impl TypeNode {
 
       Func(..) => 4, // address size
 
+      Array(ref t, ref len) => t.node.byte_size() * *len as i8,
+
       ref other => panic!("no type size: {:?}", other),
     }
   }
@@ -72,6 +75,19 @@ impl TypeNode {
       ExpressionNode::Float(_) => match *self {
         F32 | F64 => true,
         _         => false,
+      },
+
+      ExpressionNode::Array(ref content) => {
+        for element in content {
+          if let &Array(ref content, _) = self {
+            if !content.node.check_expression(&element.node) {
+              println!("{:?} checking {:?}", self, element.node);
+              return false
+            }
+          }
+        }
+
+        true
       },
 
       _ => false
@@ -120,11 +136,11 @@ impl PartialEq for TypeNode {
       (&Char, &Char) => true,
       (&Nil,  &Nil)  => true,
 
-      (&Array(ref a), &Array(ref b)) => a == b,
-      (&Id(ref a), &Id(ref b))       => a == b,
-      (&Set(ref a), &Set(ref b))     => a == b,
+      (&Array(ref a, _), &Array(ref b, _)) => a == b,
+      (&Id(ref a), &Id(ref b))             => a == b,
+      (&Set(ref a), &Set(ref b))           => a == b,
 
-      _                              => false,
+      _                                    => false,
     }
   }
 }
@@ -144,26 +160,26 @@ impl Display for TypeNode {
     use self::TypeNode::*;
 
     match *self {
-      I08          => write!(f, "i8"),
-      I32          => write!(f, "i32"),
-      I64          => write!(f, "i64"),
-      I128         => write!(f, "i128"),
+      I08                 => write!(f, "i8"),
+      I32                 => write!(f, "i32"),
+      I64                 => write!(f, "i64"),
+      I128                => write!(f, "i128"),
 
-      F64          => write!(f, "f64"),
-      F32          => write!(f, "f32"),
+      F64                 => write!(f, "f64"),
+      F32                 => write!(f, "f32"),
 
-      U08          => write!(f, "u8"),
-      U32          => write!(f, "u32"),
-      U64          => write!(f, "u64"),
-      U128         => write!(f, "u128"),
+      U08                 => write!(f, "u8"),
+      U32                 => write!(f, "u32"),
+      U64                 => write!(f, "u64"),
+      U128                => write!(f, "u128"),
 
-      Bool         => write!(f, "bool"),
-      Str          => write!(f, "str"),
-      Char         => write!(f, "char"),
-      Nil          => write!(f, "nil"),
-      Array(ref n) => write!(f, "[{}]", n),
-      Id(ref n)    => write!(f, "{}", n),
-      Set(ref content) => {
+      Bool                => write!(f, "bool"),
+      Str                 => write!(f, "str"),
+      Char                => write!(f, "char"),
+      Nil                 => write!(f, "nil"),
+      Array(ref n, ref l) => write!(f, "[{}; {}]", n, l),
+      Id(ref n)           => write!(f, "{}", n),
+      Set(ref content)    => {
         write!(f, "(");
 
         for (index, element) in content.iter().enumerate() {
@@ -266,8 +282,8 @@ impl Type {
     Type::new(TypeNode::Set(content), TypeMode::Regular)
   }
 
-  pub fn array(t: Type) -> Type {
-    Type::new(TypeNode::Array(Rc::new(t)), TypeMode::Regular)
+  pub fn array(t: Type, len: u32) -> Type {
+    Type::new(TypeNode::Array(Rc::new(t), len), TypeMode::Regular)
   }
 
   pub fn function(params: Vec<Type>, return_type: Type) -> Type {
@@ -540,7 +556,7 @@ impl<'v> Visitor<'v> {
         for element in content {
           let element_type = self.type_expression(element)?;
 
-          if t != element_type {
+          if !t.node.check_expression(&Parser::fold_expression(element)?.node) && t.node != element_type.node {
             return Err(
               response!(
                 Wrong(format!("mismatched types in array, expected `{}` got `{}`", t, element_type)),
@@ -578,7 +594,7 @@ impl<'v> Visitor<'v> {
             let right_type = self.type_expression(&right)?;
 
             if variable_type.node != TypeNode::Nil {
-              if !variable_type.node.check_expression(&self.fold_expression(right)?.node) && variable_type.node != right_type.node {
+              if !variable_type.node.check_expression(&Parser::fold_expression(right)?.node) && variable_type.node != right_type.node {
                 return Err(
                   response!(
                     Wrong(format!("mismatched types, expected type `{}` got `{}`", variable_type.node, right_type)),
@@ -763,7 +779,7 @@ impl<'v> Visitor<'v> {
           let right_type = self.type_expression(right)?;
 
           if constant_type.node != TypeNode::Nil {
-            if !constant_type.node.check_expression(&self.fold_expression(right)?.node) && constant_type != &right_type {
+            if !constant_type.node.check_expression(&Parser::fold_expression(right)?.node) && constant_type != &right_type {
               return Err(
                 response!(
                   Wrong(format!("mismatched types, expected type `{}` got `{}`", constant_type.node, right_type)),
@@ -943,7 +959,7 @@ impl<'v> Visitor<'v> {
       Loop(ref expression)     |
       If(_, ref expression, _) => self.type_expression(expression)?,
 
-      Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
+      Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?, content.len() as u32),
 
       Cast(_, ref t) => Type::from(t.node.clone()),
 
@@ -1020,39 +1036,6 @@ impl<'v> Visitor<'v> {
     };
 
     Ok(t)
-  }
-
-
-
-  fn fold_expression(&self, expression: &Expression<'v>) -> Result<Expression<'v>, ()> {
-    use self::ExpressionNode::*;
-    use self::Operator::*;
-
-    let node = match expression.node {
-      Binary(ref left, ref op, ref right) => {
-        let node = match (&self.fold_expression(&*left)?.node, op, &self.fold_expression(&*right)?.node) {
-          (&Int(ref a),   &Add, &Int(ref b))   => Int(a + b),
-          (&Float(ref a), &Add, &Float(ref b)) => Float(a + b),
-          (&Int(ref a),   &Sub, &Int(ref b))   => Int(a - b),
-          (&Float(ref a), &Sub, &Float(ref b)) => Float(a - b),
-          (&Int(ref a),   &Mul, &Int(ref b))   => Int(a * b),
-          (&Float(ref a), &Mul, &Float(ref b)) => Float(a * b),
-          (&Int(ref a),   &Div, &Int(ref b))   => Int(a / b),
-          (&Float(ref a), &Div, &Float(ref b)) => Float(a / b),
-
-          _ => expression.node.clone()
-        };
-
-        Expression::new(
-          node,
-          expression.pos.clone()
-        )
-      },
-
-      _ => expression.clone()
-    };
-
-    Ok(node)
   }
 
 
