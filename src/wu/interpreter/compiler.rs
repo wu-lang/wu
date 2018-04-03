@@ -1,6 +1,8 @@
 #[macro_use]
 use super::*;
 
+use super::super::parser::Parser;
+
 use super::super::error::Response::Wrong;
 use std::mem;
 
@@ -166,12 +168,72 @@ impl<'c> Compiler<'c> {
           }
         };
 
-        for element in content.iter().rev() {
+        for element in content {
           self.compile_expression(element)?;
 
           let element_type = self.visitor.type_expression(element)?;
 
           self.try_cast_emit(&content_type, &element_type)
+        }
+      },
+
+      Index(ref left, ref index) => {
+        if let Int(ref offset) = Parser::fold_expression(index)?.node {
+          if let Identifier(ref name) = left.node {
+            let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
+            let offset             = self.visitor.current_tab().1.get_offset(index, env_index).unwrap() + *offset as u32;
+            let depth              = self.visitor.depth - self.visitor.current_tab().1.get_depth(index, env_index).unwrap();
+
+            let size = if let TypeNode::Array(ref t, _) = self.visitor.current_tab().1.get_type(index, env_index).unwrap().node {
+              t.node.byte_size()
+            } else {
+              unreachable!()
+            };
+
+            if self.visitor.current_tab().1.get_depth(index, env_index).unwrap() != 0 {
+              self.emit(Instruction::PushV);
+              self.emit_byte(depth as u8);
+              self.emit_byte(size as u8);
+              self.emit_bytes(&to_bytes!(offset => u32));
+            } else {
+              self.emit(Instruction::PushG);
+              self.emit_byte(size as u8);
+              self.emit_bytes(&to_bytes!(offset => u32));
+            }
+          }
+        } else {
+          if let Identifier(ref name) = left.node {
+            let (i, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
+            let depth          = self.visitor.depth - self.visitor.current_tab().1.get_depth(i, env_index).unwrap();
+            let offset         = self.visitor.current_tab().1.get_offset(i, env_index).unwrap();
+
+            let size = if let TypeNode::Array(ref t, _) = self.visitor.current_tab().1.get_type(i, env_index).unwrap().node {
+              t.node.byte_size()
+            } else {
+              unreachable!()
+            };
+
+            self.emit(Instruction::Push);
+            self.emit_byte(4i8 as u8);
+            self.emit_bytes(&to_bytes!(offset => u32));
+
+            let index_type = self.visitor.type_expression(index)?;
+            self.compile_expression(index)?;
+
+            if index_type.node.byte_size() != -4 {
+              self.emit(Instruction::ConvII);
+              self.emit_byte(size as u8);
+              self.emit_byte(-4i8 as u8)
+            }
+
+            self.emit(Instruction::AddI);
+            self.emit_byte(4i8 as u8);
+
+            self.emit(Instruction::PushD);
+
+            self.emit_byte(depth as u8);
+            self.emit_byte(size  as u8)
+          }
         }
       },
 
@@ -194,7 +256,7 @@ impl<'c> Compiler<'c> {
           match param.node {
             Variable(ref t, ref left, ref right) => if right.is_none() {
               self.emit(Instruction::Pop);
-              self.emit_byte(t.node.byte_size() as u8);
+              self.emit_byte(t.node.byte_size().abs() as u8);
 
               if let ExpressionNode::Identifier(ref name) = left.node {
                 let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();
@@ -542,7 +604,7 @@ impl<'c> Compiler<'c> {
         self.emit_byte(*len as u8)
       } else {
         self.emit(Instruction::Pop);
-        self.emit_byte(t.node.byte_size() as u8)
+        self.emit_byte(t.node.byte_size().abs() as u8)
       }
 
       let (index, env_index) = self.visitor.current_tab().0.get_name(name).unwrap();

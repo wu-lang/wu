@@ -291,22 +291,23 @@ impl VirtualMachine {
         ConvII => {
           ip += 1;
 
-          let size_from = bytecode[ip as usize];
+          let size_from = bytecode[ip as usize] as i8;
 
           ip += 1;
 
-          let size_to = bytecode[ip as usize];
+          let size_to = bytecode[ip as usize] as i8;
 
           ip += 1;
 
-          if size_from < size_to {
-            for i in self.compute_top..self.compute_top + size_to as u32 - size_from as u32 {
+          if size_to <0 && size_from <0 && size_to < size_from {
+            for i in self.compute_top .. self.compute_top + (size_to.abs() - size_from.abs()) as u32 {
               self.compute_stack[i as usize] = 255
             }
           }
 
           if size_from != size_to {
-            self.compute_top = (self.compute_top as i32 + size_to as i32 - size_from as i32) as u32
+            println!("{}", (self.compute_top as i32 + size_to.abs() as i32 - size_from.abs() as i32) as u32);
+            self.compute_top = (self.compute_top as i32 + size_to.abs() as i32 - size_from.abs() as i32) as u32
           }
         },
 
@@ -357,6 +358,8 @@ impl VirtualMachine {
             },
 
             4 => {
+              println!("{:?}", &self.compute_stack[self.compute_top as usize - 8 .. self.compute_top as usize]);
+
               let b = pop!([&self.compute_stack, self.compute_top] => i32);
               let a = pop!([&self.compute_stack, self.compute_top] => i32);
 
@@ -674,8 +677,8 @@ impl VirtualMachine {
 
           ip += 1;
 
-          let address = from_bytes!(&read(&self.compute_stack, self.compute_top - 4, 4) => u32) + self.frames[self.frames.len() - scope_offset as usize - 1];
-        
+          let address = from_bytes!(&read(&self.compute_stack, self.compute_top - 4, 4) => u32) + self.frames[self.frames.len() - scope_offset as usize - 1 as usize];
+
           let value = &read(&self.var_stack, address, size as u32);
 
           push!(value => self.compute_stack, [self.compute_top; size as u32]);

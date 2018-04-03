@@ -569,6 +569,47 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
+      Index(ref left, ref index) => {
+        let left_type = self.type_expression(left)?;
+
+        if let TypeNode::Array(_, ref len) = left_type.node {
+          let index_type = self.type_expression(index)?;
+
+          if !index_type.node.is_uint() || !TypeNode::U32.check_expression(&index.node) {
+            if let Int(ref index) = Parser::fold_expression(&**index)?.node {
+              if *index as u32 > *len {
+                return Err(
+                  response!(
+                    Wrong(format!("static index out of bounds `{}` in `{}`", index, len)),
+                    self.source.file,
+                    left.pos
+                  )
+                )
+              }
+            }
+          } else {
+            return Err(
+              response!(
+                Wrong(format!("can't index with `{}`, must be unsigned integer", index_type)),
+                self.source.file,
+                left.pos
+              )
+            )
+          }
+
+        } else {
+          return Err(
+            response!(
+              Wrong(format!("can't index `{}`", left_type)),
+              self.source.file,
+              left.pos
+            )
+          )
+        }
+
+        Ok(())
+      },
+
       _ => Ok(())
     }
   }
@@ -609,7 +650,7 @@ impl<'v> Visitor<'v> {
 
                 let len = self.offsets.len();
 
-                self.offsets[len - 1] += variable_type.node.byte_size() as u32
+                self.offsets[len - 1] += variable_type.node.byte_size().abs() as u32
               }
 
             } else {
@@ -953,6 +994,12 @@ impl<'v> Visitor<'v> {
         } else {
           unreachable!()
         }
+      },
+
+      Index(ref array, _) => if let TypeNode::Array(ref t, _) = self.type_expression(array)?.node {
+        (**t).clone()
+      } else {
+        unreachable!()
       },
 
       Loop(ref expression)     |

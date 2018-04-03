@@ -346,13 +346,32 @@ impl<'p> Parser<'p> {
         "(" => {
           let args = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
 
+          let position = expression.pos.clone();
+
           let call = Expression::new(
-            ExpressionNode::Call(Rc::new(expression.clone()), args),
-            self.span_from(expression.pos)
+            ExpressionNode::Call(Rc::new(expression), args),
+            self.span_from(position)
           );
 
           self.parse_postfix(call)
-        }
+        },
+
+        "[" => {
+          self.next()?;
+
+          let expr = self.parse_expression()?;
+
+          self.eat_lexeme("]")?;
+
+          let position = expression.pos.clone();
+
+          let index = Expression::new(
+            ExpressionNode::Index(Rc::new(expression), Rc::new(expr)),
+            self.span_from(position)
+          );
+
+          self.parse_postfix(index)
+        },
 
         _ => Ok(expression)
       },
