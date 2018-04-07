@@ -306,7 +306,6 @@ impl VirtualMachine {
           }
 
           if size_from != size_to {
-            println!("{}", (self.compute_top as i32 + size_to.abs() as i32 - size_from.abs() as i32) as u32);
             self.compute_top = (self.compute_top as i32 + size_to.abs() as i32 - size_from.abs() as i32) as u32
           }
         },
@@ -345,7 +344,7 @@ impl VirtualMachine {
         AddI => {
           ip += 1;
 
-          let size = bytecode[ip as usize];
+          let size = (bytecode[ip as usize] as i8).abs();
 
           ip += 1;
 
@@ -358,8 +357,6 @@ impl VirtualMachine {
             },
 
             4 => {
-              println!("{:?}", &self.compute_stack[self.compute_top as usize - 8 .. self.compute_top as usize]);
-
               let b = pop!([&self.compute_stack, self.compute_top] => i32);
               let a = pop!([&self.compute_stack, self.compute_top] => i32);
 
@@ -653,7 +650,7 @@ impl VirtualMachine {
         PushG => {
           ip += 1;
 
-          let size = bytecode[ip as usize];
+          let size = (bytecode[ip as usize] as i8).abs();
 
           ip += 1;
 
@@ -662,6 +659,8 @@ impl VirtualMachine {
           ip += 4;
 
           let value = &read(&self.var_stack, address, size as u32);
+
+          println!("g {:?}", size as i8);
 
           push!(value => self.compute_stack, [self.compute_top; size as u32]);
         },
@@ -680,6 +679,8 @@ impl VirtualMachine {
           let address = from_bytes!(&read(&self.compute_stack, self.compute_top - 4, 4) => u32) + self.frames[self.frames.len() - scope_offset as usize - 1 as usize];
 
           let value = &read(&self.var_stack, address, size as u32);
+
+          println!("here pushd: {:?} {:?}", address, value);
 
           push!(value => self.compute_stack, [self.compute_top; size as u32]);
         },
