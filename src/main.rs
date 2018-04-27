@@ -11,7 +11,6 @@ use wu::source::*;
 use wu::lexer::*;
 use wu::parser::{ Parser, ExpressionNode, Expression, };
 use wu::visitor::Visitor;
-use wu::interpreter::*;
 
 use std::env;
 
@@ -40,25 +39,7 @@ fn run(content: &str) {
       let mut visitor = Visitor::new(&source, &ast);      
  
       match visitor.visit() {
-        Ok(_) => {          
-          let mut compiler = Compiler::new(&mut visitor);
-
-          match compiler.compile(&ast) {
-            Ok(_) => {
-              let mut vm = VirtualMachine::new();
-
-              vm.execute(compiler.bytecode.as_slice());
-
-              println!();
-
-              println!("stack: {:?}", &vm.compute_stack[..64]);
-              println!();
-              println!("vars:  {:?}", &vm.var_stack[..256]);
-            },
-
-            _ => (),
-          }
-        }
+        Ok(_) => (),
         _ => ()
       }
     },
@@ -69,7 +50,7 @@ fn run(content: &str) {
 
 fn main() {
   let test0 = r"
-fac :: (a: i32, b: i32) i32 -> a + b
+fac :: (a: int, b: int) int -> a + b
 
 a := fac(1, 2) as i8
 b := fac(3, 4) as i8
@@ -77,9 +58,9 @@ c := fac(5, 6) as i8
   ";
 
   let test1 = r"
-a: [i8; 4] = [10, 20, 30, 40]
+a: [int] = [10, 20, 30, 40]
 
-b := 2 as u32
+b := 2 as float
 
 æ := a[b]
 ø := a[b]
@@ -88,8 +69,8 @@ z := a[b]
   ";
 
   let test2 = r"
-a: [[i8; 2]; 2] = [[1, 2], [3, 4]]
+a: [[int]] = [[1, 2], [3, 4]]
   ";
 
-  run(1)
+  run(test1)
 }

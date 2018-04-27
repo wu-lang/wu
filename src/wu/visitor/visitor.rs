@@ -11,76 +11,32 @@ use std::mem;
 
 #[derive(Debug, Clone)]
 pub enum TypeNode {
-  I08,
-  I32,
-  I64,
-  I128,
-
-  F64,
-  F32,
-
-  U08,
-  U32,
-  U64,
-  U128,
-
+  Int,
+  Float,
   Bool,
   Str,
   Char,
   Nil,
   Id(String),
   Set(Vec<Type>),
-  Array(Rc<Type>, u32),
+  Array(Rc<Type>),
   Func(Vec<Type>, Rc<Type>),
 }
 
 impl TypeNode {
-  pub fn byte_size(&self) -> i8 {
-    use self::TypeNode::*;
-
-    match *self {
-      I08  => mem::size_of::<i8>()   as i8,
-      I32  => mem::size_of::<i32>()  as i8,
-      I64  => mem::size_of::<i64>()  as i8,
-      I128 => mem::size_of::<i128>() as i8,
-
-      F32  => mem::size_of::<f32>() as i8,
-      F64  => mem::size_of::<f64>() as i8,
-
-      U08  => -(mem::size_of::<u8>()   as i8),
-      U32  => -(mem::size_of::<u32>()  as i8),
-      U64  => -(mem::size_of::<u64>()  as i8),
-      U128 => -(mem::size_of::<u128>() as i8),
-
-      Char => mem::size_of::<char>() as i8,
-      Bool => mem::size_of::<bool>() as i8,
-
-      Func(..) => 4, // address size
-
-      Array(ref t, ref len) => t.node.byte_size(),
-      ref other             => panic!("no type size: {:?}", other),
-    }
-  }
-
   pub fn check_expression(&self, other: &ExpressionNode) -> bool {
     use self::TypeNode::*;
 
     match *other {
       ExpressionNode::Int(_) => match *self {
-        I08 | I32 | I64 | I128 | F32 | F64 | U08 | U32 | U64 | U128 => true,
-        _ => false,
-      },
-
-      ExpressionNode::Float(_) => match *self {
-        F32 | F64 => true,
-        _         => false,
+        Int | Float => true,
+        _           => false,
       },
 
       ExpressionNode::Array(ref content) => {
         for element in content {
-          if let &Array(ref content, _) = self {
+          if let &Array(ref content) = self {
             if !content.node.check_expression(&element.node) {
-              println!("{:?} checking {:?}", self, element.node);
               return false
             }
           }
@@ -92,24 +48,6 @@ impl TypeNode {
       _ => false
     }
   }
-
-  pub fn is_int(&self) -> bool {
-    use self::TypeNode::*;
-
-    [I08, I32, I64, I128, U08, U32, U64, U128].contains(&self)
-  }
-
-  pub fn is_uint(&self) -> bool {
-    use self::TypeNode::*;
-
-    [U08, U32, U64, U128].contains(&self)
-  }
-
-  pub fn is_float(&self) -> bool {
-     use self::TypeNode::*;
-
-    [F32, F64].contains(&self)
-  }
 }
 
 impl PartialEq for TypeNode {
@@ -117,29 +55,19 @@ impl PartialEq for TypeNode {
     use self::TypeNode::*;
 
     match (self, other) {
-      (&I08,  &I08)  => true,
-      (&I32,  &I32)  => true,
-      (&I64,  &I64)  => true,
-      (&I128, &I128) => true,
-
-      (&F32,  &F32) => true,
-      (&F64,  &F64) => true,
-
-      (&U08,  &U08)  => true,
-      (&U32,  &U32)  => true,
-      (&U64,  &U64)  => true,
-      (&U128, &U128) => true,
+      (&Int,   &Int)   => true,
+      (&Float, &Float) => true,
 
       (&Bool, &Bool) => true,
       (&Str,  &Str)  => true,
       (&Char, &Char) => true,
       (&Nil,  &Nil)  => true,
 
-      (&Array(ref a, _), &Array(ref b, _)) => a == b,
-      (&Id(ref a), &Id(ref b))             => a == b,
-      (&Set(ref a), &Set(ref b))           => a == b,
+      (&Array(ref a), &Array(ref b)) => a == b,
+      (&Id(ref a), &Id(ref b))       => a == b,
+      (&Set(ref a), &Set(ref b))     => a == b,
 
-      _                                    => false,
+      _                              => false,
     }
   }
 }
@@ -159,26 +87,15 @@ impl Display for TypeNode {
     use self::TypeNode::*;
 
     match *self {
-      I08                 => write!(f, "i8"),
-      I32                 => write!(f, "i32"),
-      I64                 => write!(f, "i64"),
-      I128                => write!(f, "i128"),
-
-      F64                 => write!(f, "f64"),
-      F32                 => write!(f, "f32"),
-
-      U08                 => write!(f, "u8"),
-      U32                 => write!(f, "u32"),
-      U64                 => write!(f, "u64"),
-      U128                => write!(f, "u128"),
-
-      Bool                => write!(f, "bool"),
-      Str                 => write!(f, "str"),
-      Char                => write!(f, "char"),
-      Nil                 => write!(f, "nil"),
-      Array(ref n, ref l) => write!(f, "[{}; {}]", n, l),
-      Id(ref n)           => write!(f, "{}", n),
-      Set(ref content)    => {
+      Int              => write!(f, "int"),
+      Float            => write!(f, "float"),
+      Bool             => write!(f, "bool"),
+      Str              => write!(f, "str"),
+      Char             => write!(f, "char"),
+      Nil              => write!(f, "nil"),
+      Array(ref n)     => write!(f, "[{}]", n),
+      Id(ref n)        => write!(f, "{}", n),
+      Set(ref content) => {
         write!(f, "(");
 
         for (index, element) in content.iter().enumerate() {
@@ -281,8 +198,8 @@ impl Type {
     Type::new(TypeNode::Set(content), TypeMode::Regular)
   }
 
-  pub fn array(t: Type, len: u32) -> Type {
-    Type::new(TypeNode::Array(Rc::new(t), len), TypeMode::Regular)
+  pub fn array(t: Type) -> Type {
+    Type::new(TypeNode::Array(Rc::new(t)), TypeMode::Regular)
   }
 
   pub fn function(params: Vec<Type>, return_type: Type) -> Type {
@@ -305,7 +222,6 @@ pub struct Visitor<'v> {
   pub source:  &'v Source,
   pub ast:     &'v Vec<Statement<'v>>,
 
-  pub offsets: Vec<u32>,
   pub depth:   u32,
 }
 
@@ -317,7 +233,6 @@ impl<'v> Visitor<'v> {
 
       source,
       ast,
-      offsets: vec!(0),
       depth:   0,
     }
   }
@@ -499,12 +414,7 @@ impl<'v> Visitor<'v> {
             Constant(ref t, ref name, _) | Variable(ref t, ref name, _) => if let Identifier(ref name) = name.node {
               param_names.push(name.clone());
 
-              let offset = *self.offsets.last().unwrap();
-
-              param_types.push((t.clone(), offset, self.depth));
-
-              let len = self.offsets.len();
-              self.offsets[len - 1] += t.node.byte_size() as u32
+              param_types.push((t.clone(), self.depth));
             } else {
               return Err(
                 response!(
@@ -518,8 +428,6 @@ impl<'v> Visitor<'v> {
             _ => unreachable!()
           }
         }
-
-        self.offsets.push(0);
 
         let parent = self.current_tab().clone();
 
@@ -572,22 +480,10 @@ impl<'v> Visitor<'v> {
       Index(ref left, ref index) => {
         let left_type = self.type_expression(left)?;
 
-        if let TypeNode::Array(_, ref len) = left_type.node {
+        if let TypeNode::Array(_) = left_type.node {
           let index_type = self.type_expression(index)?;
 
-          if !index_type.node.is_uint() || !TypeNode::U32.check_expression(&index.node) {
-            if let Int(ref index) = Parser::fold_expression(&**index)?.node {
-              if *index as u32 > *len {
-                return Err(
-                  response!(
-                    Wrong(format!("static index out of bounds `{}` in `{}`", index, len)),
-                    self.source.file,
-                    left.pos
-                  )
-                )
-              }
-            }
-          } else {
+          if let TypeNode::Func(_, _) = index_type.node {
             return Err(
               response!(
                 Wrong(format!("can't index with `{}`, must be unsigned integer", index_type)),
@@ -643,39 +539,21 @@ impl<'v> Visitor<'v> {
                   )
                 )
               } else {
-                let offset = *self.offsets.last().unwrap();
-                let depth  = self.depth;
+                let depth = self.depth;
                 
-                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset, depth))?;
-
-                let len = self.offsets.len();
-
-                self.offsets[len - 1] += variable_type.node.byte_size().abs() as u32
+                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), depth))?;
               }
 
             } else {
-              let size = right_type.node.byte_size().abs() as u32;
-
-              let offset = *self.offsets.last().unwrap();
-              let depth  = self.depth;
+              let depth = self.depth;
               
-              self.current_tab().1.set_type(index, 0, (right_type, offset, depth))?;
-
-              let len = self.offsets.len();
-
-              self.offsets[len - 1] += size;
+              self.current_tab().1.set_type(index, 0, (right_type, depth))?;
             }
 
           } else {
-            let offset = *self.offsets.last().unwrap();
-            let depth  = self.depth;
-            
+            let depth = self.depth;
 
-            self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset, depth))?;
-
-            let len = self.offsets.len();
-
-            self.offsets[len - 1] += variable_type.node.byte_size() as u32
+            self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), depth))?;
           }
         },
 
@@ -718,14 +596,9 @@ impl<'v> Visitor<'v> {
                           )
                         )
                       } else {
-                        let offset = *self.offsets.last().unwrap();
-                        let depth  = self.depth;
+                        let depth = self.depth;
 
-                        self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset, depth))?;
-                        
-                        let len = self.offsets.len();
-
-                        self.offsets[len - 1] += variable_type.node.byte_size() as u32
+                        self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), depth))?;
                       }
                     } else {
                       return Err(
@@ -737,16 +610,9 @@ impl<'v> Visitor<'v> {
                       )
                     }
                   } else {                  
-                    let size   = right_type.node.byte_size() as u32;
-                    let offset = *self.offsets.last().unwrap();
-                    let depth  = self.depth;
-                    
+                    let depth = self.depth;
 
-                    self.current_tab().1.set_type(index, 0, (right_type, offset, depth))?;
-                    
-                    let len = self.offsets.len();
-
-                    self.offsets[len - 1] += size
+                    self.current_tab().1.set_type(index, 0, (right_type, depth))?;
                   }
                 } else {
                   return Err(
@@ -769,14 +635,9 @@ impl<'v> Visitor<'v> {
                   self.current_tab().0.add_name(name)
                 };
 
-                let offset = *self.offsets.last().unwrap();
-                let depth  = self.depth;
+                let depth = self.depth;
 
-                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), offset, depth))?;
-                
-                let len = self.offsets.len();
-
-                self.offsets[len - 1] += variable_type.node.byte_size() as u32
+                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), depth))?;
               }
             }
           }
@@ -828,25 +689,14 @@ impl<'v> Visitor<'v> {
                 )
               )
             } else {
-              let offset = *self.offsets.last().unwrap();
-              let depth  = self.depth;
+              let depth = self.depth;
 
-              self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), offset, depth))?;
-
-              let len = self.offsets.len();
-
-              self.offsets[len - 1] += constant_type.node.byte_size() as u32
+              self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), depth))?;
             }
           } else {
-            let size   = right_type.node.byte_size().abs() as u32;
-            let offset = *self.offsets.last().unwrap();
-            let depth  = self.depth;
+            let depth = self.depth;
 
-            self.current_tab().1.set_type(index, 0, (right_type, offset, depth))?;
-
-            let len = self.offsets.len();
-
-            self.offsets[len - 1] += size
+            self.current_tab().1.set_type(index, 0, (right_type, depth))?;
           }
 
           match right.node {
@@ -893,14 +743,9 @@ impl<'v> Visitor<'v> {
                         )
                       )
                     } else {
-                      let offset = *self.offsets.last().unwrap();
                       let depth  = self.depth;
 
-                      self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), offset, depth))?;
-
-                      let len = self.offsets.len();
-
-                      self.offsets[len - 1] += constant_type.node.byte_size() as u32
+                      self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), depth))?;
                     }
                   } else {
                     return Err(
@@ -912,16 +757,9 @@ impl<'v> Visitor<'v> {
                     )
                   }
                 } else {                  
-                  let size = right_type.node.byte_size() as u32;
+                  let depth = self.depth;
 
-                  let offset = *self.offsets.last().unwrap();
-                  let depth  = self.depth;
-
-                  self.current_tab().1.set_type(index, 0, (right_type, offset, depth))?;
-
-                  let len = self.offsets.len();
-
-                  self.offsets[len - 1] += size
+                  self.current_tab().1.set_type(index, 0, (right_type, depth))?;
                 }
               } else {
                 return Err(
@@ -985,8 +823,8 @@ impl<'v> Visitor<'v> {
       String(_) => Type::from(TypeNode::Str),
       Char(_)   => Type::from(TypeNode::Char),
       Bool(_)   => Type::from(TypeNode::Bool),
-      Int(_)    => Type::from(TypeNode::I128),
-      Float(_)  => Type::from(TypeNode::F64),
+      Int(_)    => Type::from(TypeNode::Int),
+      Float(_)  => Type::from(TypeNode::Float),
 
       Call(ref expression, _) => {
         if let TypeNode::Func(_, ref return_type) = self.type_expression(expression)?.node {
@@ -996,7 +834,7 @@ impl<'v> Visitor<'v> {
         }
       },
 
-      Index(ref array, _) => if let TypeNode::Array(ref t, _) = self.type_expression(array)?.node {
+      Index(ref array, _) => if let TypeNode::Array(ref t) = self.type_expression(array)?.node {
         (**t).clone()
       } else {
         unreachable!()
@@ -1005,7 +843,7 @@ impl<'v> Visitor<'v> {
       Loop(ref expression)     |
       If(_, ref expression, _) => self.type_expression(expression)?,
 
-      Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?, content.len() as u32),
+      Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
 
       Cast(_, ref t) => Type::from(t.node.clone()),
 
@@ -1095,8 +933,6 @@ impl<'v> Visitor<'v> {
 
 
   pub fn push_scope(&mut self) {
-    self.offsets.push(0);
-
     let local_symtab  = SymTab::new(Rc::new(self.current_tab().0.clone()), &[]);
     let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
 
@@ -1106,8 +942,6 @@ impl<'v> Visitor<'v> {
   }
 
   pub fn pop_scope(&mut self) {
-    self.offsets.pop();
-
     self.tab_frames.push(self.tabs.pop().unwrap());
 
     self.depth -= 1

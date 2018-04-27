@@ -583,18 +583,8 @@ impl<'p> Parser<'p> {
         "str"   => Type::from(Str),
         "char"  => Type::from(TypeNode::Char),
 
-        "i8"    => Type::from(I08),
-        "i32"   => Type::from(I32),
-        "i64"   => Type::from(I64),
-        "i128"  => Type::from(I128),
-
-        "u8"    => Type::from(U08),
-        "u32"   => Type::from(U32),
-        "u64"   => Type::from(U64),
-        "u128"  => Type::from(U128),
-
-        "f32"   => Type::from(F32),
-        "f64"   => Type::from(F64),
+        "int"   => Type::from(TypeNode::Int),
+        "float" => Type::from(TypeNode::Float),
 
         "bool"  => Type::from(TypeNode::Bool),
         id      => Type::id(id),
@@ -616,23 +606,9 @@ impl<'p> Parser<'p> {
 
           let t = self.parse_type()?;
 
-          self.eat_lexeme(";")?;
-
-          let position = self.current_position();
-
-          let len = match Self::fold_expression(&self.parse_expression()?)?.node {
-            ExpressionNode::Int(ref n) => *n,
-            _ => return Err(
-              response!(
-                Wrong("array length must be a static and unsigned"),
-                self.span_from(position)
-              )
-            )
-          };
-
           self.eat_lexeme("]")?;
 
-          Type::array(t, len as u32)
+          Type::array(t)
         }
 
         _   => return Err(
