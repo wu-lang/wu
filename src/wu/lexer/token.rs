@@ -87,9 +87,9 @@ impl<'s> fmt::Display for TokenElement<'s> {
         let mut mark = line.1[slice.0.saturating_sub(1) .. slice.1].to_string();
 
         if mark.split_whitespace().count() == 0 {
-          mark = format!("{:─>count$}", ">".bold().red(), count=mark.len());
+          mark = format!("{:─>count$}", ">".bold().magenta(), count=mark.len());
         } else {
-          mark = format!("{}", mark.bold().red());
+          mark = format!("{}", mark.bold().magenta());
         }
 
         write!(f, "\n{}\n{}{}{}{}\n{}",
@@ -105,7 +105,7 @@ impl<'s> fmt::Display for TokenElement<'s> {
 
         for token in row {
           mark = format!(
-            "{}{:offset$}{:▔<count$}", mark, "", "".red().bold(),
+            "{}{:offset$}{:▔<count$}", mark, "", "".magenta().bold(),
             offset = token.slice.0 - len,
             count = token.slice.1 - token.slice.0 + 1
           );
@@ -127,9 +127,9 @@ impl<'s> fmt::Display for TokenElement<'s> {
               let mut mark = r.line.1[r.slice.0..r.slice.1].to_string();
 
               if mark.split_whitespace().count() == 0 {
-                mark = format!("{:─>count$}", ">".bold().red(), count=mark.len());
+                mark = format!("{:─>count$}", ">".bold().magenta(), count=mark.len());
               } else {
-                mark = format!("{}", mark.bold().red());
+                mark = format!("{}", mark.bold().magenta());
               }
 
               out = format!("{}\n{}{}{}{}",

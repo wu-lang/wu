@@ -214,7 +214,7 @@ impl<'c> Compiler<'c> {
             };
 
             self.emit(Instruction::Push);
-            self.emit_byte(4i8 as u8);
+            self.emit_byte(-4i8 as u8);
             self.emit_bytes(&to_bytes!(offset => u32));
 
             let index_type = self.visitor.type_expression(index)?;
@@ -222,12 +222,13 @@ impl<'c> Compiler<'c> {
 
             if index_type.node.byte_size() != -4 {
               self.emit(Instruction::ConvII);
-              self.emit_byte(size as u8);
+
+              self.emit_byte(index_type.node.byte_size() as u8);
               self.emit_byte(-4i8 as u8)
             }
 
             self.emit(Instruction::AddI);
-            self.emit_byte(4i8 as u8);
+            self.emit_byte(-4i8 as u8);
 
             self.emit(Instruction::PushD);
 

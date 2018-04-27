@@ -38,6 +38,8 @@ macro_rules! pop {
   ([$stack:expr, $top:expr] => $type:ty) => {{
     $top -= mem::size_of::<$type>() as u32;
 
+    println!("hmmm: {}", $top);
+
     from_bytes!(&read($stack, $top, mem::size_of::<$type>() as u32) =>$type)
   }}
 }

@@ -137,7 +137,9 @@ impl VirtualMachine {
         Push => {
           ip += 1;
 
-          let size = bytecode[ip as usize];
+          let size = (bytecode[ip as usize] as i8).abs() as u8;
+
+          println!("siiize: {}", size);
 
           ip += 1;
 
@@ -299,14 +301,29 @@ impl VirtualMachine {
 
           ip += 1;
 
-          if size_to <0 && size_from <0 && size_to < size_from {
-            for i in self.compute_top .. self.compute_top + (size_to.abs() - size_from.abs()) as u32 {
-              self.compute_stack[i as usize] = 255
-            }
-          }
-
           if size_from != size_to {
-            self.compute_top = (self.compute_top as i32 + size_to.abs() as i32 - size_from.abs() as i32) as u32
+            // clean stack if converting to a larger type
+            if size_from.abs() < size_to.abs() {
+              for i in self.compute_top .. self.compute_top + size_to.abs() as u32 - size_from.abs() as u32 {
+                  self.compute_stack[i as usize] = 0
+              }
+            }
+
+            // two's complement logic
+            if size_from > 0 && size_to > 0 { // both signed && size_from < size_to { // converting from smaller to bigger signed
+              let ms_byte = self.compute_stack[(self.compute_top - size_from as u32) as usize];
+              let ms_bit = ms_byte >> 7; // most significant
+
+              if ms_bit == 1 { // negative signed
+                for i in self.compute_top .. self.compute_top + size_to as u32 - size_from as u32 {
+                  self.compute_stack[i as usize] = 255 // fill extra bits for two's complement
+                }
+              }
+            }
+
+            // modify top based on size difference
+            println!("gucci fucking gang {} -> {} :: {} {}", self.compute_top, (self.compute_top as i32 + (size_to.abs() - size_from.abs()) as i32), size_to, size_from);
+            self.compute_top = (self.compute_top as i32 + (size_to.abs() - size_from.abs()) as i32) as u32;
           }
         },
 
@@ -720,5 +737,7 @@ impl VirtualMachine {
 
 
 fn read (mem: &[u8], from: u32, size: u32) -> Vec<u8> {
+  println!("frooom: {}", from);
+
   mem[from as usize .. (from + size) as usize].iter().cloned().collect()
 }
