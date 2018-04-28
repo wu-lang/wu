@@ -28,11 +28,28 @@ impl<'g> Generator<'g> {
 
 
 
-  fn generate_statement(&mut self, statement: &Statement<'g>) -> Result<String, ()> {
+  fn generate_statement<'b>(&mut self, statement: &'b Statement<'b>) -> Result<String, ()> {
     use self::StatementNode::*;
 
     let result = match statement.node {
       Expression(ref expression) => self.generate_expression(expression)?,
+
+      Variable(_, ref left, ref right) => {
+        if let ExpressionNode::Set(_) = left.node {
+          unimplemented!()
+        } else {
+          self.generate_local(left, right)?
+        }
+      },
+
+      Constant(_, ref left, ref right) => {
+        if let ExpressionNode::Set(_) = left.node {
+          unimplemented!()
+        } else {
+          self.generate_local(left, &Some(right.clone()))?
+        }
+      },
+
       _ => String::new()
     };
 
@@ -41,7 +58,7 @@ impl<'g> Generator<'g> {
 
 
 
-  fn generate_expression(&mut self, expression: &Expression<'g>) -> Result<String, ()> {
+  fn generate_expression<'b>(&mut self, expression: &'b Expression<'b>) -> Result<String, ()> {
     use self::ExpressionNode::*;
     use std::string;
 
@@ -84,6 +101,29 @@ impl<'g> Generator<'g> {
     };
 
     Ok(result)
+  }
+
+
+
+  fn generate_local<'b>(&mut self, left: &'b Expression, right: &'b Option<Expression>) -> Result<String, ()> {
+    use self::ExpressionNode::*;
+    use std::string;
+
+    let mut result = if let Identifier(ref name) = left.node {
+      let left  = self.generate_expression(left)?;
+      let output = format!("local {}", left);
+
+      output
+    } else {
+      string::String::new()
+    };
+
+    if let &Some(ref right) = right {
+      let right_str = self.generate_expression(right)?;
+      result.push_str(&format!(" = {}", right_str));
+    }
+
+    Ok(format!("{}\n", result))
   }
 
 

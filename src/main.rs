@@ -77,19 +77,16 @@ z := a[b]
 a: [[int]] = [[1, 2], [3, 4]]
   ";
 
-  let test3 = r"
+  let test3 = r#"
+a := 1
+b: int = 2
+
 {
-  1
-
-  {
-    2
-
-    {
-      3
-    }
-  }
+  c: string
+  d := "hey"
+  foo :: 100
 }
-  ";
+  "#;
 
   run(test3)
 }
