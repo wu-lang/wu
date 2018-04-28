@@ -580,14 +580,14 @@ impl<'p> Parser<'p> {
 
     let t = match *self.current_type() {
       Identifier => match self.eat()?.as_str() {
-        "str"   => Type::from(Str),
-        "char"  => Type::from(TypeNode::Char),
+        "string" => Type::from(Str),
+        "char"   => Type::from(TypeNode::Char),
 
-        "int"   => Type::from(TypeNode::Int),
-        "float" => Type::from(TypeNode::Float),
+        "int"    => Type::from(TypeNode::Int),
+        "float"  => Type::from(TypeNode::Float),
 
-        "bool"  => Type::from(TypeNode::Bool),
-        id      => Type::id(id),
+        "bool"   => Type::from(TypeNode::Bool),
+        id       => Type::id(id),
       },
 
       Symbol => match self.current_lexeme().as_str() {

@@ -11,6 +11,7 @@ use wu::source::*;
 use wu::lexer::*;
 use wu::parser::{ Parser, ExpressionNode, Expression, };
 use wu::visitor::Visitor;
+use wu::generator::Generator;
 
 use std::env;
 
@@ -39,7 +40,11 @@ fn run(content: &str) {
       let mut visitor = Visitor::new(&source, &ast);      
  
       match visitor.visit() {
-        Ok(_) => (),
+        Ok(_) => {
+          let mut generator = Generator::new(&mut visitor);
+
+          println!("------\n{}", generator.generate(&ast).unwrap())
+        },
         _ => ()
       }
     },
@@ -50,11 +55,11 @@ fn run(content: &str) {
 
 fn main() {
   let test0 = r"
-fac :: (a: int, b: int) int -> a + b
+fac :: (a: int, b: int) string -> a + b
 
-a := fac(1, 2) as i8
-b := fac(3, 4) as i8
-c := fac(5, 6) as i8
+a := fac(1, 2) as float
+b := fac(3, 4) as float
+c := fac(5, 6) as float
   ";
 
   let test1 = r"
@@ -72,5 +77,19 @@ z := a[b]
 a: [[int]] = [[1, 2], [3, 4]]
   ";
 
-  run(test1)
+  let test3 = r"
+{
+  1
+
+  {
+    2
+
+    {
+      3
+    }
+  }
+}
+  ";
+
+  run(test3)
 }

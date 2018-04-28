@@ -221,8 +221,6 @@ pub struct Visitor<'v> {
 
   pub source:  &'v Source,
   pub ast:     &'v Vec<Statement<'v>>,
-
-  pub depth:   u32,
 }
 
 impl<'v> Visitor<'v> {
@@ -233,7 +231,6 @@ impl<'v> Visitor<'v> {
 
       source,
       ast,
-      depth:   0,
     }
   }
 
@@ -406,15 +403,12 @@ impl<'v> Visitor<'v> {
         let mut param_names = Vec::new();
         let mut param_types = Vec::new();
 
-        // simply pushing without pushing
-        self.depth += 1;
-
         for param in params {
           match param.node {
             Constant(ref t, ref name, _) | Variable(ref t, ref name, _) => if let Identifier(ref name) = name.node {
               param_names.push(name.clone());
 
-              param_types.push((t.clone(), self.depth));
+              param_types.push(t.clone());
             } else {
               return Err(
                 response!(
@@ -539,21 +533,15 @@ impl<'v> Visitor<'v> {
                   )
                 )
               } else {
-                let depth = self.depth;
-                
-                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), depth))?;
+                self.current_tab().1.set_type(index, 0, variable_type.to_owned())?;
               }
 
             } else {
-              let depth = self.depth;
-              
-              self.current_tab().1.set_type(index, 0, (right_type, depth))?;
+              self.current_tab().1.set_type(index, 0, right_type)?;
             }
 
           } else {
-            let depth = self.depth;
-
-            self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), depth))?;
+            self.current_tab().1.set_type(index, 0, variable_type.to_owned())?;
           }
         },
 
@@ -596,9 +584,7 @@ impl<'v> Visitor<'v> {
                           )
                         )
                       } else {
-                        let depth = self.depth;
-
-                        self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), depth))?;
+                        self.current_tab().1.set_type(index, 0, variable_type.to_owned())?;
                       }
                     } else {
                       return Err(
@@ -610,9 +596,7 @@ impl<'v> Visitor<'v> {
                       )
                     }
                   } else {                  
-                    let depth = self.depth;
-
-                    self.current_tab().1.set_type(index, 0, (right_type, depth))?;
+                    self.current_tab().1.set_type(index, 0, right_type)?;
                   }
                 } else {
                   return Err(
@@ -635,9 +619,7 @@ impl<'v> Visitor<'v> {
                   self.current_tab().0.add_name(name)
                 };
 
-                let depth = self.depth;
-
-                self.current_tab().1.set_type(index, 0, (variable_type.to_owned(), depth))?;
+                self.current_tab().1.set_type(index, 0, variable_type.to_owned())?;
               }
             }
           }
@@ -689,14 +671,10 @@ impl<'v> Visitor<'v> {
                 )
               )
             } else {
-              let depth = self.depth;
-
-              self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), depth))?;
+              self.current_tab().1.set_type(index, 0, constant_type.to_owned())?;
             }
           } else {
-            let depth = self.depth;
-
-            self.current_tab().1.set_type(index, 0, (right_type, depth))?;
+            self.current_tab().1.set_type(index, 0, right_type)?;
           }
 
           match right.node {
@@ -742,10 +720,6 @@ impl<'v> Visitor<'v> {
                           right.pos
                         )
                       )
-                    } else {
-                      let depth  = self.depth;
-
-                      self.current_tab().1.set_type(index, 0, (constant_type.to_owned(), depth))?;
                     }
                   } else {
                     return Err(
@@ -756,10 +730,8 @@ impl<'v> Visitor<'v> {
                       )
                     )
                   }
-                } else {                  
-                  let depth = self.depth;
-
-                  self.current_tab().1.set_type(index, 0, (right_type, depth))?;
+                } else {
+                  self.current_tab().1.set_type(index, 0, right_type)?;
                 }
               } else {
                 return Err(
@@ -937,13 +909,9 @@ impl<'v> Visitor<'v> {
     let local_typetab = TypeTab::new(Rc::new(self.current_tab().1.clone()), &[]);
 
     self.tabs.push((local_symtab.clone(), local_typetab.clone()));
-
-    self.depth += 1
   }
 
   pub fn pop_scope(&mut self) {
     self.tab_frames.push(self.tabs.pop().unwrap());
-
-    self.depth -= 1
   }
 }
