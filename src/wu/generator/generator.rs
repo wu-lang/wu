@@ -49,8 +49,6 @@ impl<'g> Generator<'g> {
           self.generate_local(left, &Some(right.clone()))?
         }
       },
-
-      _ => String::new()
     };
 
     Ok(result)
@@ -70,12 +68,12 @@ impl<'g> Generator<'g> {
           &format!(
             "({} {} {})",
             self.generate_expression(&left)?,
-            op,
+            self.generate_operator(&op),
             self.generate_expression(&right)?,
           )
         );
 
-        self.make_line(&result)
+        result
       },
 
       Block(ref content) => {
@@ -86,7 +84,35 @@ impl<'g> Generator<'g> {
           result.push_str(&self.make_line(&line))
         }
 
-        result.push_str("end");
+        result.push_str("end\n");
+
+        result
+      },
+
+      If(ref condition, ref body, ref elses) => {
+        let mut result = format!("if {} then\n", self.generate_expression(condition)?);
+
+        let body = self.generate_expression(body)?;
+
+        result.push_str(&self.make_line(&body));
+
+        if let &Some(ref elses) = elses {
+          for branch in elses {
+
+            if let Some(ref condition) = branch.0 {
+              result.push_str(&format!("elseif {} then\n", self.generate_expression(condition)?));
+
+            } else {
+              result.push_str("else\n")
+            }
+
+            let body = self.generate_expression(&branch.1)?;
+
+            result.push_str(&self.make_line(&body));
+          }
+        }
+
+        result.push_str("end\n");
 
         result
       },
@@ -101,6 +127,17 @@ impl<'g> Generator<'g> {
     };
 
     Ok(result)
+  }
+
+
+
+  fn generate_operator<'b>(&mut self, op: &'b Operator) -> String {
+    use self::Operator::*;
+
+    match *op {
+      Concat => "..".to_string(),
+      _ => format!("{}", op)
+    }
   }
 
 

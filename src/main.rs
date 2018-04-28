@@ -81,10 +81,14 @@ a: [[int]] = [[1, 2], [3, 4]]
 a := 1
 b: int = 2
 
-{
+if a == 0 {
   c: string
   d := "hey"
   foo :: 100
+} elif b == 2 {
+  baz := 1 + 1 * 2 ^ 4
+} else {
+  bar: int: 0
 }
   "#;
 

@@ -824,7 +824,7 @@ impl<'v> Visitor<'v> {
 
         match (self.type_expression(left)?.node, op, self.type_expression(right)?.node) {
           (ref a, ref op, ref b) => match **op {
-            Add | Sub | Mul | Div => if a == b {
+            Add | Sub | Mul | Div | Pow => if a == b {
               Type::from(a.to_owned())
             } else {
               return Err(
