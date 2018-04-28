@@ -2,14 +2,25 @@ use super::*;
 
 
 
+#[derive(Debug, Clone)]
+pub enum FlagImplicit {
+  Return,
+  Assign(String)
+}
+
+
+
 pub struct Generator<'g> {
   pub visitor: &'g mut Visitor<'g>,
+
+  flag: Option<FlagImplicit>
 }
 
 impl<'g> Generator<'g> {
   pub fn new(visitor: &'g mut Visitor<'g>) -> Self {
     Generator {
       visitor,
+      flag: None,
     }
   }
 
@@ -49,6 +60,8 @@ impl<'g> Generator<'g> {
           self.generate_local(left, &Some(right.clone()))?
         }
       },
+
+      Assignment(ref left, ref right) => self.generate_assignment(left, right)?,
     };
 
     Ok(result)
@@ -79,9 +92,35 @@ impl<'g> Generator<'g> {
       Block(ref content) => {
         let mut result = "do\n".to_string();
 
-        for element in content {
+        for (i, element) in content.iter().enumerate() {
+          if i == content.len() - 1 {
+            if self.flag.is_some() {
+              if let StatementNode::Expression(ref expression) = element.node {
+                match expression.node {
+                  Block(_) => (),
+                  _        => match &self.flag.clone().unwrap() {
+                    &FlagImplicit::Return => {
+                      let line = format!("return {}\n", self.generate_expression(expression)?);
+
+                      result.push_str(&self.make_line(&line));
+                      break
+                    },
+
+                    &FlagImplicit::Assign(ref name) => {
+                      let line = format!("{} = {}\n", name, self.generate_expression(expression)?);
+
+                      result.push_str(&self.make_line(&line));
+                      break
+                    },
+                    _ => ()
+                  },
+                }
+              }
+            }
+          }
+
           let line = self.generate_statement(&element)?;
-          result.push_str(&self.make_line(&line))
+          result.push_str(&self.make_line(&line));
         }
 
         result.push_str("end\n");
@@ -142,13 +181,14 @@ impl<'g> Generator<'g> {
 
 
 
-  fn generate_local<'b>(&mut self, left: &'b Expression, right: &'b Option<Expression>) -> Result<String, ()> {
+  fn generate_local<'b>(&mut self, left: &'b Expression<'b>, right: &'b Option<Expression<'b>>) -> Result<String, ()> {
     use self::ExpressionNode::*;
     use std::string;
 
     let mut result = if let Identifier(ref name) = left.node {
-      let left  = self.generate_expression(left)?;
-      let output = format!("local {}", left);
+      let output = format!("local {}", name);
+
+      self.flag = Some(FlagImplicit::Assign(name.clone()));
 
       output
     } else {
@@ -157,10 +197,25 @@ impl<'g> Generator<'g> {
 
     if let &Some(ref right) = right {
       let right_str = self.generate_expression(right)?;
-      result.push_str(&format!(" = {}", right_str));
+
+      match right.node {
+        Block(_) => result.push_str(&format!("\n{}", right_str)),
+        _        => result.push_str(&format!(" = {}", right_str)),
+      }
     }
 
+    self.flag = None;
+
     Ok(format!("{}\n", result))
+  }
+
+
+
+  fn generate_assignment<'b>(&mut self, left: &'b Expression, right: &'b Expression) -> Result<String, ()> {
+    let left  = self.generate_expression(left)?;
+    let right = self.generate_expression(right)?;
+
+    Ok(format!("{} = {}\n", left, right))
   }
 
 

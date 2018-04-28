@@ -49,6 +49,16 @@ impl<'p> Parser<'p> {
               if self.current_type() == &TokenType::Symbol {
                 let statement = match self.current_lexeme().as_str() {
                   ":"   => self.parse_declaration(expression)?,
+                  "="   => {
+                    self.next()?;
+
+                    let position = self.span_from(expression.pos.clone());
+
+                    Statement::new(
+                      StatementNode::Assignment(expression, self.parse_expression()?),
+                      position
+                    )
+                  },
                   ref c => return Err(
                     response!(
                       Wrong(format!("unexpected symbol `{}`", c)),
@@ -319,7 +329,7 @@ impl<'p> Parser<'p> {
 
           ref c => return Err(
             response!(
-              Wrong(format!("unexpected symbol `{}`", c)),
+              Wrong(format!("unexpected symbol`{}`", c)),
               self.source.file,
               TokenElement::Ref(self.current())
             )

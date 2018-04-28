@@ -92,5 +92,15 @@ if a == 0 {
 }
   "#;
 
-  run(test3)
+  let test4 = r#"
+b: string
+
+a := {
+  b = "hey world"
+
+  b ++ "!"
+}
+  "#;
+
+  run(test4)
 }

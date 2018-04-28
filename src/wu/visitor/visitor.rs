@@ -261,6 +261,23 @@ impl<'v> Visitor<'v> {
         ExpressionNode::Identifier(_) | ExpressionNode::Set(_) => self.visit_constant(&statement.node),
         _ => Ok(())
       },
+
+      Assignment(ref left, ref right) => {
+        let left_type  = self.type_expression(left)?;
+        let right_type = self.type_expression(right)?;
+
+        if !left_type.node.check_expression(&Parser::fold_expression(right)?.node) && left_type.node != right_type.node {
+          return Err(
+            response!(
+              Wrong(format!("mismatched types, expected type `{}` got `{}`", left_type.node, right_type)),
+              self.source.file,
+              right.pos
+            )
+          )
+        }
+
+        Ok(())
+      }
     }
   }
 
@@ -826,6 +843,28 @@ impl<'v> Visitor<'v> {
           (ref a, ref op, ref b) => match **op {
             Add | Sub | Mul | Div | Pow => if a == b {
               Type::from(a.to_owned())
+            } else {
+              return Err(
+                response!(
+                  Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                  self.source.file,
+                  expression.pos
+                )
+              )
+            },
+
+            Concat => if *a == TypeNode::Str {
+              match *b {
+                TypeNode::Func(..) | TypeNode::Array(..) => return Err(
+                  response!(
+                    Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                    self.source.file,
+                    expression.pos
+                  )
+                ),
+
+                _ => Type::from(TypeNode::Str)
+              }
             } else {
               return Err(
                 response!(

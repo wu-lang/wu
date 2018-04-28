@@ -8,6 +8,7 @@ pub enum StatementNode<'s> {
   Expression(Expression<'s>),
   Variable(Type, Expression<'s>, Option<Expression<'s>>),
   Constant(Type, Expression<'s>, Expression<'s>),
+  Assignment(Expression<'s>, Expression<'s>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
