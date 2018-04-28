@@ -100,6 +100,14 @@ a := {
 
   b ++ "!"
 }
+
+fib :: (a: int) int -> {
+  if a < 3 {
+    a
+  } else {
+    fib(a - 1) + fib(a - 2)
+  }
+}
   "#;
 
   run(test4)

@@ -89,6 +89,22 @@ impl<'g> Generator<'g> {
         result
       },
 
+      Call(ref called, ref args) => {
+        let mut result = format!("{}(", self.generate_expression(called)?);
+
+        for (i, arg) in args.iter().enumerate() {
+          result.push_str(&self.generate_expression(arg)?);
+
+          if i < args.len() - 1 {
+            result.push(',')
+          }
+        }
+
+        result.push(')');
+
+        result
+      },
+
       Block(ref content) => {
         let mut result = "do\n".to_string();
 
@@ -97,12 +113,13 @@ impl<'g> Generator<'g> {
             if self.flag.is_some() {
               if let StatementNode::Expression(ref expression) = element.node {
                 match expression.node {
-                  Block(_) => (),
-                  _        => match &self.flag.clone().unwrap() {
+                  Block(_) | If(..) => (),
+                  _ => match &self.flag.clone().unwrap() {
                     &FlagImplicit::Return => {
                       let line = format!("return {}\n", self.generate_expression(expression)?);
 
                       result.push_str(&self.make_line(&line));
+
                       break
                     },
 
@@ -128,6 +145,36 @@ impl<'g> Generator<'g> {
         result
       },
 
+      Function(ref params, _, ref body) => {
+        let mut result = format!("function(");
+
+        for param in params {
+          match param.node {
+            StatementNode::Variable(_, ref left, _) => if let ExpressionNode::Identifier(ref name) = left.node {
+              result.push_str(name)
+            } else {
+              unimplemented!()
+            },
+
+            _ => unimplemented!()
+          }
+        }
+
+        result.push_str(")\n");
+
+        self.flag = Some(FlagImplicit::Return);
+
+        let line = self.generate_expression(body)?;
+
+        result.push_str(&self.make_line(&line));
+
+        self.flag = None;
+
+        result.push_str("end\n");
+
+        result
+      }
+
       If(ref condition, ref body, ref elses) => {
         let mut result = format!("if {} then\n", self.generate_expression(condition)?);
 
@@ -151,7 +198,7 @@ impl<'g> Generator<'g> {
           }
         }
 
-        result.push_str("end\n");
+        result.push_str("end");
 
         result
       },
