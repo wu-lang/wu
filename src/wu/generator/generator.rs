@@ -170,9 +170,36 @@ impl<'g> Generator<'g> {
 
         self.flag = None;
 
-        result.push_str("end\n");
+        result.push_str("end");
 
         result
+      },
+
+      Array(ref content) => {        
+        let mut result = "{\n".to_string();
+
+        for (i, arg) in content.iter().enumerate() {
+          let value = self.generate_expression(arg)?;
+
+          let mut line = format!("[{}] = {}", i, value);
+
+          if i < content.len() - 1 {
+            line.push(',')
+          }
+
+          result.push_str(&self.make_line(&line));
+        }
+
+        result.push('}');
+
+        result
+      },
+
+      Index(ref source, ref index) => {
+        let source = self.generate_expression(source)?;
+        let index  = self.generate_expression(index)?;
+
+        format!("{}[{}]", source, index)
       }
 
       If(ref condition, ref body, ref elses) => {

@@ -522,7 +522,7 @@ impl<'v> Visitor<'v> {
   }
 
   fn visit_variable(&mut self, variable: &'v StatementNode) -> Result<(), ()> {
-    use self::ExpressionNode::{Identifier, Set};
+    use self::ExpressionNode::*;
 
     if let &StatementNode::Variable(ref variable_type, ref left, ref right) = variable {
       match left.node {
@@ -536,9 +536,12 @@ impl<'v> Visitor<'v> {
           self.current_tab().1.grow();
 
           if let &Some(ref right) = right {
-            self.visit_expression(&right)?;
-
             let right_type = self.type_expression(&right)?;
+
+            match right.node {
+              Function(..) | Block(_) => (),
+              _                       => self.visit_expression(right)?,
+            }
 
             if variable_type.node != TypeNode::Nil {
               if !variable_type.node.check_expression(&Parser::fold_expression(right)?.node) && variable_type.node != right_type.node {
@@ -555,6 +558,11 @@ impl<'v> Visitor<'v> {
 
             } else {
               self.current_tab().1.set_type(index, 0, right_type)?;
+            }
+
+            match right.node {
+              Function(..) | Block(_) => self.visit_expression(right)?,
+              _                       => (),
             }
 
           } else {
@@ -925,7 +933,7 @@ impl<'v> Visitor<'v> {
         Type::set(type_content)
       },
 
-      Block(ref statements) => self.type_statement(statements.last().unwrap())?, // temporary
+      Block(ref statements) => self.type_statement(statements.last().unwrap())?,
 
       _ => Type::from(TypeNode::Nil)
     };
