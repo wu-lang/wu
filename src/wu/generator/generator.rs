@@ -179,8 +179,7 @@ impl<'g> Generator<'g> {
         let mut result = "{\n".to_string();
 
         for (i, arg) in content.iter().enumerate() {
-          let value = self.generate_expression(arg)?;
-
+          let value    = self.generate_expression(arg)?;
           let mut line = format!("[{}] = {}", i, value);
 
           if i < content.len() - 1 {
@@ -226,6 +225,14 @@ impl<'g> Generator<'g> {
         }
 
         result.push_str("end");
+
+        result
+      },
+
+      Loop(ref body) => {
+        let mut result = format!("while true\n");
+
+        result.push_str(&self.generate_expression(&body)?);
 
         result
       },

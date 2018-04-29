@@ -15,6 +15,8 @@ use wu::generator::Generator;
 
 use std::env;
 
+
+
 fn run(content: &str) {
   let source = Source::from("main.rs/testing.wu", content.lines().map(|x| x.into()).collect::<Vec<String>>());
   let lexer  = Lexer::default(content.chars().collect(), &source);
@@ -52,6 +54,9 @@ fn run(content: &str) {
     _ => (),
   }
 }
+
+
+
 
 fn main() {
   let test0 = r"
@@ -112,6 +117,14 @@ fib := {
 }
 
 bar := [1, 2, 3, 4, 5][0]
+
+i := 0
+
+loop {
+  fib(i)
+
+  i = i + 1
+}
   "#;
 
   run(test4)
