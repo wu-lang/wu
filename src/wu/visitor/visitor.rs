@@ -214,6 +214,15 @@ impl Display for Type {
 }
 
 
+// This is for messily keeping track of explicit returns
+// and keeping track of their contexts, e.g. `{ {return 10}\n true }
+#[derive(Debug, Clone)]
+pub enum FlagContext {
+  Block(Option<Type>),
+  Hmm,
+}
+
+
 
 pub struct Visitor<'v> {
   pub tabs:       Vec<(SymTab, TypeTab)>,
@@ -221,6 +230,8 @@ pub struct Visitor<'v> {
 
   pub source:  &'v Source,
   pub ast:     &'v Vec<Statement<'v>>,
+
+  pub flag: Option<FlagContext>,
 }
 
 impl<'v> Visitor<'v> {
@@ -231,6 +242,8 @@ impl<'v> Visitor<'v> {
 
       source,
       ast,
+
+      flag: None,
     }
   }
 
@@ -450,7 +463,6 @@ impl<'v> Visitor<'v> {
             TypeTab::new(Rc::new(parent.1), &param_types)
           )
         );
-
 
         self.visit_expression(body)?;
         let body_type = self.type_expression(body)?;
@@ -795,6 +807,11 @@ impl<'v> Visitor<'v> {
 
     let t = match statement.node {
       Expression(ref expression) => self.type_expression(expression)?,
+      Return(ref expression)     => if let Some(ref expression) = *expression {
+        self.type_expression(expression)?
+      } else {
+        Type::from(TypeNode::Nil)
+      }
       _                          => Type::from(TypeNode::Nil)
     };
 
@@ -936,8 +953,77 @@ impl<'v> Visitor<'v> {
       },
 
       Block(ref statements) => {
+        if self.flag.is_none() {
+          self.flag = Some(FlagContext::Block(None))
+        }
+
         if statements.len() > 0 {
-          self.type_statement(statements.last().unwrap())?
+          for element in statements {
+
+            match element.node {
+              StatementNode::Expression(ref expression) => match expression.node {
+                Block(_) | If(..) | Loop(..) => { self.type_expression(expression)?; },
+
+                _ => (),
+              },
+
+              StatementNode::Return(ref return_type) => {
+                let flag = self.flag.clone();                
+
+                if let Some(ref flag) = flag {
+                  if let &FlagContext::Block(ref consistent) = flag {
+
+                    let return_type = if let Some(ref return_type) = *return_type {                      
+                      self.type_expression(&return_type)?
+                    } else {
+                      Type::from(TypeNode::Nil)
+                    };
+
+                    if let Some(ref consistent) = *consistent {
+                      if return_type != *consistent {
+                        return Err(
+                          response!(
+                            Wrong(format!("mismatched types, expected `{}` found `{}`", consistent, return_type)),
+                            self.source.file,
+                            expression.pos
+                          )
+                        )
+                      }
+                    } else {
+                      self.flag = Some(FlagContext::Block(Some(return_type.clone())))
+                    }
+                  }
+                }
+              },
+
+              _ => (),
+            }
+          }
+
+          let last = statements.last().unwrap();
+
+          let implicit_type = self.type_statement(last)?;
+
+          if let Some(flag) = self.flag.clone() {
+            if let FlagContext::Block(ref consistent) = flag {
+              if let Some(ref consistent) = *consistent {
+                if implicit_type != *consistent {
+                  return Err(
+                    response!(
+                      Wrong(format!("mismatched types, expected `{}` found `{}`", consistent, implicit_type)),
+                      self.source.file,
+                      last.pos
+                    )
+                  )
+                }
+              } else {
+                self.flag = Some(FlagContext::Block(Some(implicit_type.clone())))
+              }
+            }
+          }
+
+          implicit_type
+
         } else {
           Type::from(TypeNode::Nil)
         }

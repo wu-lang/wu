@@ -132,11 +132,13 @@ fib(i)
   "#;
 
   let test5 = r#"
--- todo: context etc.
+foo :: () bool -> {
+  {
+    return 10
+  }
 
-return 10
-break
-skip
+  false
+}
   "#;
 
   let a = ();
