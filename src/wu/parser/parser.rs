@@ -38,6 +38,53 @@ impl<'p> Parser<'p> {
     }
 
     let statement = match *self.current_type() {
+      Keyword => {
+        let position = self.current_position();
+
+        match self.current_lexeme().as_str() {
+          "break" => {
+            self.next()?;
+
+            Statement::new(
+              StatementNode::Break,
+              position
+            )
+          },
+
+          "skip" => {
+            self.next()?;
+
+            Statement::new(
+              StatementNode::Skip,
+              position
+            )
+          },
+
+          "return" => {
+            self.next()?;
+
+            if self.current_lexeme() == "\n" {
+              Statement::new(
+                StatementNode::Return(None),
+                position
+              )
+            } else {
+              Statement::new(
+                StatementNode::Return(Some(Rc::new(self.parse_expression()?))),
+                position
+              )
+            }
+          },
+
+          _ => {
+            Statement::new(
+              StatementNode::Expression(self.parse_expression()?),
+              position,
+            )
+          },
+        }
+      },
+
       _ => {
         use self::ExpressionNode::*;
 
@@ -227,7 +274,7 @@ impl<'p> Parser<'p> {
               ExpressionNode::If(condition, body, if elses.len() > 0 { Some(elses) } else { None }),
               if_position
             )
-          }
+          },
 
           ref c => return Err(
             response!(

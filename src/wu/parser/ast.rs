@@ -9,6 +9,10 @@ pub enum StatementNode<'s> {
   Variable(Type, Expression<'s>, Option<Expression<'s>>),
   Constant(Type, Expression<'s>, Expression<'s>),
   Assignment(Expression<'s>, Expression<'s>),
+
+  Break,
+  Skip,
+  Return(Option<Rc<Expression<'s>>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

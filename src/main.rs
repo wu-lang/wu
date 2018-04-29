@@ -101,10 +101,13 @@ if a == 0 {
 b: string
 
 a := {
+
   b = "hey world"
 
   b ++ "!"
 }
+
+
 
 fib := {
   (a: int) int -> {
@@ -116,16 +119,27 @@ fib := {
   }
 }
 
+
 bar := [1, 2, 3, 4, 5][0]
 
 i := 0
 
-loop {
-  fib(i)
+fib(i)
 
+{
   i = i + 1
 }
   "#;
 
-  run(test4)
+  let test5 = r#"
+-- todo: context etc.
+
+return 10
+break
+skip
+  "#;
+
+  let a = ();
+
+  run(test5)
 }

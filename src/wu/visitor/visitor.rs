@@ -277,7 +277,9 @@ impl<'v> Visitor<'v> {
         }
 
         Ok(())
-      }
+      },
+
+      _ => Ok(())
     }
   }
 
@@ -849,7 +851,7 @@ impl<'v> Visitor<'v> {
 
         match (self.type_expression(left)?.node, op, self.type_expression(right)?.node) {
           (ref a, ref op, ref b) => match **op {
-            Add | Sub | Mul | Div | Pow => if a == b {
+            Add | Sub | Mul | Div | Pow | Mod => if a == b {
               Type::from(a.to_owned())
             } else {
               return Err(
@@ -933,7 +935,13 @@ impl<'v> Visitor<'v> {
         Type::set(type_content)
       },
 
-      Block(ref statements) => self.type_statement(statements.last().unwrap())?,
+      Block(ref statements) => {
+        if statements.len() > 0 {
+          self.type_statement(statements.last().unwrap())?
+        } else {
+          Type::from(TypeNode::Nil)
+        }
+      },
 
       _ => Type::from(TypeNode::Nil)
     };

@@ -62,6 +62,14 @@ impl<'g> Generator<'g> {
       },
 
       Assignment(ref left, ref right) => self.generate_assignment(left, right)?,
+
+      Break             => "break\n".to_string(),
+      Skip              => "continue\n".to_string(),
+      Return(ref expr)  => if let Some(ref expr) = *expr {
+        format!("return {}\n", self.generate_expression(expr)?)
+      } else {
+        "return\n".to_string()
+      },
     };
 
     Ok(result)
