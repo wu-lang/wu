@@ -20,7 +20,7 @@ The language is meant and designed to be a solid alternative to MoonScript, and 
 ### Taster
 
 ```swift
--- making a lot of balls
+-- making a hundred balls
 
 
 -- an anonymous structure
@@ -32,11 +32,14 @@ ball := {
 -- infinite arrays
 balls: [ball] = []
 
-for i in 0 .. 100 {
+i := 0
+i = while i < 100 {
   balls[i] = ball {
     math random(0, 100)
     math random(0, 100)
   }
+  
+  i + 1
 }
 ```
 
