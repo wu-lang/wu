@@ -176,7 +176,7 @@ impl<'g> Generator<'g> {
       },
 
       Array(ref content) => {        
-        let mut result = "{\n".to_string();
+        let mut result = "({\n".to_string();
 
         for (i, arg) in content.iter().enumerate() {
           let value    = self.generate_expression(arg)?;
@@ -189,7 +189,7 @@ impl<'g> Generator<'g> {
           result.push_str(&self.make_line(&line));
         }
 
-        result.push('}');
+        result.push_str("})");
 
         result
       },
