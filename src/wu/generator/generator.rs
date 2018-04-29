@@ -245,6 +245,14 @@ impl<'g> Generator<'g> {
         result
       },
 
+      While(ref condition, ref body) => {
+        let mut result = format!("while {}\n", self.generate_expression(&condition)?);
+
+        result.push_str(&self.generate_expression(&body)?);
+
+        result
+      },
+
       Int(ref n)        => format!("{}", n),
       Float(ref n)      => format!("{}", n),
       Bool(ref n)       => format!("{}", n),
@@ -288,8 +296,8 @@ impl<'g> Generator<'g> {
       let right_str = self.generate_expression(right)?;
 
       match right.node {
-        Block(_) => result.push_str(&format!("\n{}", right_str)),
-        _        => result.push_str(&format!(" = {}", right_str)),
+        Block(_) | If(..) | While(..) | Loop(..) => result.push_str(&format!("\n{}", right_str)),
+        _ => result.push_str(&format!(" = {}", right_str)),
       }
     }
 
@@ -301,10 +309,22 @@ impl<'g> Generator<'g> {
 
 
   fn generate_assignment<'b>(&mut self, left: &'b Expression, right: &'b Expression) -> Result<String, ()> {
-    let left  = self.generate_expression(left)?;
-    let right = self.generate_expression(right)?;
+    use self::ExpressionNode::*;
 
-    Ok(format!("{} = {}\n", left, right))
+    let left_string  = self.generate_expression(left)?;
+
+    self.flag = Some(FlagImplicit::Assign(left_string.clone()));
+    
+    let right_string = self.generate_expression(right)?;
+
+    self.flag = None;
+
+    let result = match right.node {
+      If(..) | While(..) | Loop(..) | Block(_) => format!("{}", right_string),
+      _                                        => format!("{} = {}\n", left_string, right_string)
+    };
+
+    Ok(result)
   }
 
 

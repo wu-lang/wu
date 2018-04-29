@@ -276,6 +276,26 @@ impl<'p> Parser<'p> {
             )
           },
 
+          "while" => {
+            self.next()?;
+
+            let condition = Rc::new(self.parse_expression()?);
+
+            let body_position = self.current_position();
+
+            let body = Rc::new(
+              Expression::new(
+                ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+                body_position
+              )
+            );
+
+            Expression::new(
+              ExpressionNode::While(condition, body),
+              position
+            )
+          }
+
           ref c => return Err(
             response!(
               Wrong(format!("unexpected keyword `{}`", c)),
