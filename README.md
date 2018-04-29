@@ -1,9 +1,11 @@
+<img align="right" width="30%" height="30%" src="https://preview.ibb.co/ePa1eH/wu_dragon.png" alt="wu_dragon">
+
 # Wu
 
 [![Foo](https://user-images.githubusercontent.com/7288322/34429152-141689f8-ecb9-11e7-8003-b5a10a5fcb29.png)](https://discord.gg/qm92sPP)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/wu-lang/wu/blob/master/LICENSE)
 
-A good purpose, high-control, high-level language.
+An expression oriented, strongly typed and sweet language
 
 ## Syntax
 
@@ -11,25 +13,30 @@ A full walk-through of the language can be found over at the [wu-lang documentat
 
 ### A decent language
 
-Apart from being the best language ever, Wu strives to be a decently fast, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai language and the sugar of MoonScript and the functional family.
+Apart from being the best language ever, Wu strives to be a decently efficient, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai language and the sugar of MoonScript and the functional family.
 
-The language provides and is made to be an alternative to Python and MoonScript/Lua for better scalability and less gross runtime errors.
+The language is meant and designed to be a solid alternative to MoonScript, and even superior on control and scalability.
 
 ### Taster
 
-```
-fac :: (n: i32) i32 -> match n {
-  | 0 -> 0
-  | 1 -> 1
-  | _ -> fac(n - 1) * n
+```swift
+-- making a lot of balls
+
+
+-- an anonymous structure
+ball := {
+  x: float = 100
+  y: float = 100
 }
 
-last := 0
+-- infinite arrays
+balls: [ball] = []
 
-loop {
-  last = fac(last + 1)
-
-  print("here we go: " ++ last)
+for i in 0 .. 100 {
+  balls[i] = ball {
+    math random(0, 100)
+    math random(0, 100)
+  }
 }
 ```
 
