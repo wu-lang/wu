@@ -11,9 +11,11 @@ use wu::source::*;
 use wu::lexer::*;
 use wu::parser::{ Parser, ExpressionNode, Expression, };
 use wu::visitor::Visitor;
-use wu::interpreter::*;
+use wu::generator::Generator;
 
 use std::env;
+
+
 
 fn run(content: &str) {
   let source = Source::from("main.rs/testing.wu", content.lines().map(|x| x.into()).collect::<Vec<String>>());
@@ -40,25 +42,11 @@ fn run(content: &str) {
       let mut visitor = Visitor::new(&source, &ast);      
  
       match visitor.visit() {
-        Ok(_) => {          
-          let mut compiler = Compiler::new(&mut visitor);
+        Ok(_) => {
+          let mut generator = Generator::new(&mut visitor);
 
-          match compiler.compile(&ast) {
-            Ok(_) => {
-              let mut vm = VirtualMachine::new();
-
-              vm.execute(compiler.bytecode.as_slice());
-
-              println!();
-
-              println!("stack: {:?}", &vm.compute_stack[..64]);
-              println!();
-              println!("vars:  {:?}", &vm.var_stack[..256]);
-            },
-
-            _ => (),
-          }
-        }
+          println!("------\n{}", generator.generate(&ast).unwrap())
+        },
         _ => ()
       }
     },
@@ -67,19 +55,22 @@ fn run(content: &str) {
   }
 }
 
+
+
+
 fn main() {
   let test0 = r"
-fac :: (a: i32, b: i32) i32 -> a + b
+fac :: (a: int, b: int) string -> a + b
 
-a := fac(1, 2) as i8
-b := fac(3, 4) as i8
-c := fac(5, 6) as i8
+a := fac(1, 2) as float
+b := fac(3, 4) as float
+c := fac(5, 6) as float
   ";
 
   let test1 = r"
-a: [i8; 4] = [10, 20, 30, 40]
+a: [int] = [10, 20, 30, 40]
 
-b := 2 as u32
+b := 2 as float
 
 æ := a[b]
 ø := a[b]
@@ -88,8 +79,69 @@ z := a[b]
   ";
 
   let test2 = r"
-a: [[i8; 2]; 2] = [[1, 2], [3, 4]]
+a: [[int]] = [[1, 2], [3, 4]]
   ";
 
-  run(1)
+  let test3 = r#"
+a := 1
+b: int = 2
+
+if a == 0 {
+  c: string
+  d := "hey"
+  foo :: 100
+} elif b == 2 {
+  baz := 1 + 1 * 2 ^ 4
+} else {
+  bar: int: 0
+}
+  "#;
+
+  let test4 = r#"
+b: string
+
+a := {
+
+  b = "hey world"
+
+  b ++ "!"
+}
+
+
+
+fib := {
+  (a: int) int -> {
+    if a < 3 {
+      a
+    } else {
+      fib(a - 1) + fib(a - 2)
+    }
+  }
+}
+
+
+bar := [1, 2, 3, 4, 5][0]
+
+i := 0
+
+fib(i)
+
+{
+  i = i + 1
+}
+  "#;
+
+  let test5 = r#"
+foo :: () bool -> {
+  {
+    return 10
+  }
+
+  false
+}
+  "#;
+
+  let a = ();
+
+  run(test5)
 }

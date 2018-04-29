@@ -38,6 +38,53 @@ impl<'p> Parser<'p> {
     }
 
     let statement = match *self.current_type() {
+      Keyword => {
+        let position = self.current_position();
+
+        match self.current_lexeme().as_str() {
+          "break" => {
+            self.next()?;
+
+            Statement::new(
+              StatementNode::Break,
+              position
+            )
+          },
+
+          "skip" => {
+            self.next()?;
+
+            Statement::new(
+              StatementNode::Skip,
+              position
+            )
+          },
+
+          "return" => {
+            self.next()?;
+
+            if self.current_lexeme() == "\n" {
+              Statement::new(
+                StatementNode::Return(None),
+                position
+              )
+            } else {
+              Statement::new(
+                StatementNode::Return(Some(Rc::new(self.parse_expression()?))),
+                position
+              )
+            }
+          },
+
+          _ => {
+            Statement::new(
+              StatementNode::Expression(self.parse_expression()?),
+              position,
+            )
+          },
+        }
+      },
+
       _ => {
         use self::ExpressionNode::*;
 
@@ -49,6 +96,16 @@ impl<'p> Parser<'p> {
               if self.current_type() == &TokenType::Symbol {
                 let statement = match self.current_lexeme().as_str() {
                   ":"   => self.parse_declaration(expression)?,
+                  "="   => {
+                    self.next()?;
+
+                    let position = self.span_from(expression.pos.clone());
+
+                    Statement::new(
+                      StatementNode::Assignment(expression, self.parse_expression()?),
+                      position
+                    )
+                  },
                   ref c => return Err(
                     response!(
                       Wrong(format!("unexpected symbol `{}`", c)),
@@ -217,7 +274,7 @@ impl<'p> Parser<'p> {
               ExpressionNode::If(condition, body, if elses.len() > 0 { Some(elses) } else { None }),
               if_position
             )
-          }
+          },
 
           ref c => return Err(
             response!(
@@ -319,7 +376,7 @@ impl<'p> Parser<'p> {
 
           ref c => return Err(
             response!(
-              Wrong(format!("unexpected symbol `{}`", c)),
+              Wrong(format!("unexpected symbol`{}`", c)),
               self.source.file,
               TokenElement::Ref(self.current())
             )
@@ -580,24 +637,14 @@ impl<'p> Parser<'p> {
 
     let t = match *self.current_type() {
       Identifier => match self.eat()?.as_str() {
-        "str"   => Type::from(Str),
-        "char"  => Type::from(TypeNode::Char),
+        "string" => Type::from(Str),
+        "char"   => Type::from(TypeNode::Char),
 
-        "i8"    => Type::from(I08),
-        "i32"   => Type::from(I32),
-        "i64"   => Type::from(I64),
-        "i128"  => Type::from(I128),
+        "int"    => Type::from(TypeNode::Int),
+        "float"  => Type::from(TypeNode::Float),
 
-        "u8"    => Type::from(U08),
-        "u32"   => Type::from(U32),
-        "u64"   => Type::from(U64),
-        "u128"  => Type::from(U128),
-
-        "f32"   => Type::from(F32),
-        "f64"   => Type::from(F64),
-
-        "bool"  => Type::from(TypeNode::Bool),
-        id      => Type::id(id),
+        "bool"   => Type::from(TypeNode::Bool),
+        id       => Type::id(id),
       },
 
       Symbol => match self.current_lexeme().as_str() {
@@ -616,23 +663,9 @@ impl<'p> Parser<'p> {
 
           let t = self.parse_type()?;
 
-          self.eat_lexeme(";")?;
-
-          let position = self.current_position();
-
-          let len = match Self::fold_expression(&self.parse_expression()?)?.node {
-            ExpressionNode::Int(ref n) => *n,
-            _ => return Err(
-              response!(
-                Wrong("array length must be a static and unsigned"),
-                self.span_from(position)
-              )
-            )
-          };
-
           self.eat_lexeme("]")?;
 
-          Type::array(t, len as u32)
+          Type::array(t)
         }
 
         _   => return Err(

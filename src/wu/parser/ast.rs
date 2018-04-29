@@ -8,6 +8,11 @@ pub enum StatementNode<'s> {
   Expression(Expression<'s>),
   Variable(Type, Expression<'s>, Option<Expression<'s>>),
   Constant(Type, Expression<'s>, Expression<'s>),
+  Assignment(Expression<'s>, Expression<'s>),
+
+  Break,
+  Skip,
+  Return(Option<Rc<Expression<'s>>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,19 +79,19 @@ impl Operator {
     use self::Operator::*;
 
     let op_prec = match operator {
-      "==" => (Eq,     0),
-      "<"  => (Lt,     0),
-      ">"  => (Gt,     0),
-      "!=" => (NEq,    0),
-      "<=" => (LtEq,   0),
-      ">=" => (GtEq,   0),
-      "+"  => (Add,    1),
-      "-"  => (Sub,    1),
-      "++" => (Concat, 1),
-      "*"  => (Mul,    2),
-      "/"  => (Div,    2),
-      "%"  => (Mod,    2),
-      "^"  => (Pow,    3),
+      "==" => (Eq,     1),
+      "<"  => (Lt,     1),
+      ">"  => (Gt,     1),
+      "!=" => (NEq,    1),
+      "<=" => (LtEq,   1),
+      ">=" => (GtEq,   1),
+      "+"  => (Add,    2),
+      "-"  => (Sub,    2),
+      "++" => (Concat, 2),
+      "*"  => (Mul,    3),
+      "/"  => (Div,    3),
+      "%"  => (Mod,    3),
+      "^"  => (Pow,    4),
       _    => return None,
     };
 
@@ -100,10 +105,10 @@ impl Operator {
       Add    => "+",
       Sub    => "-",
       Concat => "++",
+      Pow    => "^",
       Mul    => "*",
       Div    => "/",
       Mod    => "%",
-      Pow    => "^",
       Eq     => "==",
       Lt     => "<",
       Gt     => ">",
