@@ -396,6 +396,31 @@ impl<'v> Visitor<'v> {
         }
       },
 
+      While(ref condition, ref body) => {
+        self.visit_expression(&*condition)?;
+
+        let condition_type = self.type_expression(&*condition)?.node;
+
+        if condition_type == TypeNode::Bool {
+
+          self.push_scope();
+
+          self.visit_expression(body)?;
+
+          self.pop_scope();
+
+          Ok(())
+        } else {
+          Err(
+            response!(
+              Wrong(format!("mismatched condition, must be `bool` got `{}`", condition_type)),
+              self.source.file,
+              expression.pos
+            )
+          )
+        }
+      }
+
       Call(ref expression, ref args) => {
         self.visit_expression(expression)?;
 
@@ -553,8 +578,8 @@ impl<'v> Visitor<'v> {
             let right_type = self.type_expression(&right)?;
 
             match right.node {
-              Function(..) | Block(_) => (),
-              _                       => self.visit_expression(right)?,
+              Function(..) | Block(_) | If(..) | Loop(..) | While(..) => (),
+              _ => self.visit_expression(right)?,
             }
 
             if variable_type.node != TypeNode::Nil {
@@ -575,8 +600,8 @@ impl<'v> Visitor<'v> {
             }
 
             match right.node {
-              Function(..) | Block(_) => self.visit_expression(right)?,
-              _                       => (),
+              Function(..) | Block(_) | If(..) | Loop(..) | While(..) => self.visit_expression(right)?,
+              _ => (),
             }
 
           } else {
@@ -857,6 +882,7 @@ impl<'v> Visitor<'v> {
       },
 
       Loop(ref expression)     |
+      While(_, ref expression) |
       If(_, ref expression, _) => self.type_expression(expression)?,
 
       Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?),
@@ -868,8 +894,8 @@ impl<'v> Visitor<'v> {
 
         match (self.type_expression(left)?.node, op, self.type_expression(right)?.node) {
           (ref a, ref op, ref b) => match **op {
-            Add | Sub | Mul | Div | Pow | Mod => if a == b {
-              Type::from(a.to_owned())
+            Add | Sub | Mul | Div | Pow | Mod => if [a, b] != [&TypeNode::Nil, &TypeNode::Nil] { // real hack here
+              Type::from(if a != &TypeNode::Nil { a.to_owned() } else { b.to_owned() })
             } else {
               return Err(
                 response!(
@@ -962,7 +988,7 @@ impl<'v> Visitor<'v> {
 
             match element.node {
               StatementNode::Expression(ref expression) => match expression.node {
-                Block(_) | If(..) | Loop(..) => { self.type_expression(expression)?; },
+                Block(_) | If(..) | Loop(..) | While(..) => { self.type_expression(expression)?; },
 
                 _ => (),
               },

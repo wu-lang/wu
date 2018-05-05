@@ -132,12 +132,9 @@ fib(i)
   "#;
 
   let test5 = r#"
-foo :: () bool -> {
-  {
-    return 10
-  }
-
-  false
+i := 0
+i = while i < 10 {
+  i + 1
 }
   "#;
 

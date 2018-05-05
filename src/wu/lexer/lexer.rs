@@ -34,7 +34,7 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(
       Rc::new(
         KeyMatcher::new(Keyword, &[
-          "as", "->", "loop", "if", "else", "elif", "break", "skip", "return"
+          "as", "->", "loop", "if", "else", "elif", "break", "skip", "return", "while"
         ])
       )
     );
