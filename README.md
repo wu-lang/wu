@@ -65,7 +65,7 @@ Wu is built by a minimal team of people, all of which are basically kids working
 
 - [fuzzylitchi](https://github.com/fuzzylitchi)
 
-- [evolbug](https://githubc.om/evolbug)
+- [evolbug](https://github.com/evolbug)
 
 ### License
 
