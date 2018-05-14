@@ -101,33 +101,17 @@ if a == 0 {
 b: string
 
 a := {
-
   b = "hey world"
 
   b ++ "!"
 }
 
-
-
-fib := {
-  (a: int) int -> {
-    if a < 3 {
-      a
-    } else {
-      fib(a - 1) + fib(a - 2)
-    }
+fib :: (bob: int) int -> {
+  if bob < 3 {
+    bob
+  } else {
+    fib(bob - 1) + fib(bob - 2)
   }
-}
-
-
-bar := [1, 2, 3, 4, 5][0]
-
-i := 0
-
-fib(i)
-
-{
-  i = i + 1
 }
   "#;
 
@@ -138,7 +122,5 @@ i = while i < 10 {
 }
   "#;
 
-  let a = ();
-
-  run(test5)
+  run(test4)
 }

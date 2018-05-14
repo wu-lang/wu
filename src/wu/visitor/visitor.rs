@@ -90,7 +90,7 @@ impl Display for TypeNode {
       Int              => write!(f, "int"),
       Float            => write!(f, "float"),
       Bool             => write!(f, "bool"),
-      Str              => write!(f, "str"),
+      Str              => write!(f, "string"),
       Char             => write!(f, "char"),
       Nil              => write!(f, "nil"),
       Array(ref n)     => write!(f, "[{}]", n),
@@ -219,7 +219,7 @@ impl Display for Type {
 #[derive(Debug, Clone)]
 pub enum FlagContext {
   Block(Option<Type>),
-  Hmm,
+  Nothing,
 }
 
 
@@ -983,7 +983,7 @@ impl<'v> Visitor<'v> {
           self.flag = Some(FlagContext::Block(None))
         }
 
-        if statements.len() > 0 {
+        let block_type = if statements.len() > 0 {
           for element in statements {
 
             match element.node {
@@ -1052,7 +1052,11 @@ impl<'v> Visitor<'v> {
 
         } else {
           Type::from(TypeNode::Nil)
-        }
+        };
+
+        self.flag = Some(FlagContext::Nothing);
+
+        block_type
       },
 
       _ => Type::from(TypeNode::Nil)
