@@ -871,7 +871,7 @@ impl<'v> Visitor<'v> {
         if let TypeNode::Func(_, ref return_type) = self.type_expression(expression)?.node {
           (**return_type).clone()
         } else {
-          unreachable!()
+          panic!("accident (submit an issue): called {:#?}", self.type_expression(expression)?.node)
         }
       },
 
@@ -1026,9 +1026,14 @@ impl<'v> Visitor<'v> {
             }
           }
 
-          let last = statements.last().unwrap();
+          self.visit_expression(&expression)?;
 
+          self.tabs.push(self.tab_frames.last().unwrap().clone());
+
+          let last          = statements.last().unwrap();
           let implicit_type = self.type_statement(last)?;
+
+          self.tabs.pop();
 
           if let Some(flag) = self.flag.clone() {
             if let FlagContext::Block(ref consistent) = flag {
