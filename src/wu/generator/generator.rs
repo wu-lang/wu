@@ -121,7 +121,7 @@ impl<'g> Generator<'g> {
             if self.flag.is_some() {
               if let StatementNode::Expression(ref expression) = element.node {
                 match expression.node {
-                  Block(_) | If(..) => (),
+                  Block(_) | If(..) | While(..) | Loop(..) => (),
                   _ => match &self.flag.clone().unwrap() {
                     &FlagImplicit::Return => {
                       let line = format!("return {}\n", self.generate_expression(expression)?);
@@ -170,13 +170,15 @@ impl<'g> Generator<'g> {
 
         result.push_str(")\n");
 
+        let flag_backup = self.flag.clone();
+
         self.flag = Some(FlagImplicit::Return);
 
         let line = self.generate_expression(body)?;
 
         result.push_str(&self.make_line(&line));
 
-        self.flag = None;
+        self.flag = flag_backup;
 
         result.push_str("end");
 
@@ -282,6 +284,8 @@ impl<'g> Generator<'g> {
     use self::ExpressionNode::*;
     use std::string;
 
+    let flag_backup = self.flag.clone();
+
     let mut result = if let Identifier(ref name) = left.node {
       let output = format!("local {}", name);
 
@@ -301,7 +305,7 @@ impl<'g> Generator<'g> {
       }
     }
 
-    self.flag = None;
+    self.flag = flag_backup;
 
     Ok(format!("{}\n", result))
   }
@@ -313,11 +317,13 @@ impl<'g> Generator<'g> {
 
     let left_string  = self.generate_expression(left)?;
 
+    let flag_backup = self.flag.clone();
+
     self.flag = Some(FlagImplicit::Assign(left_string.clone()));
     
     let right_string = self.generate_expression(right)?;
 
-    self.flag = None;
+    self.flag = flag_backup;
 
     let result = match right.node {
       If(..) | While(..) | Loop(..) | Block(_) => format!("{}", right_string),

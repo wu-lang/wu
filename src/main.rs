@@ -106,24 +106,12 @@ a := {
   b ++ "!"
 }
 
-fib :: {
-  (bob: int) int -> {
-    if bob < 3 {
-      bob
-    } else {
-      fib(bob - 1) + fib(bob - 2)
-    }
+fib :: (bob: int) int -> {
+  if bob < 3 {
+    bob
+  } else {
+    fib(bob - 1) + fib(bob - 2)
   }
-}
-
-a := {
-  i := 0
-
-  i = while i < 10 {
-    i + 1
-  }
-
-  i
 }
   "#;
 
@@ -134,5 +122,13 @@ i = while i < 10 {
 }
   "#;
 
-  run(test4)
+  let test6 = r#"
+a := 1
+a := {
+  a := 10
+  a
+}
+  "#;
+
+  run(test6)
 }

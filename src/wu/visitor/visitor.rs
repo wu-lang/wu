@@ -979,6 +979,8 @@ impl<'v> Visitor<'v> {
       },
 
       Block(ref statements) => {
+        let flag_backup = self.flag.clone();
+
         if self.flag.is_none() {
           self.flag = Some(FlagContext::Block(None))
         }
@@ -1059,7 +1061,7 @@ impl<'v> Visitor<'v> {
           Type::from(TypeNode::Nil)
         };
 
-        self.flag = Some(FlagContext::Nothing);
+        self.flag = flag_backup;
 
         block_type
       },
