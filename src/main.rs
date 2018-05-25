@@ -98,21 +98,21 @@ if a == 0 {
   "#;
 
   let test4 = r#"
-b: string
-
-a := {
-  b = "hey world"
-
-  b ++ "!"
-}
-
-fib :: (bob: int) int -> {
-  if bob < 3 {
-    bob
+fib :: (i: int) int -> {
+  if i < 3 {
+    i
   } else {
-    fib(bob - 1) + fib(bob - 2)
+    fib(i - 1) + fib(i - 2)
   }
 }
+
+fib(
+  if true {
+    10
+  } else {
+    5
+  }
+)
   "#;
 
   let test5 = r#"
@@ -135,5 +135,5 @@ a := loop {
 }
   "#;
 
-  run(test6)
+  run(test4)
 }

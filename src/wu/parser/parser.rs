@@ -767,10 +767,22 @@ impl<'p> Parser<'p> {
   }
 
   fn _parse_expression_comma(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
+    if self.remaining() > 0 && self.current_lexeme() == "\n" {
+      self.next()?
+    }
+
     let expression = Self::_parse_expression(self);
+
+    if self.remaining() > 0 && self.current_lexeme() == "\n" {
+        self.next()?
+      }
 
     if self.remaining() > 0 {
       self.eat_lexeme(",")?;
+
+      if self.remaining() > 0 && self.current_lexeme() == "\n" {
+        self.next()?
+      }
     }
 
     expression

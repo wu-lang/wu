@@ -99,6 +99,10 @@ impl<'g> Generator<'g> {
       },
 
       Call(ref called, ref args) => {
+        let flag_backup = self.flag.clone();
+
+        self.flag = Some(FlagImplicit::Assign("none".to_string()));
+
         let mut result = format!("{}(", self.generate_expression(called)?);
 
         for (i, arg) in args.iter().enumerate() {
@@ -111,6 +115,8 @@ impl<'g> Generator<'g> {
 
         result.push(')');
 
+        self.flag = flag_backup;
+        
         result
       },
 
