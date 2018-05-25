@@ -123,10 +123,15 @@ i = while i < 10 {
   "#;
 
   let test6 = r#"
-a := 1
-a := {
-  a := 10
-  a
+-- blocks are fancy
+
+{
+  something := 100
+}
+
+a := 0
+a := loop {
+  a + 1
 }
   "#;
 

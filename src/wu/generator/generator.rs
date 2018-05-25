@@ -30,7 +30,8 @@ impl<'g> Generator<'g> {
     let mut output = String::new();
 
     for statement in ast.iter() {
-      output.push_str(&self.generate_statement(&statement)?)
+      output.push_str(&self.generate_statement(&statement)?);
+      output.push('\n')
     }
 
     Ok(output)
@@ -114,7 +115,15 @@ impl<'g> Generator<'g> {
       },
 
       Block(ref content) => {
-        let mut result = "do\n".to_string();
+        let flag_backup = self.flag.clone();
+
+        let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
+          self.flag = Some(FlagImplicit::Return);
+
+          "(function()\n"
+        } else {
+          "do\n"
+        }.to_string();
 
         for (i, element) in content.iter().enumerate() {
           if i == content.len() - 1 {
@@ -131,12 +140,6 @@ impl<'g> Generator<'g> {
                       break
                     },
 
-                    &FlagImplicit::Assign(ref name) => {
-                      let line = format!("{} = {}\n", name, self.generate_expression(expression)?);
-
-                      result.push_str(&self.make_line(&line));
-                      break
-                    },
                     _ => ()
                   },
                 }
@@ -148,7 +151,13 @@ impl<'g> Generator<'g> {
           result.push_str(&self.make_line(&line));
         }
 
-        result.push_str("end\n");
+        self.flag = flag_backup;
+
+        if let Some(FlagImplicit::Assign(_)) = self.flag {
+          result.push_str("end)()\n")
+        } else {
+          result.push_str("end\n")
+        }
 
         result
       },
@@ -212,7 +221,17 @@ impl<'g> Generator<'g> {
       }
 
       If(ref condition, ref body, ref elses) => {
-        let mut result = format!("if {} then\n", self.generate_expression(condition)?);
+        let flag_backup = self.flag.clone();
+
+        let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
+          self.flag = Some(FlagImplicit::Return);
+
+          "(function()\n"
+        } else {
+          ""
+        }.to_string();
+
+        result.push_str(&format!("if {} then\n", self.generate_expression(condition)?));
 
         let body = self.generate_expression(body)?;
 
@@ -223,7 +242,6 @@ impl<'g> Generator<'g> {
 
             if let Some(ref condition) = branch.0 {
               result.push_str(&format!("elseif {} then\n", self.generate_expression(condition)?));
-
             } else {
               result.push_str("else\n")
             }
@@ -234,23 +252,61 @@ impl<'g> Generator<'g> {
           }
         }
 
-        result.push_str("end");
+        self.flag = flag_backup;
+
+        if let Some(FlagImplicit::Assign(_)) = self.flag {
+          result.push_str("end\nend)()\n")
+        } else {
+          result.push_str("end\n")
+        }
 
         result
       },
 
       Loop(ref body) => {
-        let mut result = format!("while true\n");
+        let flag_backup = self.flag.clone();
+
+        let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
+          self.flag = Some(FlagImplicit::Return);
+
+          "(function()\n"
+        } else {
+          ""
+        }.to_string();
+
+        result.push_str(&format!("while true\n"));
 
         result.push_str(&self.generate_expression(&body)?);
+
+        self.flag = flag_backup;
+
+        if let Some(FlagImplicit::Assign(_)) = self.flag {
+          result.push_str("end)()\n")
+        }
 
         result
       },
 
       While(ref condition, ref body) => {
-        let mut result = format!("while {}\n", self.generate_expression(&condition)?);
+        let flag_backup = self.flag.clone();
+
+        let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
+          self.flag = Some(FlagImplicit::Return);
+
+          "(function()\n"
+        } else {
+          ""
+        }.to_string();
+
+        result.push_str(&format!("while {}\n", self.generate_expression(&condition)?));
 
         result.push_str(&self.generate_expression(&body)?);
+
+        self.flag = flag_backup;
+
+        if let Some(FlagImplicit::Assign(_)) = self.flag {
+          result.push_str("end)()\n")
+        }
 
         result
       },
@@ -299,10 +355,7 @@ impl<'g> Generator<'g> {
     if let &Some(ref right) = right {
       let right_str = self.generate_expression(right)?;
 
-      match right.node {
-        Block(_) | If(..) | While(..) | Loop(..) => result.push_str(&format!("\n{}", right_str)),
-        _ => result.push_str(&format!(" = {}", right_str)),
-      }
+      result.push_str(&format!(" = {}", right_str))
     }
 
     self.flag = flag_backup;
@@ -325,10 +378,7 @@ impl<'g> Generator<'g> {
 
     self.flag = flag_backup;
 
-    let result = match right.node {
-      If(..) | While(..) | Loop(..) | Block(_) => format!("{}", right_string),
-      _                                        => format!("{} = {}\n", left_string, right_string)
-    };
+    let result = format!("{} = {}\n", left_string, right_string);
 
     Ok(result)
   }
