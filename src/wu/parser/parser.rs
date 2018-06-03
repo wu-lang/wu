@@ -340,7 +340,7 @@ impl<'p> Parser<'p> {
             self.next()?;
 
             if self.current_lexeme() != "->" && self.remaining() > 0 && self.current_lexeme() != "\n" {
-              println!("{:?}", self.parse_type());
+              self.parse_type()?;
             }
 
             if self.current_lexeme() == "->" {

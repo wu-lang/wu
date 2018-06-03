@@ -175,7 +175,7 @@ impl<'t> Token<'t> {
       line,
       slice,
       lexeme: lexeme.to_string()
-   }
+    }
   }
 }
 

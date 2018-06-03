@@ -171,10 +171,14 @@ impl<'g> Generator<'g> {
       Function(ref params, _, ref body) => {
         let mut result = format!("function(");
 
-        for param in params {
+        for (i, param) in params.iter().enumerate() {
           match param.node {
             StatementNode::Variable(_, ref left, _) => if let ExpressionNode::Identifier(ref name) = left.node {
-              result.push_str(name)
+              result.push_str(name);
+
+              if i < params.len() - 1 {
+                result.push_str(", ")
+              }
             } else {
               unimplemented!()
             },
@@ -189,7 +193,11 @@ impl<'g> Generator<'g> {
 
         self.flag = Some(FlagImplicit::Return);
 
-        let line = self.generate_expression(body)?;
+        let line = if let Block(..) = body.node {
+          self.generate_expression(body)?
+        } else {
+          format!("return {}", self.generate_expression(body)?)
+        };
 
         result.push_str(&self.make_line(&line));
 

@@ -5,6 +5,7 @@
 #![feature(u128_type)]
 
 extern crate colored;
+extern crate rustyline;
 
 mod wu;
 use wu::source::*;
@@ -14,6 +15,65 @@ use wu::visitor::Visitor;
 use wu::generator::Generator;
 
 use std::env;
+
+use rustyline::error::ReadlineError;
+
+
+
+const PROMPT:        &'static str = ">> ";
+const PROMPT_INDENT: &'static str = " | ";
+
+
+
+fn repl() {
+  let mut repl = rustyline::Editor::<()>::new();
+
+  let mut is_indented = false;
+
+  let mut program = String::new();
+
+  loop {
+    let line = repl.readline(if is_indented { PROMPT_INDENT } else { PROMPT });
+
+    match line {
+      Ok(content) => {
+        if content.len() == 0 {
+          continue
+        }
+
+        is_indented = content.chars().last().unwrap() == '\\';
+
+        if is_indented {
+          program.push_str(&content[.. content.len() - 1]);
+          program.push('\n')
+        } else {
+          program.push_str(&content);
+
+          println!();
+
+          run(&program);
+
+          program.push('\n');
+        }
+      }
+
+      Err(ReadlineError::Interrupted) => {
+        println!("<Interrupted>");
+        break
+      }
+
+      Err(ReadlineError::Eof) => {
+        println!("<EOF>");
+        break
+      }
+
+      Err(err) => {
+        println!("<Error>: {:?}", err);
+        break
+      }
+    }
+  }
+}
 
 
 
@@ -37,15 +97,13 @@ fn run(content: &str) {
 
   match parser.parse() {
     Ok(ast) => {
-      println!("{:#?}", ast);      
+      let mut visitor = Visitor::new(&source, &ast);
 
-      let mut visitor = Visitor::new(&source, &ast);      
- 
       match visitor.visit() {
         Ok(_) => {
           let mut generator = Generator::new(&mut visitor);
 
-          println!("------\n{}", generator.generate(&ast).unwrap())
+          println!("{}", generator.generate(&ast).unwrap())
         },
         _ => ()
       }
@@ -58,7 +116,7 @@ fn run(content: &str) {
 
 
 
-fn main() {
+fn test() {
   let test0 = r"
 fac :: (a: int, b: int) string -> a + b
 
@@ -136,4 +194,8 @@ a := loop {
   "#;
 
   run(test4)
+}
+
+fn main() {
+  repl()
 }

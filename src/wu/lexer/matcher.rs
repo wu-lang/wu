@@ -82,7 +82,10 @@ impl<'t> Matcher<'t> for ConstantStringMatcher {
   fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
     for constant in self.constants {
       let len = constant.len();
-      let c   = tokenizer.peek_range(len).unwrap();
+      let c   = match tokenizer.peek_range(len) {
+        Some(len) => len,
+        _         => return Ok(None),
+      };
 
       if c == *constant {
         tokenizer.advance_n(len);

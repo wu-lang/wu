@@ -100,7 +100,7 @@ impl Display for TypeNode {
 
         for (index, element) in content.iter().enumerate() {
           if index < content.len() - 1 {
-            write!(f, "{}, ", element)?          
+            write!(f, "{}, ", element)?
           } else {
             write!(f, "{}", element)?
           }
@@ -113,7 +113,7 @@ impl Display for TypeNode {
 
         for (index, element) in params.iter().enumerate() {
           if index < params.len() - 1 {
-            write!(f, "{}, ", element)?          
+            write!(f, "{}, ", element)?
           } else {
             write!(f, "{}", element)?
           }
@@ -621,9 +621,9 @@ impl<'v> Visitor<'v> {
                   left.pos
                 )
               )
-            };          
+            };
 
-            for (content_index, expression) in names.iter().enumerate() {            
+            for (content_index, expression) in names.iter().enumerate() {
               if let Identifier(ref name) = expression.node {
                 let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
                   index
@@ -632,12 +632,12 @@ impl<'v> Visitor<'v> {
                   self.current_tab().0.add_name(name)
                 };
 
-                if let Some(right) = right_content.get(content_index) {                
+                if let Some(right) = right_content.get(content_index) {
                   self.visit_expression(&right)?;
 
                   let right_type = self.type_expression(right)?;
 
-                  if variable_type.node != TypeNode::Nil {                  
+                  if variable_type.node != TypeNode::Nil {
                     if let TypeNode::Set(ref type_content) = variable_type.node {
                       if type_content[content_index] != right_type {
                         return Err(
@@ -659,7 +659,7 @@ impl<'v> Visitor<'v> {
                         )
                       )
                     }
-                  } else {                  
+                  } else {
                     self.current_tab().1.set_type(index, 0, right_type)?;
                   }
                 } else {
@@ -674,7 +674,7 @@ impl<'v> Visitor<'v> {
               }
             }
           } else {
-            for expression in names {            
+            for expression in names {
               if let Identifier(ref name) = expression.node {
                 let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
                   index
@@ -747,7 +747,7 @@ impl<'v> Visitor<'v> {
           }
         },
 
-        Set(ref names) => {          
+        Set(ref names) => {
           let right_content = match right.node {
             Set(ref content) => content,
 
@@ -758,9 +758,9 @@ impl<'v> Visitor<'v> {
                 left.pos
               )
             )
-          };          
+          };
 
-          for (content_index, expression) in names.iter().enumerate() {            
+          for (content_index, expression) in names.iter().enumerate() {
             if let Identifier(ref name) = expression.node {
               let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
                 index
@@ -769,14 +769,14 @@ impl<'v> Visitor<'v> {
                 self.current_tab().0.add_name(name)
               };
 
-              if let Some(right) = right_content.get(content_index) {                
+              if let Some(right) = right_content.get(content_index) {
                 self.visit_expression(&right)?;
 
                 let right_type = self.type_expression(right)?;
 
-                if constant_type.node != TypeNode::Nil {                  
+                if constant_type.node != TypeNode::Nil {
                   if let TypeNode::Set(ref type_content) = constant_type.node {
-                    if type_content[content_index] != right_type {                      
+                    if type_content[content_index] != right_type {
                       return Err(
                         response!(
                           Wrong(format!("mismatched types, expected type `{}` got `{}`", type_content[content_index], right_type)),
@@ -996,12 +996,12 @@ impl<'v> Visitor<'v> {
               },
 
               StatementNode::Return(ref return_type) => {
-                let flag = self.flag.clone();                
+                let flag = self.flag.clone();
 
                 if let Some(ref flag) = flag {
                   if let &FlagContext::Block(ref consistent) = flag {
 
-                    let return_type = if let Some(ref return_type) = *return_type {                      
+                    let return_type = if let Some(ref return_type) = *return_type {
                       self.type_expression(&return_type)?
                     } else {
                       Type::from(TypeNode::Nil)
