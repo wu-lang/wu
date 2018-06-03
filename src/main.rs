@@ -15,6 +15,8 @@ use wu::visitor::Visitor;
 use wu::generator::Generator;
 
 use std::env;
+use std::fs::File;
+use std::io::prelude::*;
 
 use rustyline::error::ReadlineError;
 
@@ -51,7 +53,7 @@ fn repl() {
 
           println!();
 
-          run(&program);
+          run(&program, "<repl>");
 
           program.push('\n');
         }
@@ -77,8 +79,8 @@ fn repl() {
 
 
 
-fn run(content: &str) {
-  let source = Source::from("main.rs/testing.wu", content.lines().map(|x| x.into()).collect::<Vec<String>>());
+fn run(content: &str, file: &str) {
+  let source = Source::from(file, content.lines().map(|x| x.into()).collect::<Vec<String>>());
   let lexer  = Lexer::default(content.chars().collect(), &source);
 
   let mut tokens = Vec::new();
@@ -188,14 +190,24 @@ i = while i < 10 {
 }
 
 a := 0
-a := loop {
+a = loop {
   a + 1
 }
   "#;
-
-  run(test4)
 }
 
 fn main() {
-  repl()
+  let args = env::args().collect::<Vec<String>>();
+
+  if args.len() > 1 {
+    let mut f = File::open(&args[1]).expect("file not found");
+
+    let mut content = String::new();
+
+    f.read_to_string(&mut content);
+
+    run(&content, &args[1])
+  } else {
+    repl()
+  }
 }
