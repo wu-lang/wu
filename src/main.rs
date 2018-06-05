@@ -219,24 +219,25 @@ fn main() {
   let args = env::args().collect::<Vec<String>>();
 
   if args.len() > 1 {
-    let path = Path::new(&args[1]);
-
-    if path.exists() {
-      if path.is_file() {
-        //File
-        transpile_file(&path)
-      } else if path.is_dir() {
-        //Directory
-        for file in path.read_dir().unwrap() {
-          if let Ok(file) = file {
-            if file.path().to_str().map(|s| s.ends_with(".wu")).unwrap_or(false) && file.path().is_file() {
-              transpile_file(&file.path())
+    for path in args[1..].iter() {
+      let path = Path::new(path);
+      if path.exists() {
+        if path.is_file() {
+          //File
+          transpile_file(&path)
+        } else if path.is_dir() {
+          //Directory
+          for file in path.read_dir().unwrap() {
+            if let Ok(file) = file {
+              if file.path().to_str().map(|s| s.ends_with(".wu")).unwrap_or(false) && file.path().is_file() {
+                transpile_file(&file.path())
+              }
             }
           }
         }
+      } else {
+        panic!("File doesn't exist")
       }
-    } else {
-      panic!("File doesn't exist")
     }
   } else {
     repl()
