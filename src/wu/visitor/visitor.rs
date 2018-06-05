@@ -323,7 +323,22 @@ impl<'v> Visitor<'v> {
       Block(ref statements) => {
         self.push_scope();
 
-        for statement in statements {
+        for (i, statement) in statements.iter().enumerate() {
+          if i == statements.len() - 1 {
+            if let StatementNode::Expression(ref expression) = statement.node {
+              match expression.node {
+                Call(..) | While(..) | If(..) | Loop(..) | Block(..) => (),
+                _ => return Err(
+                  response!(
+                    Wrong(format!("can't implicitly return in the middle of block", )),
+                    self.source.file,
+                    expression.pos
+                  )
+                )
+              }
+            }
+          }
+
           self.visit_statement(statement)?
         }
 
