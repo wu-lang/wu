@@ -16,9 +16,9 @@ use std::fs::File;
 use std::fs::metadata;
 
 use std::env;
-use std::path::Path;
 
 use std::io::prelude::*;
+use std::path::Path;
 
 use rustyline::error::ReadlineError;
 
@@ -256,6 +256,27 @@ fn clean_path(path: &str) {
 }
 
 
+
+fn transpile_file(path: &Path) {
+  let mut content = String::new();
+  File::open(path).expect("File not found")
+                  .read_to_string(&mut content)
+                  .expect("Couldn't read the file");
+
+  if let Some(code) = run(&content, path.to_str().unwrap()) {
+    let lua_path = path.with_file_name({
+      let mut name = path.file_stem()
+                         .unwrap_or_else(|| path.file_name().unwrap())
+                         .to_os_string();
+      name.push(".lua");
+      name
+    });
+
+    let mut lua_file = File::create(lua_path).expect("Can't create file");
+    lua_file.write_all(code.as_bytes()).expect("Can't write to file")
+  }
+  println!("Transpiled \"{}\"", path.to_string_lossy());
+}
 
 fn main() {
   let args = env::args().collect::<Vec<String>>();
