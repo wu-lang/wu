@@ -16,7 +16,7 @@ macro_rules! token {
 
     let line = tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap());
 
-    if TokenType::String == token_type || TokenType::Char == token_type {
+    if TokenType::Str == token_type || TokenType::Char == token_type {
       Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len() + 2), &accum) // delimeters
     } else {
       Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len()), &accum)
@@ -144,22 +144,6 @@ impl<'t> Matcher<'t> for ConstantCharMatcher {
 
 
 
-pub struct WhitespaceMatcher;
-
-impl<'t> Matcher<'t> for WhitespaceMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
-    let string = tokenizer.collect_while(|c| c.is_whitespace() && c != '\n');
-
-    if !string.is_empty() {
-      Ok(Some(token!(tokenizer, Whitespace, string)))
-    } else {
-      Ok(None)
-    }
-  }
-}
-
-
-
 pub struct StringLiteralMatcher;
 
 impl<'t> Matcher<'t> for StringLiteralMatcher {
@@ -267,7 +251,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
     tokenizer.advance();
     
     if delimeter == '"' {
-      Ok(Some(token!(tokenizer, String, string)))
+      Ok(Some(token!(tokenizer, Str, string)))
     } else {
       if string.len() > 1 {
         let pos = tokenizer.last_position();
@@ -330,7 +314,7 @@ impl<'t> Matcher<'t> for NumberLiteralMatcher {
       if !current.is_whitespace() && current.is_digit(10) || current == '.' {
         if current == '.' && accum.contains('.') {
           let pos = tokenizer.pos;
-
+          
           return Err(
             response!(
               Wrong("unexpected extra decimal point"),
@@ -357,14 +341,14 @@ impl<'t> Matcher<'t> for NumberLiteralMatcher {
           Err(error) => panic!("unable to parse float: {}", error)
         };
 
-        Ok(Some(token!(tokenizer, Float, accum)))
+        Ok(Some(token!(tokenizer, Float, literal)))
       } else {
         let literal: String = match accum.parse::<i64>() {
           Ok(result) => result.to_string(),
           Err(error) => panic!("unable to parse int: {}", error)
         };
 
-        Ok(Some(token!(tokenizer, Int, accum)))
+        Ok(Some(token!(tokenizer, Int, literal)))
       }
     }
   }
@@ -417,6 +401,22 @@ impl<'t> Matcher<'t> for EOLMatcher {
       tokenizer.index += 1;
 
       Ok(Some(token!(tokenizer, TokenType::EOL, String::from("\n"))))
+    } else {
+      Ok(None)
+    }
+  }
+}
+
+
+
+pub struct WhitespaceMatcher;
+
+impl<'t> Matcher<'t> for WhitespaceMatcher {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+    let string = tokenizer.collect_while(|c| c.is_whitespace() && c != '\n');
+
+    if !string.is_empty() {
+      Ok(Some(token!(tokenizer, Whitespace, string)))
     } else {
       Ok(None)
     }

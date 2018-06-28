@@ -1,0 +1,9 @@
+foo: def(a: str) {
+  return
+}
+
+print: def<T> (..splat: T) {
+  foo(*splat)
+}
+
+print("hey")

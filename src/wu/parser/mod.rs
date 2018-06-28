@@ -1,10 +1,9 @@
 pub mod ast;
 pub mod parser;
 
+use super::source::*;
+use super::lexer::*;
+use super::visitor::*;
+
 pub use self::ast::*;
 pub use self::parser::*;
-
-use super::lexer::{ TokenElement, Token, TokenType, };
-use super::source::Source;
-
-use super::visitor::{ Type, TypeMode, TypeNode, };

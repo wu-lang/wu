@@ -6,12 +6,8 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatementNode<'s> {
   Expression(Expression<'s>),
-  Variable(Type, Expression<'s>, Option<Expression<'s>>),
-  Constant(Type, Expression<'s>, Expression<'s>),
+  Variable(Type<'s>, String, Option<Expression<'s>>),
   Assignment(Expression<'s>, Expression<'s>),
-
-  Break,
-  Skip,
   Return(Option<Rc<Expression<'s>>>),
 }
 
@@ -31,26 +27,26 @@ impl<'s> Statement<'s> {
 }
 
 
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionNode<'e> {
-  Int(u128),
+  Int(u64),
   Float(f64),
-  String(String),
+  Str(String),
   Char(char),
   Bool(bool),
+  Unwrap(Rc<Expression<'e>>),
   Identifier(String),
   Binary(Rc<Expression<'e>>, Operator, Rc<Expression<'e>>),
   Block(Vec<Statement<'e>>),
-  Set(Vec<Expression<'e>>),
-  Cast(Rc<Expression<'e>>, Type),
+  Cast(Rc<Expression<'e>>, Type<'e>),
   Array(Vec<Expression<'e>>),
   Index(Rc<Expression<'e>>, Rc<Expression<'e>>),
-  Function(Vec<Statement<'e>>, Type, Rc<Expression<'e>>),
+  Function(Vec<(String, Type<'e>)>, Type<'e>, Rc<Expression<'e>>, Option<Vec<String>>),
   Call(Rc<Expression<'e>>, Vec<Expression<'e>>),
-  Loop(Rc<Expression<'e>>),
   If(Rc<Expression<'e>>, Rc<Expression<'e>>, Option<Vec<(Option<Expression<'e>>, Expression<'e>, TokenElement<'e>)>>),
-  While(Rc<Expression<'e>>, Rc<Expression<'e>>),
   EOF,
+  Empty,
 }
 
 #[derive(Debug, Clone, PartialEq)]

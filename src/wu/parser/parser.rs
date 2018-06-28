@@ -30,6 +30,8 @@ impl<'p> Parser<'p> {
     Ok(ast)
   }
 
+
+
   fn parse_statement(&mut self) -> Result<Statement<'p>, ()> {
     use self::TokenType::*;
 
@@ -38,103 +40,112 @@ impl<'p> Parser<'p> {
     }
 
     let statement = match *self.current_type() {
-      Keyword => {
-        let position = self.current_position();
+      Keyword => match self.current_lexeme().as_str() {
+        "return" => {
+          let position = self.current_position();
+
+          self.next()?;
+
+          if ["}", "\n"].contains(&self.current_lexeme().as_str()) {
+            Statement::new(
+              StatementNode::Return(None),
+              position
+            )
+          } else {
+            Statement::new(
+              StatementNode::Return(Some(Rc::new(self.parse_expression()?))),
+              self.span_from(position)
+            )
+          }
+        },
+
+        _ => {
+          let expression = self.parse_expression()?;
+
+          let position = expression.pos.clone();
+
+          Statement::new(
+            StatementNode::Expression(expression),
+            position,
+          )
+        },
+      },
+
+      Identifier => {
+        let backup_index = self.index;
+        let position     = self.current_position();
+        let name         = self.eat_type(&Identifier)?;
 
         match self.current_lexeme().as_str() {
-          "break" => {
+          ":" => {
             self.next()?;
 
-            Statement::new(
-              StatementNode::Break,
-              position
-            )
-          },
+            let position = self.current_position();
+            let backup   = self.index;
 
-          "skip" => {
-            self.next()?;
-
-            Statement::new(
-              StatementNode::Skip,
-              position
-            )
-          },
-
-          "return" => {
-            self.next()?;
-
-            if self.current_lexeme() == "\n" {
+            if let Some(right) = self.parse_right_hand()? {
               Statement::new(
-                StatementNode::Return(None),
-                position
+                StatementNode::Variable(
+                  Type::from(TypeNode::Nil),
+                  name,
+                  Some(right)
+                ),
+                self.span_from(position)
               )
             } else {
-              Statement::new(
-                StatementNode::Return(Some(Rc::new(self.parse_expression()?))),
-                position
-              )
+              self.index = backup;
+
+              let kind = if self.current_lexeme() == "=" {
+                Type::from(TypeNode::Nil)
+              } else {
+                self.parse_type()?
+              };
+
+              if self.current_lexeme() == "=" {
+                self.next()?;
+
+                Statement::new(
+                  StatementNode::Variable(
+                    kind,
+                    name,
+                    Some(self.parse_expression()?)
+                  ),
+                  self.span_from(position)
+                )
+              } else {
+                Statement::new(
+                  StatementNode::Variable(
+                    kind,
+                    name,
+                    None
+                  ),
+                  self.span_from(position)
+                )
+              }
             }
           },
 
-          _ => {
+          "=" => {
+            self.next()?;
+
             Statement::new(
-              StatementNode::Expression(self.parse_expression()?),
+              StatementNode::Assignment(
+                Expression::new(
+                  ExpressionNode::Identifier(name),
+                  position.clone()
+                ),
+
+                self.parse_expression()?
+              ),
               position,
             )
           },
-        }
-      },
-
-      _ => {
-        use self::ExpressionNode::*;
-
-        let expression = self.parse_expression()?;
-
-        match expression.node {
-          Identifier(_) | Set(_) => {
-            if self.remaining() > 0 {
-              if self.current_type() == &TokenType::Symbol {
-                let statement = match self.current_lexeme().as_str() {
-                  ":"   => self.parse_declaration(expression)?,
-                  "="   => {
-                    self.next()?;
-
-                    let position = self.span_from(expression.pos.clone());
-
-                    Statement::new(
-                      StatementNode::Assignment(expression, self.parse_expression()?),
-                      position
-                    )
-                  },
-                  ref c => return Err(
-                    response!(
-                      Wrong(format!("unexpected symbol `{}`", c)),
-                      self.source.file,
-                      TokenElement::Ref(self.current())
-                    )
-                  )
-                };
-
-                statement
-              } else {
-                let position = expression.pos.clone();
-
-                Statement::new(
-                  StatementNode::Expression(expression),
-                  position
-                )
-              }
-            } else {
-              let position = expression.pos.clone();
-
-              Statement::new(
-                StatementNode::Expression(expression),
-                position,
-              )
-            }
-          },
 
           _ => {
+            self.index = backup_index;
+
+            let expression = self.parse_expression()?;
+
             let position = expression.pos.clone();
 
             Statement::new(
@@ -143,13 +154,89 @@ impl<'p> Parser<'p> {
             )
           },
         }
-      }
+      },
+
+      _ => {
+        let expression = self.parse_expression()?;
+        let position   = expression.pos.clone();
+
+        if self.current_lexeme() == "=" {
+          self.next()?;
+
+          Statement::new(
+            StatementNode::Assignment(expression, self.parse_expression()?),
+            position
+          )
+        } else {
+          Statement::new(
+            StatementNode::Expression(expression),
+            position,
+          )
+        }
+      },
     };
 
-    self.newline()?;
+    self.new_line()?;
 
     Ok(statement)
   }
+
+  fn parse_right_hand(&mut self) -> Result<Option<Expression<'p>>, ()> {
+    let declaration = match self.current_lexeme().as_str() {
+      "def" => {
+        let mut position = self.current_position();
+
+        self.next()?;
+        self.next_newline()?;
+
+        let generics = if self.current_lexeme() == "<" {
+          self.parse_block_of(("<", ">"), &Self::_parse_name)?
+        } else {
+          Vec::new()
+        };
+
+        self.next_newline()?;
+
+        let params = if self.current_lexeme() == "(" {
+          self.parse_block_of(("(", ")"), &Self::_parse_param_comma)?
+        } else {
+          Vec::new()
+        };
+
+        let retty = if self.current_lexeme() == "->" {
+          self.next()?;
+
+          self.parse_type()?
+        } else {
+          Type::from(TypeNode::Nil)
+        };
+
+        position = self.span_from(position);
+
+        self.next_newline()?;
+
+        self.expect_lexeme("{")?;
+
+        Some(
+          Expression::new(
+            ExpressionNode::Function(
+              params,
+              retty,
+              Rc::new(self.parse_expression()?),
+              Some(generics)
+            ),
+
+            position
+          )
+        )
+      }
+      _ => None
+    };
+
+    Ok(declaration)
+  }
+
+
 
   fn parse_expression(&mut self) -> Result<Expression<'p>, ()> {
     let atom = self.parse_atom()?;
@@ -160,6 +247,8 @@ impl<'p> Parser<'p> {
       Ok(atom)
     }
   }
+
+
 
   fn parse_atom(&mut self) -> Result<Expression<'p>, ()> {
     use self::TokenType::*;
@@ -177,7 +266,7 @@ impl<'p> Parser<'p> {
 
       let expression = match token_type {
         Int => Expression::new(
-          ExpressionNode::Int(self.eat()?.parse::<u128>().unwrap()),
+          ExpressionNode::Int(self.eat()?.parse::<u64>().unwrap()),
           position
         ),
 
@@ -191,8 +280,8 @@ impl<'p> Parser<'p> {
           position
         ),
 
-        String => Expression::new(
-          ExpressionNode::String(self.eat()?),
+        Str => Expression::new(
+          ExpressionNode::Str(self.eat()?),
           position
         ),
 
@@ -206,28 +295,75 @@ impl<'p> Parser<'p> {
           position
         ),
 
-        Keyword => match self.current_lexeme().as_str() {
-          "loop" => {
+        Operator => match self.current_lexeme().as_str() {
+          "*" => {
             self.next()?;
 
             Expression::new(
-              ExpressionNode::Loop(
-                Rc::new(
-                  Expression::new(
-                    ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
-                    position.clone()
-                  )
-                )
+              ExpressionNode::Unwrap(
+                Rc::new(self.parse_expression()?)
               ),
-              position
+
+              self.span_from(position)
             )
           },
 
+          ref symbol => return Err(
+            response!(
+              Wrong(format!("unexpected symbol `{}`", symbol)),
+              self.source.file,
+              TokenElement::Ref(self.current())
+            )
+          )
+        },
+
+        Symbol => match self.current_lexeme().as_str() {
+          "{" => Expression::new(
+            ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
+            position
+          ),
+
+          "[" => Expression::new(
+            ExpressionNode::Array(self.parse_block_of(("[", "]"), &Self::_parse_expression_comma)?),
+            self.span_from(position)
+          ),
+
+          "(" => {
+            self.next()?;
+            self.next_newline()?;
+
+            if self.current_lexeme() == ")" {
+              self.next()?;
+
+              Expression::new(
+                ExpressionNode::Empty,
+                self.span_from(position)
+              )
+            } else {
+              let expression = self.parse_expression()?;
+
+              self.eat_lexeme(")")?;
+
+              expression
+            }
+          },
+
+          ref symbol => return Err(
+            response!(
+              Wrong(format!("unexpected symbol `{}`", symbol)),
+              self.source.file,
+              TokenElement::Ref(self.current())
+            )
+          )
+        },
+
+        Keyword => match self.current_lexeme().as_str() {
           "if" => {
             self.next()?;
 
             let condition   = Rc::new(self.parse_expression()?);
             let if_position = self.span_from(position.clone());
+
             let body        = Rc::new(
               Expression::new(
                 ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
@@ -276,132 +412,14 @@ impl<'p> Parser<'p> {
             )
           },
 
-          "while" => {
-            self.next()?;
-
-            let condition = Rc::new(self.parse_expression()?);
-
-            let body_position = self.current_position();
-
-            let body = Rc::new(
-              Expression::new(
-                ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
-                body_position
-              )
-            );
-
-            Expression::new(
-              ExpressionNode::While(condition, body),
-              position
-            )
-          }
-
-          ref c => return Err(
+          ref symbol => return Err(
             response!(
-              Wrong(format!("unexpected keyword `{}`", c)),
+              Wrong(format!("unexpected keyword `{}`", symbol)),
               self.source.file,
               TokenElement::Ref(self.current())
             )
           )
-        }
-
-        Symbol => match self.current_lexeme().as_str() {
-          "{" => Expression::new(
-            ExpressionNode::Block(self.parse_block_of(("{", "}"), &Self::_parse_statement)?),
-            position
-          ),
-
-          "[" => Expression::new(
-            ExpressionNode::Array(self.parse_block_of(("[", "]"), &Self::_parse_expression_comma)?),
-            self.span_from(position)
-          ),
-
-          "(" => {
-            let backup_index = self.index;
-
-            self.next()?;
-
-            let mut nested = 1;
-
-            while nested != 0 {
-              if self.current_lexeme() == ")" {
-                nested -= 1
-              } else if self.current_lexeme() == "(" {
-                nested += 1
-              }
-
-              if nested == 0 {
-                break
-              }
-
-              self.next()?
-            }
-
-            self.next()?;
-
-            if self.current_lexeme() != "->" && self.remaining() > 0 && self.current_lexeme() != "\n" {
-              self.parse_type()?;
-            }
-
-            if self.current_lexeme() == "->" {
-              self.index = backup_index;
-
-              let left_position = self.current_position();
-
-              let params = self.parse_block_of(("(", ")"), &Self::_parse_declaration_comma)?;              
-
-              let return_type = if self.current_lexeme() == "->" {
-                Type::from(TypeNode::Nil)
-              } else {
-                self.parse_type()?
-              };
-
-              let position = self.span_from(left_position);
-
-              self.eat_lexeme("->")?;
-
-              let body = self.parse_expression()?;
-
-              Expression::new(
-                ExpressionNode::Function(params, return_type, Rc::new(body)),
-                position
-              )
-
-            } else {
-              self.index = backup_index;
-
-              let content = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
-
-              if content.len() == 1 {
-                Expression::new(
-                  content[0].clone().node,
-                  self.span_from(position)
-                )
-              } else if content.len() > 1 {
-                Expression::new(
-                  ExpressionNode::Set(content),
-                  self.span_from(position)
-                )
-              } else {
-                return Err(
-                  response!(
-                    Wrong("unhandled empty clause `()`"),
-                    self.source.file,
-                    TokenElement::Ref(self.current())
-                  )
-                )
-              }
-            }
-          },
-
-          ref c => return Err(
-            response!(
-              Wrong(format!("unexpected symbol`{}`", c)),
-              self.source.file,
-              TokenElement::Ref(self.current())
-            )
-          )
-        }
+        },
 
         ref token_type => return Err(
           response!(
@@ -415,6 +433,7 @@ impl<'p> Parser<'p> {
       self.parse_postfix(expression)
     }
   }
+
 
 
   fn parse_postfix(&mut self, expression: Expression<'p>) -> Result<Expression<'p>, ()> {
@@ -475,7 +494,10 @@ impl<'p> Parser<'p> {
     }
   }
 
-  // basic precedence climbing
+
+
+  // A simple shunting-yard implementation
+  // ... naively hoping for unary operations to just play along
   fn parse_binary(&mut self, left: Expression<'p>) -> Result<Expression<'p>, ()> {
     let left_position = left.pos.clone();
 
@@ -539,156 +561,66 @@ impl<'p> Parser<'p> {
     )
   }
 
-  fn parse_declaration(&mut self, left: Expression<'p>) -> Result<Statement<'p>, ()> {
-    match self.current_lexeme().as_str() {
-      ":" => {
-        self.next()?;
 
-        let position = left.pos.clone();
 
-        match self.current_lexeme().as_str() {
-          ":" => {
-            self.next()?;
-
-            let right    = self.parse_expression()?;
-
-            Ok(
-              Statement::new(
-                StatementNode::Constant(
-                  Type::new(TypeNode::Nil, TypeMode::Immutable),
-                  left,
-                  right,
-                ),
-
-                position,
-              )
-            )
-          },
-
-          "=" => {
-            self.next()?;
-
-            let right    = Some(self.parse_expression()?);
-            let position = left.pos.clone();
-
-            Ok(
-              Statement::new(
-                StatementNode::Variable(
-                  Type::from(TypeNode::Nil),
-                  left,
-                  right,
-                ),
-
-                position,
-              )
-            )
-          },
-
-          _ => {
-            let t = self.parse_type()?;
-
-            match self.current_lexeme().as_str() {
-              ":" => {
-                self.next()?;
-
-                let right = self.parse_expression()?;
-
-                Ok(
-                  Statement::new(
-                    StatementNode::Constant(
-                      Type::new(t.node, TypeMode::Immutable),
-                      left,
-                      right,
-                    ),
-
-                    position,
-                  )
-                )
-              },
-
-              "=" => {
-                self.next()?;
-
-                let right    = Some(self.parse_expression()?);
-                let position = left.pos.clone();
-
-                Ok(
-                  Statement::new(
-                    StatementNode::Variable(
-                      t,
-                      left,
-                      right,
-                    ),
-
-                    position,
-                  )
-                )
-              },
-
-              _ => Ok(
-                Statement::new(
-                  StatementNode::Variable(
-                    t,
-                    left,
-                    None,
-                  ),
-
-                  position,
-                )
-              )
-            }
-          }
-        }
-      },
-
-      _ => Err(
-        response!(
-          Wrong("invalid declaration without `:`"),
-          self.source.file,
-          self.current_position()
-        )
-      )
-    }
-  }
-
-  fn parse_type(&mut self) -> Result<Type, ()> {
+  fn parse_type(&mut self) -> Result<Type<'p>, ()> {
     use self::TokenType::*;
-    use self::TypeNode::*;
 
     let t = match *self.current_type() {
       Identifier => match self.eat()?.as_str() {
-        "string" => Type::from(Str),
-        "char"   => Type::from(TypeNode::Char),
+        "str"   => Type::from(TypeNode::Str),
+        "char"  => Type::from(TypeNode::Char),
 
-        "int"    => Type::from(TypeNode::Int),
-        "float"  => Type::from(TypeNode::Float),
+        "int"   => Type::from(TypeNode::Int),
+        "float" => Type::from(TypeNode::Float),
 
-        "bool"   => Type::from(TypeNode::Bool),
-        id       => Type::id(id),
+        "bool"  => Type::from(TypeNode::Bool),
+        id      => Type::id(id),
       },
 
       Symbol => match self.current_lexeme().as_str() {
-        "(" => {
-          let content = self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?;
-
-          if content.len() == 1 {
-            content[0].clone()
-          } else {
-            Type::set(content)
-          }
-        },
-
         "[" => {
           self.next()?;
+          self.next_newline()?;
 
           let t = self.parse_type()?;
 
+          self.next_newline()?;
+
+          self.eat_lexeme(";")?;
+
+          self.next_newline()?;
+
+          let expression = self.parse_expression()?;
+
+          let len = if let ExpressionNode::Int(ref len) = Self::fold_expression(&expression)?.node {
+            *len as usize
+          } else {
+            return Err(
+              response!(
+                Wrong(format!("length of array can be nothing but int")),
+                self.source.file,
+                expression.pos
+              )
+            )
+          };
+
           self.eat_lexeme("]")?;
 
-          Type::array(t)
-        }
+          Type::array(t, len)
+        },
 
-        _   => return Err(
+        "(" => {
+          let params = self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?;
+
+          self.eat_lexeme("->")?;
+
+          let return_type = self.parse_type()?;
+
+          Type::function(params, return_type)
+        },
+
+        _ => return Err(
           response!(
             Wrong(format!("unexpected symbol `{}` in type", self.current_lexeme())),
             self.source.file,
@@ -709,123 +641,9 @@ impl<'p> Parser<'p> {
     Ok(t)
   }
 
-  fn parse_block_of<B>(&mut self, delimeters: (&str, &str), parse_with: &Fn(&mut Self) -> Result<Option<B>, ()>) -> Result<Vec<B>, ()> {
-    self.eat_lexeme(delimeters.0)?;
-
-    let mut block_tokens = Vec::new();
-    let mut nest_count   = 1;
-
-    while nest_count > 0 {
-      if self.current_lexeme() == delimeters.1 {
-        nest_count -= 1
-      } else if self.current_lexeme() == delimeters.0 {
-        nest_count += 1
-      }
-
-      if nest_count == 0 {
-        break
-      } else {
-        block_tokens.push(self.current());
-
-        self.next()?
-      }
-    }
-
-    self.eat_lexeme(delimeters.1)?;
-
-    if !block_tokens.is_empty() {
-      let mut parser = Parser::new(block_tokens, self.source);
-      let mut block  = Vec::new();
-
-      while let Some(element) = parse_with(&mut parser)? {
-        block.push(element)
-      }
-
-      Ok(block)
-    } else {
-      Ok(Vec::new())
-    }
-  }
 
 
-
-  fn _parse_statement(self: &mut Self) -> Result<Option<Statement<'p>>, ()> {
-    if self.remaining() > 0 {
-      Ok(Some(self.parse_statement()?))
-    } else {
-      Ok(None)
-    }
-  }
-
-  fn _parse_expression(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
-    let expression = self.parse_expression()?;
-
-    match expression.node {
-      ExpressionNode::EOF => Ok(None),
-      _                   => Ok(Some(expression)),
-    }
-  }
-
-  fn _parse_expression_comma(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
-    if self.remaining() > 0 && self.current_lexeme() == "\n" {
-      self.next()?
-    }
-
-    let expression = Self::_parse_expression(self);
-
-    if self.remaining() > 0 && self.current_lexeme() == "\n" {
-        self.next()?
-      }
-
-    if self.remaining() > 0 {
-      self.eat_lexeme(",")?;
-
-      if self.remaining() > 0 && self.current_lexeme() == "\n" {
-        self.next()?
-      }
-    }
-
-    expression
-  }
-
-  fn _parse_declaration_comma(self: &mut Self) -> Result<Option<Statement<'p>>, ()> {
-    if self.remaining() == 0 {
-      Ok(None)
-    } else {
-      let position = self.current_position();
-
-      let name = Expression::new(
-        ExpressionNode::Identifier(self.eat_type(&TokenType::Identifier)?),
-        position,
-      );
-
-      let expression = self.parse_declaration(name)?;
-
-      if self.remaining() > 0 {
-        self.eat_lexeme(",")?;
-      }
-
-      Ok(Some(expression))
-    }
-  }
-
-  fn _parse_type_comma(self: &mut Self) -> Result<Option<Type>, ()> {
-    if self.remaining() == 0 {
-      Ok(None)
-    } else {
-      let t = self.parse_type()?;
-
-      if self.remaining() > 0 {
-        self.eat_lexeme(",")?;
-      }
-
-      Ok(Some(t))
-    }
-  }
-
-
-
-  fn newline(&mut self) -> Result<(), ()> {
+  fn new_line(&mut self) -> Result<(), ()> {
     if self.remaining() > 0 {
       match self.current_lexeme().as_str() {
         "\n" => self.next(),
@@ -840,6 +658,16 @@ impl<'p> Parser<'p> {
     } else {
       Ok(())
     }
+  }
+
+
+
+  fn next_newline(&mut self) -> Result<(), ()> {
+    while self.current_lexeme() == "\n" && self.remaining() > 0 {
+      self.next()?
+    }
+
+    Ok(())
   }
 
 
@@ -953,6 +781,194 @@ impl<'p> Parser<'p> {
     }
   }
 
+  fn expect_lexeme(&self, lexeme: &str) -> Result<(), ()> {
+    if self.current_lexeme() == lexeme {
+      Ok(())
+    } else {
+      Err(
+        response!(
+          Wrong(format!("expected `{}`, found `{}`", lexeme, self.current_lexeme())),
+          self.source.file
+        )
+      )
+    }
+  }
+
+
+
+  // A helper method for parsing sequences defined by provided static methods,
+  // for as long as given static method returns Some(B)
+  fn parse_block_of<B>(&mut self, delimeters: (&str, &str), parse_with: &Fn(&mut Self) -> Result<Option<B>, ()>) -> Result<Vec<B>, ()> {
+    self.eat_lexeme(delimeters.0)?;
+
+    let mut block_tokens = Vec::new();
+    let mut nest_count   = 1;
+
+    while nest_count > 0 {
+      if self.current_lexeme() == delimeters.1 {
+        nest_count -= 1
+      } else if self.current_lexeme() == delimeters.0 {
+        nest_count += 1
+      }
+
+      if nest_count == 0 {
+        break
+      } else {
+        block_tokens.push(self.current());
+
+        self.next()?
+      }
+    }
+
+    self.eat_lexeme(delimeters.1)?;
+
+    if !block_tokens.is_empty() {
+      let mut parser = Parser::new(block_tokens, self.source);
+      let mut block  = Vec::new();
+
+      while let Some(element) = parse_with(&mut parser)? {
+        block.push(element)
+      }
+
+      Ok(block)
+    } else {
+      Ok(Vec::new())
+    }
+  }
+
+
+
+  fn _parse_statement(self: &mut Self) -> Result<Option<Statement<'p>>, ()> {
+    if self.remaining() > 0 {
+      Ok(Some(self.parse_statement()?))
+    } else {
+      Ok(None)
+    }
+  }
+
+
+
+  fn _parse_expression(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
+    let expression = self.parse_expression()?;
+
+    match expression.node {
+      ExpressionNode::EOF => Ok(None),
+      _                   => Ok(Some(expression)),
+    }
+  }
+
+
+
+  fn _parse_name(self: &mut Self) -> Result<Option<String>, ()> {
+    if self.remaining() == 0 {
+      Ok(None)
+    } else {
+      let t = self.eat_type(&TokenType::Identifier)?;
+
+      if self.remaining() > 0 {
+        self.eat_lexeme(",")?;
+
+        if self.remaining() > 0 && self.current_lexeme() == "\n" {
+          self.next()?
+        }
+      }
+
+      Ok(Some(t))
+    }
+  }
+
+
+
+  // Static method for parsing sequence `expr* ,* \n*` - for things like [1, 2, 3, 4,]
+  fn _parse_expression_comma(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
+    if self.remaining() > 0 && self.current_lexeme() == "\n" {
+      self.next()?
+    }
+
+    let expression = Self::_parse_expression(self);
+
+    if self.remaining() > 0 && self.current_lexeme() == "\n" {
+        self.next()?
+      }
+
+    if self.remaining() > 0 {
+      self.eat_lexeme(",")?;
+
+      if self.remaining() > 0 && self.current_lexeme() == "\n" {
+        self.next()?
+      }
+    }
+
+    expression
+  }
+
+
+
+  fn _parse_param_comma(self: &mut Self) -> Result<Option<(String, Type<'p>)>, ()> {
+    if self.remaining() > 0 && self.current_lexeme() == "\n" {
+      self.next()?
+    }
+
+    if self.remaining() == 0 {
+      return Ok(None)
+    }
+
+    let mut splat = false;
+
+    if self.current_lexeme() == ".." {
+      splat = true;
+
+      self.next()?;
+      self.next_newline()?;
+    }
+
+    let name = self.eat_type(&TokenType::Identifier)?;
+    
+    self.eat_lexeme(":")?;
+
+    let mut kind = self.parse_type()?;
+
+    if splat {
+      kind.mode = TypeMode::Splat(None)
+    }
+
+    let param = Some((name, kind));
+
+    if self.remaining() > 0 && self.current_lexeme() == "\n" {
+      self.next()?
+    }
+
+    if self.remaining() > 0 {
+      self.eat_lexeme(",")?;
+
+      if self.remaining() > 0 && self.current_lexeme() == "\n" {
+        self.next()?
+      }
+    }
+
+    Ok(param)
+  }
+
+
+
+  fn _parse_type_comma(self: &mut Self) -> Result<Option<Type<'p>>, ()> {
+    if self.remaining() == 0 {
+      Ok(None)
+    } else {
+      let t = self.parse_type()?;
+
+      if self.remaining() > 0 {
+        self.eat_lexeme(",")?;
+
+        if self.remaining() > 0 && self.current_lexeme() == "\n" {
+          self.next()?
+        }
+      }
+
+      Ok(Some(t))
+    }
+  }
+
 
 
   pub fn fold_expression<'v>(expression: &Expression<'v>) -> Result<Expression<'v>, ()> {
@@ -962,13 +978,13 @@ impl<'p> Parser<'p> {
     let node = match expression.node {
       Binary(ref left, ref op, ref right) => {
         let node = match (&Self::fold_expression(&*left)?.node, op, &Self::fold_expression(&*right)?.node) {
-          (&Int(ref a),   &Add, &Int(ref b))   => Int(a + b),
+          (&Int(ref a),   &Add, &Int(ref b))     => Int(a + b),
           (&Float(ref a), &Add, &Float(ref b)) => Float(a + b),
-          (&Int(ref a),   &Sub, &Int(ref b))   => Int(a - b),
+          (&Int(ref a),   &Sub, &Int(ref b))     => Int(a - b),
           (&Float(ref a), &Sub, &Float(ref b)) => Float(a - b),
-          (&Int(ref a),   &Mul, &Int(ref b))   => Int(a * b),
+          (&Int(ref a),   &Mul, &Int(ref b))     => Int(a * b),
           (&Float(ref a), &Mul, &Float(ref b)) => Float(a * b),
-          (&Int(ref a),   &Div, &Int(ref b))   => Int(a / b),
+          (&Int(ref a),   &Div, &Int(ref b))     => Int(a / b),
           (&Float(ref a), &Div, &Float(ref b)) => Float(a / b),
 
           _ => expression.node.clone()

@@ -1,0 +1,5 @@
+bar: def <T, K> (a: T, b: K) -> bool {
+  a < b
+}
+
+bar(10, 100)

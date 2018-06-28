@@ -28,29 +28,35 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(Rc::new(CommentMatcher));  
 
     lexer.matchers.push(Rc::new(EOLMatcher));
-    lexer.matchers.push(Rc::new(WhitespaceMatcher));
     lexer.matchers.push(Rc::new(StringLiteralMatcher));
 
     lexer.matchers.push(
       Rc::new(
         KeyMatcher::new(Keyword, &[
-          "as", "->", "loop", "if", "else", "elif", "break", "skip", "return", "while"
+          "def", "->", "as", "if", "elif", "else", "return",
         ])
       )
     );
 
     lexer.matchers.push(
       Rc::new(
-        KeyMatcher::new(Bool, &["true", "false"])
+        KeyMatcher::new(Bool, &["false", "true"])
+      )
+    );
+
+    lexer.matchers.push(
+      Rc::new(
+        ConstantStringMatcher::new(Symbol, &[".."])
       )
     );
 
     lexer.matchers.push(Rc::new(IdentifierMatcher));
     lexer.matchers.push(Rc::new(NumberLiteralMatcher));
+    lexer.matchers.push(Rc::new(WhitespaceMatcher));
 
     lexer.matchers.push(
       Rc::new(
-        ConstantStringMatcher::new(Operator, &["^", "++", "+", "-", "*", "/", "%", "<", ">", "==", "!=", "<=", ">="])
+        ConstantStringMatcher::new(Operator, &["^", "++", "+", "-", "*", "/", "%", "==", "!=", "<=", ">=", "<", ">",])
       )
     );
 

@@ -3,20 +3,23 @@ use super::{ Type, TypeNode, };
 use super::super::error::Response::Wrong;
 
 use std::rc::Rc;
+use std::collections::HashMap;
 
 
 
 #[derive(Clone, Debug)]
-pub struct TypeTab {
-  pub parent:  Option<Rc<TypeTab>>,
-  pub types:   RefCell<Vec<Type>>, // type and offset
+pub struct TypeTab<'t> {
+  pub parent: Option<Rc<TypeTab<'t>>>,
+  pub types:  RefCell<Vec<Type<'t>>>, // type and offset
+  pub covers: HashMap<String, Type<'t>>,  
 }
 
-impl TypeTab {
-  pub fn new(parent: Rc<Self>, types: &[Type]) -> Self {
+impl<'t> TypeTab<'t> {
+  pub fn new(parent: Rc<Self>, types: &[Type<'t>], covers: HashMap<String, Type<'t>>) -> Self {
     TypeTab {
       parent: Some(parent),
       types:  RefCell::new(types.to_owned()),
+      covers,
     }
   }
 
@@ -26,19 +29,20 @@ impl TypeTab {
     TypeTab {
       parent: None,
       types:  RefCell::new(Vec::new()),
+      covers: HashMap::new(),
     }
   }
 
 
 
-  pub fn set_type(&self, index: usize, env_index: usize, t: Type) -> Result<(), ()> {
-    if env_index == 0usize {
+  pub fn set_type(&self, index: usize, env_index: usize, t: Type<'t>) -> Result<(), ()> {
+    if env_index == 0 {
       match self.types.borrow_mut().get_mut(index) {
         Some(v) => {
           *v = t;
           Ok(())
         },
-        None => Err(response!(Wrong("[type table] invalid type index")))
+        None => self.set_type(index, env_index + 1, t)
       }
     } else {
       match self.parent {
@@ -50,15 +54,31 @@ impl TypeTab {
 
 
 
-  pub fn get_type(&self, index: usize, env_index: usize) -> Result<Type, ()> {
+  pub fn get_type(&self, index: usize, env_index: usize) -> Result<Type<'t>, ()> {
     if env_index == 0 {
       match self.types.borrow().get(index) {
+        Some(v) => Ok(v.clone()),
+        None    => self.get_type(index, env_index + 1)
+      }
+    } else {
+      match self.parent {
+        Some(ref p) => p.get_type(index, env_index - 1),
+        None        => Err(response!(Wrong("[type table] invalid environment index")))
+      }
+    }
+  }
+
+
+
+  pub fn get_cover(&self, index: String, env_index: usize) -> Result<Type<'t>, ()> {
+    if env_index == 0 {
+      match self.covers.get(&index) {
         Some(v) => Ok(v.clone()),
         None    => Err(response!(Wrong("[type table] invalid type index")))
       }
     } else {
       match self.parent {
-        Some(ref p) => p.get_type(index, env_index - 1),
+        Some(ref p) => p.get_cover(index, env_index - 1),
         None        => Err(response!(Wrong("[type table] invalid environment index")))
       }
     }

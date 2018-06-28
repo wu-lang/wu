@@ -5,14 +5,14 @@ use std::fmt;
 pub enum TokenType {
   Int,
   Float,
-  String,
+  Str,
   Char,
   Bool,
   Identifier,
   Keyword,
   Symbol,
-  Whitespace,
   Operator,
+  Whitespace,
   EOL,
   EOF,
 }
@@ -23,15 +23,15 @@ impl fmt::Display for TokenType {
 
     match *self {
       Int        => write!(f, "Int"),
-      Float      => write!(f, "Float"),
-      String     => write!(f, "String"),
+      Float     => write!(f, "Float"),
+      Str        => write!(f, "Str"),
       Char       => write!(f, "Char"),
       Bool       => write!(f, "Bool"),
       Identifier => write!(f, "Identifier"),
       Symbol     => write!(f, "Symbol"),
-      Keyword    => write!(f, "Symbol"),
-      Whitespace => write!(f, "Whitespace"),
+      Keyword    => write!(f, "Keyword"),
       Operator   => write!(f, "Operator"),
+      Whitespace => write!(f, "Whitespace"),
       EOL        => write!(f, "EOL"),
       EOF        => write!(f, "EOF"),
     }
@@ -47,10 +47,9 @@ pub enum TokenElement<'e> {
   Line((usize, &'e str)),
   Pos((usize, &'e str), (usize, usize)),
   Row(&'e [&'e Token<'e>]),
-  Block(&'e [TokenElement<'e>]),
 }
 
-use self::TokenElement::{ Row, Line, Pair, Type, Pos, Block, Ref, Lexeme, };
+use self::TokenElement::{ Row, Line, Pair, Type, Pos, Ref, Lexeme, };
 
 impl<'t> PartialEq<Token<'t>> for TokenElement<'t> {
   fn eq (&self, rhs: &Token<'t>) -> bool {
@@ -113,44 +112,6 @@ impl<'s> fmt::Display for TokenElement<'s> {
         }
 
         write!(f, "{}{}", Line(row[0].line), mark)
-      },
-
-      Block(block) => {
-        let linepad = format!("{:5} -", " ").blue().bold();
-
-        let mut out = "".to_string();
-
-        for e in block {
-          match *e {
-            Ref(r) => {
-              let lineno = format!("{:5} │ ", r.line.0).blue().bold();
-              let mut mark = r.line.1[r.slice.0..r.slice.1].to_string();
-
-              if mark.split_whitespace().count() == 0 {
-                mark = format!("{:─>count$}", ">".bold().magenta(), count=mark.len());
-              } else {
-                mark = format!("{}", mark.bold().magenta());
-              }
-
-              out = format!("{}\n{}{}{}{}",
-                out,
-                lineno, &r.line.1[..r.slice.0], mark, &r.line.1[r.slice.1..],
-              );
-
-            },
-
-            Line(line) => {
-              let lineno = format!("{:5} │ ", line.0);
-              let srcline = format!("{}{}", lineno.blue().bold(), line.1);
-
-              out = format!("{}\n{}", out, srcline);
-            },
-
-            _ => ()
-          }
-        }
-
-        write!(f, "\n{}{}\n{}", linepad, out, linepad)
       },
 
       _ => write!(f, ""),
