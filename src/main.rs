@@ -55,7 +55,7 @@ fn repl() {
 
           println!();
 
-          run(&program, "<repl>");
+          println!("{}", run(&program, "<repl>").unwrap_or(String::new()));
 
           program.push('\n');
         }
