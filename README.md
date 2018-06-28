@@ -13,47 +13,31 @@ A full walk-through of the language can be found over at the [wu-lang documentat
 
 ### A decent language
 
-Apart from being the best language ever, Wu strives to be a decently efficient, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai language and the sugar of MoonScript and the functional family.
+Apart from being the best language ever, Wu strives to be a decently efficient, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai language and the sugar of MoonScript and the functional language family.
 
 The language is meant and designed to be a solid alternative to MoonScript, and even superior on control and scalability.
 
 ### Taster
 
-```swift
--- making a hundred balls
-
-
--- an anonymous structure
-ball := {
-  x: float = 100
-  y: float = 100
+```
+add: def<T>(a: T, b: T) -> T {
+  a + b
 }
 
--- infinite arrays
-balls: [ball] = []
-
-i := 0
-i = while i < 100 {
-  balls[i] = ball {
-    math random(0, 100)
-    math random(0, 100)
+fib: def(a: int) -> int {
+  if a < 3 {
+    return a
   }
   
-  i + 1
+  add(fib(a - 1), fib(a - 2))
+}
+
+print_fibs: def(..numbers: int) {
+  for i in numbers {
+    prnit(fib(i))
+  }
 }
 ```
-
-## Building
-
-Currently the Wu compiler relies on the Rust's experimental 128 bit integer types and thus a nightly version of the Rust compiler is required to build the project.
-
-Installation of Nightly Rust can be done as shown in the following.
-
-```
-curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly
-```
-
-[Further Nightly information](https://doc.rust-lang.org/1.13.0/book/nightly-rust.html)
 
 ## Disclaimer
 
