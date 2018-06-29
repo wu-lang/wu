@@ -3,3 +3,5 @@ foo: module {
     a * 100
   }
 }
+
+baz: str = foo bar(100)

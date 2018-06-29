@@ -118,18 +118,6 @@ fn compile_path(path: &str) {
         compile_path(&format!("{}", path))
       }
 
-      match split.last() {
-        Some(n) if *n == "wu" => {
-          let path = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
-
-          if Path::new(&path).is_file() {
-            // miss me with that compiling twice shit
-            continue
-          }
-        },
-        _ => continue,
-      }
-
       compile_path(&format!("{}", path))
     }
   }

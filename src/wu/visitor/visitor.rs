@@ -616,36 +616,59 @@ impl<'v> Visitor<'v> {
 
       Index(ref left, ref index) => {
         let left_type = self.type_expression(left)?;
+        
+        match left_type.node {
+         TypeNode::Array(_, ref len) => {
+            let index_type = self.type_expression(index)?;
 
-        if let TypeNode::Array(_, ref len) = left_type.node {
-          let index_type = self.type_expression(index)?;
-
-          match index_type.node {
-            TypeNode::Int => {
-              if let Int(ref a) = Parser::fold_expression(index)?.node {
-                if *a as usize > *len {
-                  return Err(
-                    response!(
-                      Wrong(format!("index out of bounds, len is {} got {}", len, a)),
-                      self.source.file,
-                      left.pos
+            match index_type.node {
+              TypeNode::Int => {
+                if let Int(ref a) = Parser::fold_expression(index)?.node {
+                  if *a as usize > *len {
+                    return Err(
+                      response!(
+                        Wrong(format!("index out of bounds, len is {} got {}", len, a)),
+                        self.source.file,
+                        left.pos
+                      )
                     )
-                  )
+                  }
                 }
-              }
-            },
+              },
 
-            _ => return Err(
-              response!(
-                Wrong(format!("can't index with `{}`, must be positive integer", index_type)),
-                self.source.file,
-                left.pos
+              _ => return Err(
+                response!(
+                  Wrong(format!("can't index with `{}`, must be positive integer", index_type)),
+                  self.source.file,
+                  left.pos
+                )
               )
-            )
-          }
+            }
+          },
 
-        } else {
-          return Err(
+          TypeNode::Module(ref content) => {
+            if let Identifier(ref name) = index.node {
+              if !content.contains_key(name) {
+                return Err(
+                  response!(
+                    Wrong(format!("no such module member `{}`", name)),
+                    self.source.file,
+                    index.pos
+                  )
+                )
+              }
+            } else {
+              return Err(
+                response!(
+                  Wrong(format!("module access must be done with an identifier")),
+                  self.source.file,
+                  index.pos
+                )
+              )
+            }
+          },
+
+          _ => return Err(
             response!(
               Wrong(format!("can't index `{}`", left_type)),
               self.source.file,
@@ -879,10 +902,17 @@ impl<'v> Visitor<'v> {
         }
       },
 
-      Index(ref array, _) => if let TypeNode::Array(ref t, _) = self.type_expression(array)?.node {
-        (**t).clone()
-      } else {
-        unreachable!()
+      Index(ref array, ref index) => match self.type_expression(array)?.node {
+        TypeNode::Array(ref t, _) => (**t).clone(),
+        TypeNode::Module(ref content) => {
+          if let Identifier(ref name) = index.node {
+            content.get(name).unwrap().clone()
+          } else {
+            unreachable!()
+          }
+        },
+
+        _ => unreachable!(),
       },
 
       If(_, ref expression, _) => self.type_expression(expression)?,

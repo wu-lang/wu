@@ -512,6 +512,27 @@ impl<'p> Parser<'p> {
         _ => Ok(expression)
       },
 
+      TokenType::Identifier => {
+        let id = Expression::new(
+          ExpressionNode::Identifier(
+            self.eat()?
+          ),
+          self.current_position()
+        );
+
+        let position = expression.pos.clone();
+
+        let index = Expression::new(
+          ExpressionNode::Index(
+            Rc::new(expression),
+            Rc::new(id)
+          ),
+          self.span_from(position)
+        );
+
+        self.parse_postfix(index)
+      },
+
       _ => Ok(expression)
     }
   }
