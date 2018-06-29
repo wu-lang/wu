@@ -1,0 +1,4 @@
+import functions
+
+functions fib(10)
+functions fac(4)

@@ -33,7 +33,7 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(
       Rc::new(
         KeyMatcher::new(Keyword, &[
-          "def", "->", "as", "if", "elif", "else", "return", "module",
+          "def", "->", "as", "if", "elif", "else", "return", "module", "import",
         ])
       )
     );

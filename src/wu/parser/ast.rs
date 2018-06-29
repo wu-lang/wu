@@ -11,6 +11,7 @@ pub enum StatementNode<'s> {
   Variable(Type<'s>, String, Option<Expression<'s>>),
   Assignment(Expression<'s>, Expression<'s>),
   Return(Option<Rc<Expression<'s>>>),
+  Import(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]

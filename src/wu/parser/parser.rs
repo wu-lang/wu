@@ -41,6 +41,17 @@ impl<'p> Parser<'p> {
 
     let statement = match *self.current_type() {
       Keyword => match self.current_lexeme().as_str() {
+        "import" => {
+          let position = self.current_position();
+
+          self.next()?;
+
+          Statement::new(
+            StatementNode::Import(self.eat_type(&Identifier)?),
+            self.span_from(position)
+          )
+        }
+
         "return" => {
           let position = self.current_position();
 
