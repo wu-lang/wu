@@ -20,6 +20,7 @@ pub enum TypeNode<'t> {
   Id(String),
   Array(Rc<Type<'t>>, usize),
   Func(Vec<Type<'t>>, Rc<Type<'t>>, Vec<String>, Option<&'t ExpressionNode<'t>>),
+  Module(HashMap<String, Type<'t>>),
 }
 
 impl<'t> TypeNode<'t> {
@@ -104,6 +105,7 @@ impl<'t> Display for TypeNode<'t> {
       Nil              => write!(f, "nil"),
       Array(ref n, l)  => write!(f, "[{}; {}]", n, l),
       Id(ref n)        => write!(f, "{}", n),
+      Module(_)        => write!(f, "module"),
 
       Func(ref params, ref return_type, ..) => {
         write!(f, "(");
@@ -328,6 +330,8 @@ impl<'v> Visitor<'v> {
       } else {
         Ok(())
       },
+
+      Module(ref content) => self.visit_expression(content),
 
       Unwrap(ref expression) => {
         self.visit_expression(&**expression)?;
@@ -841,6 +845,22 @@ impl<'v> Visitor<'v> {
         } else {
           unreachable!()
         }
+      },
+
+      Module(ref content) => {
+        self.visit_expression(content)?;
+
+        let mut content_type = HashMap::new();
+        
+        let frame = self.tab_frames.last().unwrap();
+
+        let names = frame.0.names.clone();
+
+        for symbol in names.borrow().iter() {
+          content_type.insert(symbol.0.clone(), frame.1.get_type(*symbol.1, 0)?.clone());
+        }
+
+        Type::from(TypeNode::Module(content_type))
       },
 
       Empty    => Type::from(TypeNode::Nil),

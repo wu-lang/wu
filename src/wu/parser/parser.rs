@@ -229,7 +229,29 @@ impl<'p> Parser<'p> {
             position
           )
         )
-      }
+      },
+
+      "module" => {
+        let mut position = self.current_position();
+        
+        self.next()?;
+        self.next_newline()?;
+
+        self.next_newline()?;
+
+        self.expect_lexeme("{")?;
+
+        Some(
+          Expression::new(
+            ExpressionNode::Module(
+              Rc::new(self.parse_expression()?),
+            ),
+
+            position
+          )
+        )
+      },
+
       _ => None
     };
 

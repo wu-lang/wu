@@ -1,0 +1,5 @@
+foo: module {
+  bar: def(a: int) -> int {
+    a * 100
+  }
+}

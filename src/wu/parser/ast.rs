@@ -1,6 +1,8 @@
 use std::rc::Rc;
 use std::fmt;
 
+use std::collections::HashMap;
+
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,6 +47,7 @@ pub enum ExpressionNode<'e> {
   Function(Vec<(String, Type<'e>)>, Type<'e>, Rc<Expression<'e>>, Option<Vec<String>>),
   Call(Rc<Expression<'e>>, Vec<Expression<'e>>),
   If(Rc<Expression<'e>>, Rc<Expression<'e>>, Option<Vec<(Option<Expression<'e>>, Expression<'e>, TokenElement<'e>)>>),
+  Module(Rc<Expression<'e>>),
   EOF,
   Empty,
 }
