@@ -2,10 +2,11 @@ use super::*;
 
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone, PartialEq)]
 pub enum FlagImplicit {
   Return,
-  Assign(String)
+  Global,
+  Assign(String),
 }
 
 
@@ -97,6 +98,35 @@ impl<'g> Generator {
         result
       },
 
+      Module(ref content) => {
+        if let Block(ref elements) = content.node {
+          let mut result = "(function()\n".to_string();
+          
+          let mut body = "local __module = setmetatable({}, {__index=_ENV})\n".to_string();
+
+          let flag_backup = self.flag.clone();
+
+          self.flag = Some(FlagImplicit::Global);
+
+          for element in elements {
+            body.push_str(&self.generate_statement(&element))
+          }
+
+          self.flag = flag_backup;
+
+          body.push_str("_ENV = getmetatable(__module).__index\n");
+          body.push_str("return __module");
+
+          self.push_line(&mut result, &body);
+
+          result.push_str("end)()");
+
+          result
+        } else {
+          unreachable!()
+        }
+      }
+
       Block(ref content) => {
         let flag_backup = self.flag.clone();
 
@@ -110,7 +140,9 @@ impl<'g> Generator {
               "(function()\n"
             },
 
-            FlagImplicit::Return => ""
+            FlagImplicit::Return => "",
+
+            _ => "do\n",
           }
         } else  {
           "do\n"
@@ -152,7 +184,9 @@ impl<'g> Generator {
               result.push_str("end)()")
             },
 
-            FlagImplicit::Return => ()
+            FlagImplicit::Return => (),
+
+            _ => result.push_str("end\n"),
           }
         } else {
           result.push_str("end\n")
@@ -294,13 +328,14 @@ impl<'g> Generator {
 
 
   fn generate_local<'b>(&mut self, name: &str, right: &'b Option<Expression<'b>>) -> String {
-    use self::ExpressionNode::*;
-    use std::string;
-
     let flag_backup = self.flag.clone();
 
     let mut result = {
-      let output = format!("local {}", name);
+      let output = if self.flag == Some(FlagImplicit::Global) {
+        name.to_owned()
+      } else {
+        format!("local {}", name)
+      };
 
       self.flag = Some(FlagImplicit::Assign(name.to_string()));
 
