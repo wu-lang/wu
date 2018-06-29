@@ -9,7 +9,6 @@ pub enum FlagImplicit {
 }
 
 
-
 pub struct Generator {
   flag: Option<FlagImplicit>
 }
@@ -165,8 +164,16 @@ impl<'g> Generator {
       Function(ref params, _, ref body, _) => {
         let mut result = format!("function(");
 
+        let mut splat = None;
+
         for (i, param) in params.iter().enumerate() {
-          result.push_str(&param.0);
+          if let TypeMode::Splat(_) = param.1.mode {
+            splat = Some(&param.0);
+
+            result.push_str("...")
+          } else {
+            result.push_str(&param.0)
+          }
 
           if i < params.len() - 1 {
             result.push_str(", ")
@@ -174,6 +181,10 @@ impl<'g> Generator {
         }
 
         result.push_str(")\n");
+
+        if let Some(splat) = splat {
+          result.push_str(&format!("  local {} = {{ ... }}\n", splat))
+        }
 
         let flag_backup = self.flag.clone();
 
@@ -185,7 +196,7 @@ impl<'g> Generator {
           format!("return {}", self.generate_expression(body))
         };
 
-        result.push_str(&self.make_line(&line));
+        result.push_str(&&line);
 
         self.flag = flag_backup;
 
@@ -269,6 +280,10 @@ impl<'g> Generator {
       Str(ref n)        => format!("\"{}\"", n),
       Char(ref n)       => format!("\"{}\"", n),
       Identifier(ref n) => format!("{}", n),
+
+      Empty             => String::from("nil"),
+
+      Unwrap(ref expression) => format!("table.unpack({})", self.generate_expression(expression)),
       
       _ => String::new()
     };
