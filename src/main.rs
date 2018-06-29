@@ -27,6 +27,17 @@ use rustyline::error::ReadlineError;
 const PROMPT:        &'static str = ">> ";
 const PROMPT_INDENT: &'static str = " | ";
 
+const HELP: &'static str = "\
+the wu compiler
+
+usage:
+  wu                -- show this message
+  wu repl           -- run the repl
+  wu <file>         -- compile .wu file to corresponding .lua file
+  wu <folder>       -- compile all .wu files in given folder
+  wu clean <folder> -- removes all compiled .lua files in given folder
+";
+
 
 
 fn repl() {
@@ -278,18 +289,23 @@ fn transpile_file(path: &Path) {
   println!("Transpiled \"{}\"", path.to_string_lossy());
 }
 
+
+
 fn main() {
   let args = env::args().collect::<Vec<String>>();
 
   if args.len() > 1 {
-    if args[1] == "clean" {
-      if args.len() > 2 {
-        clean_path(&args[2])
-      }
-    } else {
-      compile_path(&args[1])    
-    }    
+    match args[1].as_str() {
+      "clean" => {
+        if args.len() > 2 {
+          clean_path(&args[2])
+        }
+      },
+
+      "repl" => repl(),
+      file   => compile_path(&file),
+    }
   } else {
-    repl()
+    println!("{}", HELP)
   }
 }
