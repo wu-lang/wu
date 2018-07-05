@@ -168,7 +168,7 @@ fn write(path: &str, data: &str) {
 
 
 
-fn run(content: &str, file: &str) -> Option<String> {
+pub fn run(content: &str, file: &str) -> Option<String> {
   let source = Source::from(file, content.lines().map(|x| x.into()).collect::<Vec<String>>());
   let lexer  = Lexer::default(content.chars().collect(), &source);
 
@@ -182,9 +182,7 @@ fn run(content: &str, file: &str) -> Option<String> {
     }
   }
 
-  let tokens_ref = tokens.iter().map(|x| &*x).collect::<Vec<&Token>>();
-
-  let mut parser  = Parser::new(tokens_ref, &source);
+  let mut parser  = Parser::new(tokens, &source);
 
   match parser.parse() {
     Ok(ast) => {

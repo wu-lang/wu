@@ -90,16 +90,16 @@ impl<'t> Tokenizer<'t> {
     self.peek_snapshot().unwrap_or(&Snapshot::new(0, (0, 0))).pos
   }
 
-  pub fn try_match_token(&mut self, matcher: &Matcher<'t>) -> Result<Option<Token<'t>>, ()> {
+  pub fn try_match_token(&mut self, matcher: &Matcher<'t>) -> Result<Option<Token>, ()> {
     if self.end() {
       return Ok(
         Some(
           Token::new(
             TokenType::EOF,
             (self.pos.0, if self.source.lines.len() > 0 {
-                &self.source.lines.get(self.pos.0).unwrap_or(self.source.lines.first().unwrap())
+                self.source.lines.get(self.pos.0).unwrap_or(self.source.lines.first().unwrap()).to_string()
               } else {
-                ""
+                String::new()
               }
             ),
             (self.pos.1, 0),

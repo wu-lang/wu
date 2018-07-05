@@ -5,12 +5,12 @@ use std::rc::Rc;
 
 pub struct Parser<'p> {
   index:  usize,
-  tokens: Vec<&'p Token<'p>>,
+  tokens: Vec<Token>,
   source: &'p Source,
 }
 
 impl<'p> Parser<'p> {
-  pub fn new(tokens: Vec<&'p Token<'p>>, source: &'p Source) -> Self {
+  pub fn new(tokens: Vec<Token>, source: &'p Source) -> Self {
     Parser {
       tokens,
       source,
@@ -20,7 +20,7 @@ impl<'p> Parser<'p> {
 
 
 
-  pub fn parse(&mut self) -> Result<Vec<Statement<'p>>, ()> {
+  pub fn parse(&mut self) -> Result<Vec<Statement>, ()> {
     let mut ast = Vec::new();
 
     while self.remaining() > 0 {
@@ -32,14 +32,14 @@ impl<'p> Parser<'p> {
 
 
 
-  fn parse_statement(&mut self) -> Result<Statement<'p>, ()> {
+  fn parse_statement(&mut self) -> Result<Statement, ()> {
     use self::TokenType::*;
 
-    while self.current_type() == &EOL && self.remaining() != 0 {
+    while self.current_type() == EOL && self.remaining() != 0 {
       self.next()?
     }
 
-    let statement = match *self.current_type() {
+    let statement = match self.current_type() {
       Keyword => match self.current_lexeme().as_str() {
         "import" => {
           let position = self.current_position();
@@ -192,7 +192,7 @@ impl<'p> Parser<'p> {
     Ok(statement)
   }
 
-  fn parse_right_hand(&mut self) -> Result<Option<Expression<'p>>, ()> {
+  fn parse_right_hand(&mut self) -> Result<Option<Expression>, ()> {
     let declaration = match self.current_lexeme().as_str() {
       "def" => {
         let mut position = self.current_position();
@@ -271,10 +271,10 @@ impl<'p> Parser<'p> {
 
 
 
-  fn parse_expression(&mut self) -> Result<Expression<'p>, ()> {
+  fn parse_expression(&mut self) -> Result<Expression, ()> {
     let atom = self.parse_atom()?;
 
-    if self.current_type() == &TokenType::Operator {
+    if self.current_type() == TokenType::Operator {
       self.parse_binary(atom)
     } else {
       Ok(atom)
@@ -283,7 +283,7 @@ impl<'p> Parser<'p> {
 
 
 
-  fn parse_atom(&mut self) -> Result<Expression<'p>, ()> {
+  fn parse_atom(&mut self) -> Result<Expression, ()> {
     use self::TokenType::*;
 
     if self.remaining() == 0 {
@@ -345,7 +345,7 @@ impl<'p> Parser<'p> {
             response!(
               Wrong(format!("unexpected symbol `{}`", symbol)),
               self.source.file,
-              TokenElement::Ref(self.current())
+              self.current_position()
             )
           )
         },
@@ -385,7 +385,7 @@ impl<'p> Parser<'p> {
             response!(
               Wrong(format!("unexpected symbol `{}`", symbol)),
               self.source.file,
-              TokenElement::Ref(self.current())
+              self.current_position()
             )
           )
         },
@@ -449,7 +449,7 @@ impl<'p> Parser<'p> {
             response!(
               Wrong(format!("unexpected keyword `{}`", symbol)),
               self.source.file,
-              TokenElement::Ref(self.current())
+              self.current_position()
             )
           )
         },
@@ -458,7 +458,7 @@ impl<'p> Parser<'p> {
           response!(
             Wrong(format!("unexpected token `{}`", token_type)),
             self.source.file,
-            TokenElement::Ref(self.current())
+            self.current_position()
           )
         )
       };
@@ -469,8 +469,8 @@ impl<'p> Parser<'p> {
 
 
 
-  fn parse_postfix(&mut self, expression: Expression<'p>) -> Result<Expression<'p>, ()> {
-    match *self.current_type() {
+  fn parse_postfix(&mut self, expression: Expression) -> Result<Expression, ()> {
+    match self.current_type() {
       TokenType::Symbol => match self.current_lexeme().as_str() {
         "(" => {
           let args = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
@@ -552,7 +552,7 @@ impl<'p> Parser<'p> {
 
   // A simple shunting-yard implementation
   // ... naively hoping for unary operations to just play along
-  fn parse_binary(&mut self, left: Expression<'p>) -> Result<Expression<'p>, ()> {
+  fn parse_binary(&mut self, left: Expression) -> Result<Expression, ()> {
     let left_position = left.pos.clone();
 
     let mut expression_stack = vec!(left);
@@ -561,7 +561,7 @@ impl<'p> Parser<'p> {
     expression_stack.push(self.parse_atom()?);
 
     while operator_stack.len() > 0 {
-      while self.current_type() == &TokenType::Operator {
+      while self.current_type() == TokenType::Operator {
         let position               = self.current_position();
         let (operator, precedence) = Operator::from_str(&self.eat()?).unwrap();
 
@@ -617,10 +617,10 @@ impl<'p> Parser<'p> {
 
 
 
-  fn parse_type(&mut self) -> Result<Type<'p>, ()> {
+  fn parse_type(&mut self) -> Result<Type, ()> {
     use self::TokenType::*;
 
-    let t = match *self.current_type() {
+    let t = match self.current_type() {
       Identifier => match self.eat()?.as_str() {
         "str"   => Type::from(TypeNode::Str),
         "char"  => Type::from(TypeNode::Char),
@@ -744,19 +744,19 @@ impl<'p> Parser<'p> {
     self.tokens.len().saturating_sub(self.index)
   }
 
-  fn current_position(&self) -> TokenElement<'p> {
+  fn current_position(&self) -> TokenElement {
     let current = self.current();
 
     TokenElement::Pos(
-      current.line,
+      current.line.clone(),
       current.slice
     )
   }
 
-  fn span_from(&self, left_position: TokenElement<'p>) -> TokenElement<'p> {
+  fn span_from(&self, left_position: TokenElement) -> TokenElement {
     match left_position {
       TokenElement::Pos(ref line, ref slice) => if let TokenElement::Pos(_, ref slice2) = self.current_position() {
-        TokenElement::Pos(*line, (slice.0, if slice2.1 < line.1.len() { slice2.1 } else { line.1.len() } ))
+        TokenElement::Pos(line.clone(), (slice.0, if slice2.1 < line.1.len() { slice2.1 } else { line.1.len() } ))
       } else {
         left_position.clone()
       },
@@ -765,16 +765,16 @@ impl<'p> Parser<'p> {
     }
   }
 
-  fn current(&self) -> &'p Token<'p> {
+  fn current(&self) -> Token {
     if self.index > self.tokens.len() - 1 {
-      &self.tokens[self.tokens.len() - 1]
+      self.tokens[self.tokens.len() - 1].clone()
     } else {
-      &self.tokens[self.index]
+      self.tokens[self.index].clone()
     }
   }
 
   fn eat(&mut self) -> Result<String, ()> {
-    let lexeme = self.current().lexeme.clone();
+    let lexeme = self.current().lexeme;
     self.next()?;
 
     Ok(lexeme)
@@ -782,7 +782,7 @@ impl<'p> Parser<'p> {
 
   fn eat_lexeme(&mut self, lexeme: &str) -> Result<String, ()> {
     if self.current_lexeme() == lexeme {
-      let lexeme = self.current().lexeme.clone();
+      let lexeme = self.current().lexeme;
       self.next()?;
 
       Ok(lexeme)
@@ -798,7 +798,7 @@ impl<'p> Parser<'p> {
   }
 
   fn eat_type(&mut self, token_type: &TokenType) -> Result<String, ()> {
-    if self.current_type() == token_type {
+    if self.current_type() == *token_type {
       let lexeme = self.current().lexeme.clone();
       self.next()?;
 
@@ -818,12 +818,12 @@ impl<'p> Parser<'p> {
     self.current().lexeme.clone()
   }
 
-  fn current_type(&self) -> &TokenType {
-    &self.current().token_type
+  fn current_type(&self) -> TokenType {
+    self.current().token_type
   }
 
   fn expect_type(&self, token_type: TokenType) -> Result<(), ()> {
-    if self.current_type() == &token_type {
+    if self.current_type() == token_type {
       Ok(())
     } else {
       Err(
@@ -892,7 +892,7 @@ impl<'p> Parser<'p> {
 
 
 
-  fn _parse_statement(self: &mut Self) -> Result<Option<Statement<'p>>, ()> {
+  fn _parse_statement(self: &mut Self) -> Result<Option<Statement>, ()> {
     if self.remaining() > 0 {
       Ok(Some(self.parse_statement()?))
     } else {
@@ -902,7 +902,7 @@ impl<'p> Parser<'p> {
 
 
 
-  fn _parse_expression(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
+  fn _parse_expression(self: &mut Self) -> Result<Option<Expression>, ()> {
     let expression = self.parse_expression()?;
 
     match expression.node {
@@ -934,7 +934,7 @@ impl<'p> Parser<'p> {
 
 
   // Static method for parsing sequence `expr* ,* \n*` - for things like [1, 2, 3, 4,]
-  fn _parse_expression_comma(self: &mut Self) -> Result<Option<Expression<'p>>, ()> {
+  fn _parse_expression_comma(self: &mut Self) -> Result<Option<Expression>, ()> {
     if self.remaining() > 0 && self.current_lexeme() == "\n" {
       self.next()?
     }
@@ -958,7 +958,7 @@ impl<'p> Parser<'p> {
 
 
 
-  fn _parse_param_comma(self: &mut Self) -> Result<Option<(String, Type<'p>)>, ()> {
+  fn _parse_param_comma(self: &mut Self) -> Result<Option<(String, Type)>, ()> {
     if self.remaining() > 0 && self.current_lexeme() == "\n" {
       self.next()?
     }
@@ -1005,7 +1005,7 @@ impl<'p> Parser<'p> {
 
 
 
-  fn _parse_type_comma(self: &mut Self) -> Result<Option<Type<'p>>, ()> {
+  fn _parse_type_comma(self: &mut Self) -> Result<Option<Type>, ()> {
     if self.remaining() == 0 {
       Ok(None)
     } else {
@@ -1025,7 +1025,7 @@ impl<'p> Parser<'p> {
 
 
 
-  pub fn fold_expression<'v>(expression: &Expression<'v>) -> Result<Expression<'v>, ()> {
+  pub fn fold_expression(expression: &Expression) -> Result<Expression, ()> {
     use self::ExpressionNode::*;
     use self::Operator::*;
 

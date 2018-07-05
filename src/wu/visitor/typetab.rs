@@ -8,14 +8,14 @@ use std::collections::HashMap;
 
 
 #[derive(Clone, Debug)]
-pub struct TypeTab<'t> {
-  pub parent: Option<Rc<TypeTab<'t>>>,
-  pub types:  RefCell<Vec<Type<'t>>>, // type and offset
-  pub covers: HashMap<String, Type<'t>>,  
+pub struct TypeTab {
+  pub parent: Option<Rc<TypeTab>>,
+  pub types:  RefCell<Vec<Type>>, // type and offset
+  pub covers: HashMap<String, Type>,  
 }
 
-impl<'t> TypeTab<'t> {
-  pub fn new(parent: Rc<Self>, types: &[Type<'t>], covers: HashMap<String, Type<'t>>) -> Self {
+impl TypeTab {
+  pub fn new(parent: Rc<Self>, types: &[Type], covers: HashMap<String, Type>) -> Self {
     TypeTab {
       parent: Some(parent),
       types:  RefCell::new(types.to_owned()),
@@ -35,7 +35,7 @@ impl<'t> TypeTab<'t> {
 
 
 
-  pub fn set_type(&self, index: usize, env_index: usize, t: Type<'t>) -> Result<(), ()> {
+  pub fn set_type(&self, index: usize, env_index: usize, t: Type) -> Result<(), ()> {
     if env_index == 0 {
       match self.types.borrow_mut().get_mut(index) {
         Some(v) => {
@@ -54,7 +54,7 @@ impl<'t> TypeTab<'t> {
 
 
 
-  pub fn get_type(&self, index: usize, env_index: usize) -> Result<Type<'t>, ()> {
+  pub fn get_type(&self, index: usize, env_index: usize) -> Result<Type, ()> {
     if env_index == 0 {
       match self.types.borrow().get(index) {
         Some(v) => Ok(v.clone()),
@@ -70,7 +70,7 @@ impl<'t> TypeTab<'t> {
 
 
 
-  pub fn get_cover(&self, index: String, env_index: usize) -> Result<Type<'t>, ()> {
+  pub fn get_cover(&self, index: String, env_index: usize) -> Result<Type, ()> {
     if env_index == 0 {
       match self.covers.get(&index) {
         Some(v) => Ok(v.clone()),

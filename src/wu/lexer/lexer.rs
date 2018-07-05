@@ -69,7 +69,7 @@ impl<'l> Lexer<'l> {
     lexer
   }
 
-  pub fn match_token(&mut self) -> Result<Option<Token<'l>>, ()> {
+  pub fn match_token(&mut self) -> Result<Option<Token>, ()> {
     for matcher in &mut self.matchers {
       match self.tokenizer.try_match_token(matcher.as_ref())? {
         Some(t) => return Ok(Some(t)),
@@ -82,9 +82,9 @@ impl<'l> Lexer<'l> {
 }
 
 impl<'l> Iterator for Lexer<'l> {
-  type Item = Result<Token<'l>, ()>;
+  type Item = Result<Token, ()>;
 
-  fn next(&mut self) -> Option<Result<Token<'l>, ()>> {
+  fn next(&mut self) -> Option<Result<Token, ()>> {
     let token = match self.match_token() {
       Ok(hmm) => match hmm {
         Some(n) => n,
@@ -97,7 +97,7 @@ impl<'l> Iterator for Lexer<'l> {
                 Wrong("bumped into weird character"),
                 self.source.file,
                 TokenElement::Pos(
-                  (pos.0, &self.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(self.source.lines.last().unwrap_or(&String::new()))),
+                  (pos.0, self.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(self.source.lines.last().unwrap_or(&String::new())).to_string()),
                   (pos.1 + 1, pos.1 + 1),
                 )
               )

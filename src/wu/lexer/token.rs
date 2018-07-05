@@ -39,36 +39,24 @@ impl fmt::Display for TokenType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TokenElement<'e> {
+pub enum TokenElement {
   Type(TokenType),
-  Lexeme(&'e str),
-  Pair(TokenType, &'e str),
-  Ref(&'e Token<'e>),
-  Line((usize, &'e str)),
-  Pos((usize, &'e str), (usize, usize)),
-  Row(&'e [&'e Token<'e>]),
+  Line((usize, String)),
+  Pos((usize, String), (usize, usize)),
 }
 
-use self::TokenElement::{ Row, Line, Pair, Type, Pos, Ref, Lexeme, };
+use self::TokenElement::*;
 
-impl<'t> PartialEq<Token<'t>> for TokenElement<'t> {
-  fn eq (&self, rhs: &Token<'t>) -> bool {
+impl<'t> PartialEq<Token> for TokenElement {
+  fn eq (&self, rhs: &Token) -> bool {
     rhs == self
   }
 }
 
-impl<'s> fmt::Display for TokenElement<'s> {
+impl fmt::Display for TokenElement {
   fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
     match *self {
-      Ref (r) => {
-        if r.slice.1 > r.line.1.len() {
-          write!(f, "{}", Pos(r.line, (r.slice.0, r.line.1.len())))
-        } else {
-          write!(f, "{}", Pos(r.line, r.slice))
-        }
-      }
-
-      Line(line) => {
+      Line(ref line) => {
         let linepad = format!("{:5} │", " ").blue().bold();
         let lineno = format!("{:5} │ ", line.0);
         let srcline = format!("{}{}", lineno.blue().bold(), line.1);
@@ -80,7 +68,7 @@ impl<'s> fmt::Display for TokenElement<'s> {
         )
       },
 
-      Pos(line, slice) => {
+      Pos(ref line, ref slice) => {
         let linepad = format!("{:5} │", " ").blue().bold();
         let lineno = format!("{:5} │ ", line.0).blue().bold();
         let mut mark = line.1[slice.0.saturating_sub(1) .. slice.1].to_string();
@@ -98,22 +86,6 @@ impl<'s> fmt::Display for TokenElement<'s> {
         )
       },
 
-      Row(row) => {
-        let mut mark = format!("{:offset$}", "", offset = row[0].slice.0);
-        let mut len = row[0].slice.0;
-
-        for token in row {
-          mark = format!(
-            "{}{:offset$}{:▔<count$}", mark, "", "".magenta().bold(),
-            offset = token.slice.0 - len,
-            count = token.slice.1 - token.slice.0 + 1
-          );
-          len = token.slice.1 + 1;
-        }
-
-        write!(f, "{}{}", Line(row[0].line), mark)
-      },
-
       _ => write!(f, ""),
     }
   }
@@ -122,15 +94,15 @@ impl<'s> fmt::Display for TokenElement<'s> {
 
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Token<'t> {
+pub struct Token {
   pub token_type: TokenType,
-  pub line:       (usize, &'t str),
+  pub line:       (usize, String),
   pub slice:      (usize, usize),
   pub lexeme:     String,
 }
 
-impl<'t> Token<'t> {
-  pub fn new(token_type: TokenType, line: (usize, &'t str), slice: (usize, usize), lexeme: &str) -> Self {
+impl Token {
+  pub fn new(token_type: TokenType, line: (usize, String), slice: (usize, usize), lexeme: &str) -> Self {
     Token {
       token_type,
       line,
@@ -140,14 +112,11 @@ impl<'t> Token<'t> {
   }
 }
 
-impl<'t> PartialEq<TokenElement<'t>> for Token<'t> {
-  fn eq (&self, rhs: &TokenElement<'t>) -> bool {
+impl PartialEq<TokenElement> for Token {
+  fn eq (&self, rhs: &TokenElement) -> bool {
     match *rhs {
-      Type (ref t)        => self.token_type == *t,
-      Lexeme (ref l)      => self.lexeme     == *l,
-      Pair (ref t, ref l) => self.lexeme     == *l && self.token_type == *t,
-      Ref (ref t)         => self            == *t,
-      _                   => false
+      Type(ref t)        => self.token_type == *t,
+      _                  => false
     }
   }
 }

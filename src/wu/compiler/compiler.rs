@@ -36,7 +36,7 @@ impl<'g> Generator {
 
 
 
-  fn generate_statement<'b>(&mut self, statement: &'b Statement<'b>) -> String {
+  fn generate_statement(&mut self, statement: &Statement) -> String {
     use self::StatementNode::*;
 
     let result = match statement.node {
@@ -48,7 +48,9 @@ impl<'g> Generator {
         format!("return {}\n", self.generate_expression(expr))
       } else {
         "return\n".to_string()
-      }, 
+      },
+
+      Import(ref name) => format!("local {0} = require('{0}')", name)
     };
 
     result
@@ -56,7 +58,7 @@ impl<'g> Generator {
 
 
 
-  fn generate_expression<'b>(&mut self, expression: &'b Expression<'b>) -> String {
+  fn generate_expression(&mut self, expression: &Expression) -> String {
     use self::ExpressionNode::*;
     use std::string;
 
@@ -327,7 +329,7 @@ impl<'g> Generator {
 
 
 
-  fn generate_local<'b>(&mut self, name: &str, right: &'b Option<Expression<'b>>) -> String {
+  fn generate_local(&mut self, name: &str, right: &Option<Expression>) -> String {
     let flag_backup = self.flag.clone();
 
     let mut result = {

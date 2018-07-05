@@ -13,13 +13,12 @@ macro_rules! token {
     let accum: String = $accum;
     let pos           = tokenizer.last_position();
 
-
-    let line = tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap());
+    let line = tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string();
 
     if TokenType::Str == token_type || TokenType::Char == token_type {
-      Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len() + 2), &accum) // delimeters
+      Token::new(token_type, (pos.0, line), (pos.1 + 1, pos.1 + accum.len() + 2), &accum) // delimeters
     } else {
-      Token::new(token_type, (pos.0, &line), (pos.1 + 1, pos.1 + accum.len()), &accum)
+      Token::new(token_type, (pos.0, line), (pos.1 + 1, pos.1 + accum.len()), &accum)
     }
   }};
 }
@@ -27,7 +26,7 @@ macro_rules! token {
 
 
 pub trait Matcher<'t> {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()>;
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()>;
 }
 
 
@@ -35,7 +34,7 @@ pub trait Matcher<'t> {
 pub struct CommentMatcher;
 
 impl<'t> Matcher<'t> for CommentMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
     if tokenizer.peek_range(3).unwrap_or_else(String::new) == "---" {
       tokenizer.advance_n(3);
 
@@ -79,7 +78,7 @@ impl ConstantStringMatcher {
 }
 
 impl<'t> Matcher<'t> for ConstantStringMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
     for constant in self.constants {
       let len = constant.len();
       let c   = match tokenizer.peek_range(len) {
@@ -121,7 +120,7 @@ impl ConstantCharMatcher {
 }
 
 impl<'t> Matcher<'t> for ConstantCharMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
     let c = tokenizer.peek().unwrap();
     
     for constant in self.constants {
@@ -147,7 +146,7 @@ impl<'t> Matcher<'t> for ConstantCharMatcher {
 pub struct StringLiteralMatcher;
 
 impl<'t> Matcher<'t> for StringLiteralMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
     let mut raw_marker = false;
 
     let mut pos = tokenizer.pos;
@@ -169,7 +168,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
               Wrong("no such thing as a raw character literal"),
               tokenizer.source.file,
               TokenElement::Pos(
-                (pos.0, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
+                (pos.0, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
                 (pos.1 - 1, pos.1),
               )
             )
@@ -193,7 +192,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
             Wrong(format!("unterminated delimeter `{}`", delimeter)),
             tokenizer.source.file,
             TokenElement::Pos(
-              (pos.0 + 1, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
+              (pos.0 + 1, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
               (pos.1.saturating_sub(1), pos.1 + 1),
             )
           )
@@ -218,7 +217,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
                 Wrong(format!("unexpected escape character: {}", escaped)),
                 tokenizer.source.file,
                 TokenElement::Pos(
-                  (tokenizer.pos.0, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
+                  (tokenizer.pos.0, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
                   (tokenizer.pos.1 - 1, tokenizer.pos.1),
                 )
               )
@@ -261,7 +260,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
             Wrong("character literal may not contain more than one codepoint"),
             tokenizer.source.file,
             TokenElement::Pos(
-              (pos.0, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
+              (pos.0, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
               (pos.1 + 2, pos.1 + string.len() + 1),
             )
           )
@@ -278,7 +277,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
 pub struct IdentifierMatcher;
 
 impl<'t> Matcher<'t> for IdentifierMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
     if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == '_') {
       return Ok(None)
     }
@@ -297,7 +296,7 @@ impl<'t> Matcher<'t> for IdentifierMatcher {
 pub struct NumberLiteralMatcher;
 
 impl<'t> Matcher<'t> for NumberLiteralMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
     let mut accum = String::new();
 
     let curr = tokenizer.next().unwrap();
@@ -320,7 +319,7 @@ impl<'t> Matcher<'t> for NumberLiteralMatcher {
               Wrong("unexpected extra decimal point"),
               tokenizer.source.file,
               TokenElement::Pos(
-                (pos.0, &tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap())),
+                (pos.0, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
                 (pos.1 + 1, pos.1 + 1),
               )
             )
@@ -369,7 +368,7 @@ impl KeyMatcher {
 }
 
 impl<'t> Matcher<'t> for KeyMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
     for constant in self.constants {
       if let Some(s) = tokenizer.peek_range(constant.len()) {
         if s == *constant {
@@ -394,7 +393,7 @@ impl<'t> Matcher<'t> for KeyMatcher {
 pub struct EOLMatcher;
 
 impl<'t> Matcher<'t> for EOLMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
     if tokenizer.peek() == Some('\n') {
       tokenizer.pos.0 += 1;
       tokenizer.pos.1 = 0;
@@ -412,7 +411,7 @@ impl<'t> Matcher<'t> for EOLMatcher {
 pub struct WhitespaceMatcher;
 
 impl<'t> Matcher<'t> for WhitespaceMatcher {
-  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token<'t>>, ()> {
+  fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
     let string = tokenizer.collect_while(|c| c.is_whitespace() && c != '\n');
 
     if !string.is_empty() {

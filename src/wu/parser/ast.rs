@@ -6,22 +6,22 @@ use std::collections::HashMap;
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum StatementNode<'s> {
-  Expression(Expression<'s>),
-  Variable(Type<'s>, String, Option<Expression<'s>>),
-  Assignment(Expression<'s>, Expression<'s>),
-  Return(Option<Rc<Expression<'s>>>),
+pub enum StatementNode {
+  Expression(Expression),
+  Variable(Type, String, Option<Expression>),
+  Assignment(Expression, Expression),
+  Return(Option<Rc<Expression>>),
   Import(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Statement<'s> {
-  pub node: StatementNode<'s>,
-  pub pos:  TokenElement<'s>,
+pub struct Statement {
+  pub node: StatementNode,
+  pub pos:  TokenElement,
 }
 
-impl<'s> Statement<'s> {
-  pub fn new(node: StatementNode<'s>, pos: TokenElement<'s>) -> Self {
+impl Statement {
+  pub fn new(node: StatementNode, pos: TokenElement) -> Self {
     Statement {
       node,
       pos,
@@ -32,35 +32,35 @@ impl<'s> Statement<'s> {
 
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExpressionNode<'e> {
+pub enum ExpressionNode {
   Int(u64),
   Float(f64),
   Str(String),
   Char(char),
   Bool(bool),
-  Unwrap(Rc<Expression<'e>>),
+  Unwrap(Rc<Expression>),
   Identifier(String),
-  Binary(Rc<Expression<'e>>, Operator, Rc<Expression<'e>>),
-  Block(Vec<Statement<'e>>),
-  Cast(Rc<Expression<'e>>, Type<'e>),
-  Array(Vec<Expression<'e>>),
-  Index(Rc<Expression<'e>>, Rc<Expression<'e>>),
-  Function(Vec<(String, Type<'e>)>, Type<'e>, Rc<Expression<'e>>, Option<Vec<String>>),
-  Call(Rc<Expression<'e>>, Vec<Expression<'e>>),
-  If(Rc<Expression<'e>>, Rc<Expression<'e>>, Option<Vec<(Option<Expression<'e>>, Expression<'e>, TokenElement<'e>)>>),
-  Module(Rc<Expression<'e>>),
+  Binary(Rc<Expression>, Operator, Rc<Expression>),
+  Block(Vec<Statement>),
+  Cast(Rc<Expression>, Type),
+  Array(Vec<Expression>),
+  Index(Rc<Expression>, Rc<Expression>),
+  Function(Vec<(String, Type)>, Type, Rc<Expression>, Option<Vec<String>>),
+  Call(Rc<Expression>, Vec<Expression>),
+  If(Rc<Expression>, Rc<Expression>, Option<Vec<(Option<Expression>, Expression, TokenElement)>>),
+  Module(Rc<Expression>),
   EOF,
   Empty,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Expression<'e> {
-  pub node: ExpressionNode<'e>,
-  pub pos:  TokenElement<'e>,
+pub struct Expression {
+  pub node: ExpressionNode,
+  pub pos:  TokenElement
 }
 
-impl<'e> Expression<'e> {
-  pub fn new(node: ExpressionNode<'e>, pos: TokenElement<'e>) -> Self {
+impl Expression {
+  pub fn new(node: ExpressionNode, pos: TokenElement) -> Self {
     Expression {
       node,
       pos,

@@ -7,10 +7,18 @@ use super::super::error::Response::Wrong;
 use super::*;
 use super::TokenElement;
 
+use std::fs;
+use std::fs::File;
+
+use std::io::prelude::*;
+use std::path::Path;
+
+use std::env;
+
 
 
 #[derive(Debug, Clone)]
-pub enum TypeNode<'t> {
+pub enum TypeNode {
   Int,
   Float,
   Bool,
@@ -18,13 +26,13 @@ pub enum TypeNode<'t> {
   Char,
   Nil,
   Id(String),
-  Array(Rc<Type<'t>>, usize),
-  Func(Vec<Type<'t>>, Rc<Type<'t>>, Vec<String>, Option<&'t ExpressionNode<'t>>),
-  Module(HashMap<String, Type<'t>>),
+  Array(Rc<Type>, usize),
+  Func(Vec<Type>, Rc<Type>, Vec<String>, Option<Rc<ExpressionNode>>),
+  Module(HashMap<String, Type>),
 }
 
-impl<'t> TypeNode<'t> {
-  pub fn check_expression(&self, other: &'t ExpressionNode<'t>) -> bool {
+impl TypeNode {
+  pub fn check_expression(&self, other: &ExpressionNode) -> bool {
     use self::TypeNode::*;
 
     match *other {
@@ -60,7 +68,7 @@ impl<'t> TypeNode<'t> {
 
 
 
-impl<'t> PartialEq for TypeNode<'t> {
+impl PartialEq for TypeNode {
   fn eq(&self, other: &Self) -> bool {
     use self::TypeNode::*;
 
@@ -92,7 +100,7 @@ pub enum TypeMode {
   Unwrap(usize),
 }
 
-impl<'t> Display for TypeNode<'t> {
+impl Display for TypeNode {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     use self::TypeNode::*;
 
@@ -165,13 +173,13 @@ impl Display for TypeMode {
 
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Type<'t> {
-  pub node: TypeNode<'t>,
+pub struct Type {
+  pub node: TypeNode,
   pub mode: TypeMode,
 }
 
-impl<'t> Type<'t> {
-  pub fn new(node: TypeNode<'t>, mode: TypeMode) -> Self {
+impl Type {
+  pub fn new(node: TypeNode, mode: TypeMode) -> Self {
     Self {
       node, mode,
     }
@@ -181,20 +189,20 @@ impl<'t> Type<'t> {
     Type::new(TypeNode::Id(id.to_owned()), TypeMode::Regular)
   }
 
-  pub fn from(node: TypeNode<'t>) -> Type<'t> {
+  pub fn from(node: TypeNode) -> Type {
     Type::new(node, TypeMode::Regular)
   }
 
-  pub fn array(t: Type<'t>, len: usize) -> Type<'t> {
+  pub fn array(t: Type, len: usize) -> Type {
     Type::new(TypeNode::Array(Rc::new(t), len), TypeMode::Regular)
   }
 
-  pub fn function(params: Vec<Type<'t>>, return_type: Type<'t>) -> Self {
+  pub fn function(params: Vec<Type>, return_type: Type) -> Self {
     Type::new(TypeNode::Func(params, Rc::new(return_type), Vec::new(), None), TypeMode::Regular)
   }
 }
 
-impl<'t> Display for Type<'t> {
+impl Display for Type {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     write!(f, "{}{}", self.mode, self.node)
   }
@@ -203,25 +211,25 @@ impl<'t> Display for Type<'t> {
 
 
 #[derive(Debug, Clone)]
-pub enum FlagContext<'f> {
-  Block(Option<Type<'f>>),
+pub enum FlagContext {
+  Block(Option<Type>),
   Nothing,
 }
 
 
 
 pub struct Visitor<'v> {
-  pub tabs:       Vec<(SymTab, TypeTab<'v>)>,
-  pub tab_frames: Vec<(SymTab, TypeTab<'v>)>,
+  pub tabs:       Vec<(SymTab, TypeTab)>,
+  pub tab_frames: Vec<(SymTab, TypeTab)>,
 
   pub source:  &'v Source,
-  pub ast:     &'v Vec<Statement<'v>>,
+  pub ast:     &'v Vec<Statement>,
 
-  pub flag: Option<FlagContext<'v>>,
+  pub flag: Option<FlagContext>,
 }
 
 impl<'v> Visitor<'v> {
-  pub fn new(source: &'v Source, ast: &'v Vec<Statement<'v>>) -> Self {
+  pub fn new(source: &'v Source, ast: &'v Vec<Statement>) -> Self {
     Visitor {
       tabs:       vec!((SymTab::global(), TypeTab::global())),
       tab_frames: Vec::new(), // very intelligent hack
@@ -243,7 +251,7 @@ impl<'v> Visitor<'v> {
     Ok(())
   }
 
-  pub fn visit_statement(&mut self, statement: &'v Statement<'v>) -> Result<(), ()> {
+  pub fn visit_statement(&mut self, statement: &Statement) -> Result<(), ()> {
     use self::StatementNode::*;
 
     match statement.node {
@@ -267,11 +275,99 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
-      _ => Ok(())
+      Return(ref value) => if let Some(ref expression) = *value {
+        self.visit_expression(expression)
+      } else {
+        Ok(())
+      },
+
+      Import(ref path) => {
+        let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
+        let file_path  = format!("{}/{}.wu", my_folder.to_str().unwrap(), path);
+
+        let mut module = Path::new(&file_path);
+
+        let init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
+
+        let module = if !module.exists() {
+          let module = Path::new(&init_path);
+
+          if !module.exists() {
+            return Err(
+              response!(
+                Wrong(format!("no such module `{0}`, need `{0}.wu` or `{0}/init.wu`", path)),
+                self.source.file,
+                statement.pos
+              )
+            )
+          }
+
+          module
+        } else {
+          module
+        };
+
+
+        let display = module.display();
+
+        let mut file = match File::open(&module) {
+          Err(why) => panic!("failed to open {}: {}", display, why),
+          Ok(file) => file,
+        };
+
+        let mut content = String::new();
+
+        match file.read_to_string(&mut content) {
+          Err(why) => panic!("failed to read {}: {}", display, why),
+          Ok(_)    => {
+            let source = Source::new(module.to_str().unwrap().to_string());
+            let lexer = Lexer::default(content.chars().collect(), &source);
+
+            let mut tokens = Vec::new();
+
+            for token_result in lexer {
+              if let Ok(token) = token_result {
+                tokens.push(token)
+              } else {
+                panic!()
+              }
+            }
+
+            let parsed = Parser::new(tokens, self.source).parse()?;
+
+            let mut visitor = Visitor::new(self.source, &parsed);
+
+            visitor.visit()?;
+
+            let mut content_type = HashMap::new();
+
+            let frame = visitor.tab_frames.last().unwrap();
+
+            let names = frame.0.names.clone();
+
+            for symbol in names.borrow().iter() {
+              content_type.insert(symbol.0.clone(), frame.1.get_type(*symbol.1, 0)?.clone());
+            }
+
+            let module_type = Type::from(TypeNode::Module(content_type));
+
+            let index = if let Some((index, _)) = self.current_tab().0.get_name(path) {
+              index
+            } else {
+              self.current_tab().1.grow();
+              self.current_tab().0.add_name(path)
+            };
+
+            self.current_tab().1.set_type(index, 0, module_type)?;
+          }
+        }
+
+        Ok(())
+      },
     }
   }
 
-  fn ensure_no_implicit(&self, expression: &'v Expression<'v>) -> Result<(), ()> {
+  fn ensure_no_implicit(&self, expression: &Expression) -> Result<(), ()> {
     use self::ExpressionNode::*;
 
     match expression.node {
@@ -315,7 +411,7 @@ impl<'v> Visitor<'v> {
     Ok(())
   }
 
-  fn visit_expression(&mut self, expression: &'v Expression<'v>) -> Result<(), ()> {
+  fn visit_expression(&mut self, expression: &Expression) -> Result<(), ()> {
     use self::ExpressionNode::*;
 
     match expression.node {
@@ -441,7 +537,7 @@ impl<'v> Visitor<'v> {
         if let TypeNode::Func(ref params, _, ref generics, ref func) = expression_type {
           let mut actual_arg_len = args.len();
 
-          let mut type_buffer: Option<Type<'v>> = None; // for unwraps
+          let mut type_buffer: Option<Type> = None; // for unwraps
 
 
           let mut has_unwrap = false;
@@ -556,8 +652,7 @@ impl<'v> Visitor<'v> {
 
 
           if covers.len() > 0 || actual_arg_len > params.len() {
-            if let Function(ref params, ref return_type, ref body, ref generics) = *func.unwrap() {
-
+            if let Function(ref params, ref return_type, ref body, ref generics) = *func.clone().unwrap() {
               let mut real_params = Vec::new();
 
               for (i, param) in params.iter().enumerate() {
@@ -688,9 +783,9 @@ impl<'v> Visitor<'v> {
 
   fn visit_function(
       &mut self,
-      pos: TokenElement<'v>,
-      params: &Vec<(String, Type<'v>)>, return_type: &'v Type<'v>,
-      body: &'v Rc<Expression<'v>>, generics: &Option<Vec<String>>, generic_covers: Option<HashMap<String, Type<'v>>>,
+      pos: TokenElement,
+      params: &Vec<(String, Type)>, return_type: &Type,
+      body: &Rc<Expression>, generics: &Option<Vec<String>>, generic_covers: Option<HashMap<String, Type>>,
       splat_len: usize
   ) -> Result<(), ()> {
     let mut param_names = Vec::new();
@@ -772,12 +867,11 @@ impl<'v> Visitor<'v> {
 
 
 
-  fn visit_variable(&mut self, variable: &'v StatementNode) -> Result<(), ()> {
+  fn visit_variable(&mut self, variable: &StatementNode) -> Result<(), ()> {
     use self::ExpressionNode::*;
 
     if let &StatementNode::Variable(ref variable_type, ref name, ref right) = variable {
       let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
-        
         index
       } else {
         self.current_tab().1.grow();
@@ -826,7 +920,7 @@ impl<'v> Visitor<'v> {
 
 
 
-  pub fn type_statement(&mut self, statement: &'v Statement<'v>) -> Result<Type<'v>, ()> {
+  pub fn type_statement(&mut self, statement: &Statement) -> Result<Type, ()> {
     use self::StatementNode::*;
 
     let t = match statement.node {
@@ -844,7 +938,7 @@ impl<'v> Visitor<'v> {
 
 
 
-  pub fn type_expression(&mut self, expression: &'v Expression<'v>) -> Result<Type<'v>, ()> {
+  pub fn type_expression(&mut self, expression: &Expression) -> Result<Type, ()> {
     use self::ExpressionNode::*;
 
     let t = match expression.node {
@@ -990,7 +1084,7 @@ impl<'v> Visitor<'v> {
           param_types.push(param.1.clone())
         }
 
-        Type::from(TypeNode::Func(param_types, Rc::new(return_type.clone()), generics.clone().unwrap_or(Vec::new()), Some(&expression.node)))
+        Type::from(TypeNode::Func(param_types, Rc::new(return_type.clone()), generics.clone().unwrap_or(Vec::new()), Some(Rc::new(expression.node.clone()))))
       },
 
       Block(ref statements) => {
@@ -1089,7 +1183,7 @@ impl<'v> Visitor<'v> {
 
 
 
-  pub fn current_tab(&mut self) -> &mut (SymTab, TypeTab<'v>) {
+  pub fn current_tab(&mut self) -> &mut (SymTab, TypeTab) {
     let len = self.tabs.len() - 1;
 
     &mut self.tabs[len]
