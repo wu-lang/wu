@@ -46,8 +46,16 @@ impl<'p> Parser<'p> {
 
           self.next()?;
 
+          let path = self.eat_type(&Identifier)?;
+
+          let specifics = if self.current_lexeme() == "(" {
+            self.parse_block_of(("(", ")"), &Self::_parse_name_comma)?
+          } else {
+            Vec::new()
+          };
+
           Statement::new(
-            StatementNode::Import(self.eat_type(&Identifier)?),
+            StatementNode::Import(path, specifics),
             self.span_from(position)
           )
         }
@@ -201,7 +209,7 @@ impl<'p> Parser<'p> {
         self.next_newline()?;
 
         let generics = if self.current_lexeme() == "<" {
-          self.parse_block_of(("<", ">"), &Self::_parse_name)?
+          self.parse_block_of(("<", ">"), &Self::_parse_name_comma)?
         } else {
           Vec::new()
         };
@@ -463,7 +471,11 @@ impl<'p> Parser<'p> {
         )
       };
 
-      self.parse_postfix(expression)
+      if self.remaining() > 0 {
+        self.parse_postfix(expression)
+      } else {
+        Ok(expression)
+      }
     }
   }
 
@@ -731,10 +743,12 @@ impl<'p> Parser<'p> {
       self.index += 1;
       Ok(())
     } else {
+      panic!();
       Err(
         response!(
           Wrong("moving outside token stack"),
-          self.source.file
+          self.source.file,
+          self.current_position()
         )
       )
     }
@@ -913,7 +927,7 @@ impl<'p> Parser<'p> {
 
 
 
-  fn _parse_name(self: &mut Self) -> Result<Option<String>, ()> {
+  fn _parse_name_comma(self: &mut Self) -> Result<Option<String>, ()> {
     if self.remaining() == 0 {
       Ok(None)
     } else {
@@ -942,8 +956,8 @@ impl<'p> Parser<'p> {
     let expression = Self::_parse_expression(self);
 
     if self.remaining() > 0 && self.current_lexeme() == "\n" {
-        self.next()?
-      }
+      self.next()?
+    }
 
     if self.remaining() > 0 {
       self.eat_lexeme(",")?;

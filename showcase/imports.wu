@@ -1,3 +1,4 @@
-import functions
+import functions (fib, fac)
+import folder    (add)
 
-functions fib(10)
+a: int = fib(10) + fac(1)

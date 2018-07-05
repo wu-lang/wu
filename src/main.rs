@@ -100,9 +100,8 @@ fn compile_path(path: &str) {
 
   if meta.is_file() {
     let split: Vec<&str> = path.split('.').collect();
-    let path_lua = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
 
-    if !Path::new(&path_lua).is_file() {
+    if *split.last().unwrap() == "wu" {      
       if let Some(n) = file_content(path) {
         write(path, &n);
       }
@@ -110,15 +109,13 @@ fn compile_path(path: &str) {
   } else {
     let paths = fs::read_dir(path).unwrap();
 
-    for path in paths {
-      let path = format!("{}", path.unwrap().path().display());
-      let split: Vec<&str> = path.split('.').collect();
+    for folder_path in paths {
+      let folder_path = format!("{}", folder_path.unwrap().path().display());
+      let split: Vec<&str> = folder_path.split('.').collect();
 
-      if Path::new(&path).is_dir() {
-        compile_path(&format!("{}", path))
+      if Path::new(&folder_path).is_dir() || *split.last().unwrap() == "wu" {
+        compile_path(&folder_path)
       }
-
-      compile_path(&format!("{}", path))
     }
   }
 }
@@ -190,7 +187,7 @@ pub fn run(content: &str, file: &str) -> Option<String> {
 
       match visitor.visit() {
         Ok(_) => {
-          let mut generator = Generator::new();
+          let mut generator = Generator::new(&source);
 
           Some(generator.generate(&ast))
         },
@@ -250,29 +247,6 @@ fn clean_path(path: &str) {
       }
     }
   }
-}
-
-
-
-fn transpile_file(path: &Path) {
-  let mut content = String::new();
-  File::open(path).expect("File not found")
-                  .read_to_string(&mut content)
-                  .expect("Couldn't read the file");
-
-  if let Some(code) = run(&content, path.to_str().unwrap()) {
-    let lua_path = path.with_file_name({
-      let mut name = path.file_stem()
-                         .unwrap_or_else(|| path.file_name().unwrap())
-                         .to_os_string();
-      name.push(".lua");
-      name
-    });
-
-    let mut lua_file = File::create(lua_path).expect("Can't create file");
-    lua_file.write_all(code.as_bytes()).expect("Can't write to file")
-  }
-  println!("Transpiled \"{}\"", path.to_string_lossy());
 }
 
 

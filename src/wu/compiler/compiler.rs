@@ -1,5 +1,7 @@
 use super::*;
 
+use std::path::Path;
+
 
 
 #[derive(Clone, PartialEq)]
@@ -10,13 +12,15 @@ pub enum FlagImplicit {
 }
 
 
-pub struct Generator {
+pub struct Generator<'g> {
+  source: &'g Source,
   flag: Option<FlagImplicit>
 }
 
-impl<'g> Generator {
-  pub fn new() -> Self {
+impl<'g> Generator<'g> {
+  pub fn new(source: &'g Source) -> Self {
     Generator {
+      source,
       flag: None,
     }
   }
@@ -24,14 +28,31 @@ impl<'g> Generator {
 
 
   pub fn generate(&mut self, ast: &'g Vec<Statement>) -> String {
+    let mut result = "return (\nfunction()\n".to_string();
+
+    result.push_str("  local ___file = setmetatable({}, {__index=_ENV})\n\n");
+
     let mut output = String::new();
+
+    let flag_backup = self.flag.clone();
+
+    self.flag = Some(FlagImplicit::Global);
 
     for statement in ast.iter() {
       output.push_str(&self.generate_statement(&statement));
       output.push('\n')
     }
 
-    output
+    self.flag = flag_backup;
+
+    self.push_line(&mut result, &output);
+
+    result.push_str("\n  _ENV = getmetatable(___file).__index\n");
+    result.push_str("  return ___file");
+
+    result.push_str("\nend)()");
+
+    result
   }
 
 
@@ -50,7 +71,21 @@ impl<'g> Generator {
         "return\n".to_string()
       },
 
-      Import(ref name) => format!("local {0} = require('{0}')", name)
+      Import(ref name, ref specifics) => {
+        let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
+        let file_path  = format!("{}/{}", my_folder.to_str().unwrap(), name);
+
+
+        let mut result = format!("{} = require('{}')\n", name, file_path);
+
+        for specific in specifics {
+          result.push_str(&format!("{0} = {1}['{0}']\n", specific, name))
+        }
+
+        result.push('\n');
+
+        result
+      }
     };
 
     result
@@ -262,7 +297,12 @@ impl<'g> Generator {
 
       Index(ref source, ref index) => {
         let source = self.generate_expression(source);
-        let index  = self.generate_expression(index);
+
+        let index = if let Identifier(ref name) = index.node {
+          format!("'{}'", name)
+        } else {
+          self.generate_expression(index)
+        };
 
         format!("{}[{}]", source, index)
       }

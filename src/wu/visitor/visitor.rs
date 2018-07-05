@@ -281,7 +281,7 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
-      Import(ref path) => {
+      Import(ref path, ref specifics) => {
         let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
         let file_path  = format!("{}/{}.wu", my_folder.to_str().unwrap(), path);
 
@@ -347,6 +347,27 @@ impl<'v> Visitor<'v> {
 
             for symbol in names.borrow().iter() {
               content_type.insert(symbol.0.clone(), frame.1.get_type(*symbol.1, 0)?.clone());
+            }
+
+            for name in specifics {
+              if let Some(kind) = content_type.get(name) {
+                let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
+                  index
+                } else {
+                  self.current_tab().1.grow();
+                  self.current_tab().0.add_name(name)
+                };
+
+                self.current_tab().1.set_type(index, 0, kind.clone())?;
+              } else {
+                return Err(
+                  response!(
+                    Wrong(format!("no such member `{}`", name)),
+                    self.source.file,
+                    statement.pos
+                  )
+                )
+              }
             }
 
             let module_type = Type::from(TypeNode::Module(content_type));

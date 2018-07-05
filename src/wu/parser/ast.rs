@@ -11,7 +11,7 @@ pub enum StatementNode {
   Variable(Type, String, Option<Expression>),
   Assignment(Expression, Expression),
   Return(Option<Rc<Expression>>),
-  Import(String),
+  Import(String, Vec<String>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
