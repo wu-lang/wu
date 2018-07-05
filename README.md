@@ -20,6 +20,7 @@ The language is meant and designed to be a solid alternative to MoonScript, and 
 ### Taster
 
 ```
+-- for flexing wu generics
 add: def<T>(a: T, b: T) -> T {
   a + b
 }
