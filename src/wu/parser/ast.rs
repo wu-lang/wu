@@ -49,6 +49,7 @@ pub enum ExpressionNode {
   Call(Rc<Expression>, Vec<Expression>),
   If(Rc<Expression>, Rc<Expression>, Option<Vec<(Option<Expression>, Expression, TokenElement)>>),
   Module(Rc<Expression>),
+  While(Rc<Expression>, Rc<Expression>),
   EOF,
   Empty,
 }

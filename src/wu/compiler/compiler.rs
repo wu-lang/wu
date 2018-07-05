@@ -305,6 +305,42 @@ impl<'g> Generator<'g> {
         };
 
         format!("{}[{}]", source, index)
+      },
+
+      While(ref condition, ref body) => {
+        let flag_backup = self.flag.clone();
+
+        let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
+          self.flag = Some(FlagImplicit::Return);
+
+          "(function()\n"
+        } else {
+          ""
+        }.to_string();
+
+        let condition = self.generate_expression(condition);
+
+        let mut whole = format!("while {} do\n", condition);
+
+        let body = self.generate_expression(body);
+
+        self.push_line(&mut whole, &body);
+
+        whole.push_str("end\n");
+
+        if let Some(FlagImplicit::Assign(_)) = flag_backup {
+          self.push_line(&mut result, &whole)
+        } else {
+          result.push_str(&whole)
+        }
+
+        self.flag = flag_backup;
+
+        if let Some(FlagImplicit::Assign(_)) = self.flag {
+          result.push_str("end)()\n")
+        }
+
+        result
       }
 
       If(ref condition, ref body, ref elses) => {

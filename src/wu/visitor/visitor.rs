@@ -399,7 +399,7 @@ impl<'v> Visitor<'v> {
             Call(..)   => (),
             Block(..)  => { self.ensure_no_implicit(expression)?; }
 
-            If(_, ref expr, _) => self.ensure_no_implicit(&*expr)?,
+            If(_, ref expr, _) | While(_, ref expr) => self.ensure_no_implicit(&*expr)?,
 
             _ => return Err(
               response!(
@@ -418,7 +418,7 @@ impl<'v> Visitor<'v> {
 
       Call(..)   => (),
 
-      If(_, ref expr, _) => self.ensure_no_implicit(&*expr)?,
+      If(_, ref expr, _) | While(_, ref expr) => self.ensure_no_implicit(&*expr)?,
 
       _ => return Err(
         response!(
@@ -483,6 +483,43 @@ impl<'v> Visitor<'v> {
 
         Ok(())
       },
+
+      While(ref condition, ref body) => {
+         self.visit_expression(&*condition)?;
+
+        let condition_type = self.type_expression(&*condition)?.node;
+
+        if condition_type == TypeNode::Bool {
+          self.push_scope();
+
+          self.visit_expression(body)?;
+
+          let body_type = self.type_expression(body)?;
+
+          if body_type.node != TypeNode::Nil {
+            return Err(
+              response!(
+                Wrong("mismatched types, expected `()`"),
+                self.source.file,
+                expression.pos
+              )
+            )
+          }
+
+          self.pop_scope();
+
+          Ok(())
+
+        } else {
+          return Err(
+            response!(
+              Wrong(format!("mismatched condition, must be `bool` got `{}`", condition_type)),
+              self.source.file,
+              expression.pos
+            )
+          )
+        }
+      }
 
       If(ref condition, ref body, ref elses) => {
         self.visit_expression(&*condition)?;
@@ -903,7 +940,7 @@ impl<'v> Visitor<'v> {
         let right_type = self.type_expression(&right)?;
 
         match right.node {
-          Function(..) | Block(_) | If(..) => (),
+          Function(..) | Block(_) | If(..) | While(..) => (),
           _ => self.visit_expression(right)?,
         }
 
@@ -925,7 +962,7 @@ impl<'v> Visitor<'v> {
         }
 
         match right.node {
-          Function(..) | Block(_) | If(..) => self.visit_expression(right)?,
+          Function(..) | Block(_) | If(..) | While(..) => self.visit_expression(right)?,
           _ => (),
         }
 
@@ -1030,7 +1067,7 @@ impl<'v> Visitor<'v> {
         _ => unreachable!(),
       },
 
-      If(_, ref expression, _) => self.type_expression(expression)?,
+      If(_, ref expression, _) | While(_, ref expression) => self.type_expression(expression)?,
 
       Array(ref content) => Type::array(self.type_expression(content.first().unwrap())?, content.len()),
 
@@ -1120,7 +1157,7 @@ impl<'v> Visitor<'v> {
 
             match element.node {
               StatementNode::Expression(ref expression) => match expression.node {
-                Block(_) | If(..) => { self.type_expression(expression)?; },
+                Block(_) | If(..) | While(..) => { self.type_expression(expression)?; },
 
                 _ => (),
               },

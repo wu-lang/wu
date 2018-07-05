@@ -399,6 +399,28 @@ impl<'p> Parser<'p> {
         },
 
         Keyword => match self.current_lexeme().as_str() {
+          "while" => {
+            self.next()?;
+
+            self.next_newline()?;
+
+            let condition = self.parse_expression()?;
+
+            self.next_newline()?;
+
+            self.expect_lexeme("{")?;
+
+            let position = self.span_from(position);
+
+            Expression::new(
+              ExpressionNode::While(
+                Rc::new(condition),
+                Rc::new(self.parse_expression()?)
+              ),
+              position
+            )
+          },
+
           "if" => {
             self.next()?;
 

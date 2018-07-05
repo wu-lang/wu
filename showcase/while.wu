@@ -1,0 +1,13 @@
+foo: def(a: int) -> str {
+  "hey"
+}
+
+while true {
+  b := foo(10)
+}
+
+a := while foo(0) == "hey" {
+  foo(0)
+
+  ()
+}
