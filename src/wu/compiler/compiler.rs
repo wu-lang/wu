@@ -11,17 +11,31 @@ pub enum FlagImplicit {
   Assign(String),
 }
 
+#[derive(Clone, PartialEq)]
+pub enum Inside {
+  Loop,
+  Nothing,
+}
+
 
 pub struct Generator<'g> {
   source: &'g Source,
-  flag: Option<FlagImplicit>
+
+  flag: Option<FlagImplicit>,
+  inside: Option<Inside>,
+
+  loop_depth: usize,
 }
 
 impl<'g> Generator<'g> {
   pub fn new(source: &'g Source) -> Self {
     Generator {
       source,
+
       flag: None,
+      inside: None,
+
+      loop_depth: 0
     }
   }
 
@@ -30,7 +44,7 @@ impl<'g> Generator<'g> {
   pub fn generate(&mut self, ast: &'g Vec<Statement>) -> String {
     let mut result = "return (\nfunction()\n".to_string();
 
-    result.push_str("  local ___file = setmetatable({}, {__index=_ENV})\n\n");
+    result.push_str("  local ___file = setmetatable({}, {__index=_ENV})\n");
 
     let mut output = String::new();
 
@@ -47,7 +61,7 @@ impl<'g> Generator<'g> {
 
     self.push_line(&mut result, &output);
 
-    result.push_str("\n  _ENV = getmetatable(___file).__index\n");
+    result.push_str("  _ENV = getmetatable(___file).__index\n");
     result.push_str("  return ___file");
 
     result.push_str("\nend)()");
@@ -85,7 +99,10 @@ impl<'g> Generator<'g> {
         result.push('\n');
 
         result
-      }
+      },
+
+      Break => String::from("break"),
+      Skip  => format!("goto __while_{}", self.loop_depth),
     };
 
     result
@@ -223,10 +240,10 @@ impl<'g> Generator<'g> {
 
             FlagImplicit::Return => (),
 
-            _ => result.push_str("end\n"),
+            _ => result.push_str("end"),
           }
         } else {
-          result.push_str("end\n")
+          result.push_str("end")
         }
 
         result
@@ -308,7 +325,15 @@ impl<'g> Generator<'g> {
       },
 
       While(ref condition, ref body) => {
-        let flag_backup = self.flag.clone();
+        let flag_backup   = self.flag.clone();
+        let inside_backup = self.inside.clone();
+
+        if self.inside == Some(Inside::Loop) {
+          self.loop_depth += 1
+        } else {
+          self.loop_depth = 0;
+          self.inside     = Some(Inside::Loop)
+        }
 
         let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
           self.flag = Some(FlagImplicit::Return);
@@ -322,11 +347,32 @@ impl<'g> Generator<'g> {
 
         let mut whole = format!("while {} do\n", condition);
 
-        let body = self.generate_expression(body);
+        let mut body_string = String::new(); // doing this to remove redundant 'do' and 'end'
 
-        self.push_line(&mut whole, &body);
+        if let Block(ref content) = body.node {
+          for (i, element) in content.iter().enumerate() {
+            if i == content.len() - 1 {              
+              if StatementNode::Skip == element.node {
+                break
+              } else {
+                if let StatementNode::Expression(ref expression) = element.node {
+                  if Empty == expression.node {
+                    break
+                  }
+                }
+              }
+            }
 
-        whole.push_str("end\n");
+            body_string.push_str(&self.generate_statement(&element));
+            body_string.push('\n')
+          }
+        }
+
+        body_string.push_str(&format!("::__while_{}::\n", self.loop_depth));
+
+        self.push_line(&mut whole, &body_string);
+
+        whole.push_str("end");
 
         if let Some(FlagImplicit::Assign(_)) = flag_backup {
           self.push_line(&mut result, &whole)
@@ -334,10 +380,11 @@ impl<'g> Generator<'g> {
           result.push_str(&whole)
         }
 
-        self.flag = flag_backup;
+        self.flag   = flag_backup;
+        self.inside = inside_backup;
 
         if let Some(FlagImplicit::Assign(_)) = self.flag {
-          result.push_str("end)()\n")
+          result.push_str("end)()")
         }
 
         result
@@ -356,9 +403,16 @@ impl<'g> Generator<'g> {
 
         result.push_str(&format!("if {} then\n", self.generate_expression(condition)));
 
-        let body = self.generate_expression(body);
+        let mut body_string = String::new(); // doing this to remove redundant 'do' and 'end'
 
-        result.push_str(&self.make_line(&body));
+        if let Block(ref content) = body.node {
+          for element in content {
+            body_string.push_str(&self.generate_statement(&element));
+            body_string.push('\n')            
+          }
+        }
+
+        result.push_str(&self.make_line(&body_string));
 
         if let &Some(ref elses) = elses {
           for branch in elses {
@@ -369,18 +423,25 @@ impl<'g> Generator<'g> {
               result.push_str("else\n")
             }
 
-            let body = self.generate_expression(&branch.1);
+            body_string = String::new();
 
-            result.push_str(&self.make_line(&body));
+            if let Block(ref content) = body.node {
+              for element in content {
+                body_string.push_str(&self.generate_statement(&element));
+                body_string.push('\n')
+              }
+            }
+
+            result.push_str(&self.make_line(&body_string));
           }
         }
 
         self.flag = flag_backup;
 
         if let Some(FlagImplicit::Assign(_)) = self.flag {
-          result.push_str("end\nend)()\n")
+          result.push_str("end\nend)()")
         } else {
-          result.push_str("end\n")
+          result.push_str("end")
         }
 
         result
@@ -428,7 +489,7 @@ impl<'g> Generator<'g> {
 
     self.flag = flag_backup;
 
-    format!("{}\n", result)
+    format!("{}", result)
   }
 
 
@@ -444,7 +505,7 @@ impl<'g> Generator<'g> {
 
     self.flag = flag_backup;
 
-    let result = format!("{} = {}\n", left_string, right_string);
+    let result = format!("{} = {}", left_string, right_string);
 
     result
   }

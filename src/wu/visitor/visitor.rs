@@ -216,6 +216,11 @@ pub enum FlagContext {
   Nothing,
 }
 
+#[derive(Debug, Clone)]
+pub enum Inside {
+  Loop,
+  Nothing,
+}
 
 
 pub struct Visitor<'v> {
@@ -225,7 +230,8 @@ pub struct Visitor<'v> {
   pub source:  &'v Source,
   pub ast:     &'v Vec<Statement>,
 
-  pub flag: Option<FlagContext>,
+  pub flag:   Option<FlagContext>,
+  pub inside: Option<Inside>,
 }
 
 impl<'v> Visitor<'v> {
@@ -237,7 +243,8 @@ impl<'v> Visitor<'v> {
       source,
       ast,
 
-      flag: None,
+      flag:   None,
+      inside: None,
     }
   }
 
@@ -279,6 +286,30 @@ impl<'v> Visitor<'v> {
         self.visit_expression(expression)
       } else {
         Ok(())
+      },
+
+      Break => if let Some(Inside::Loop) = self.inside {
+        Ok(())
+      } else {
+        return Err(
+          response!(
+            Wrong("can't break outside loop"),
+            self.source.file,
+            statement.pos
+          )
+        )
+      },
+
+      Skip => if let Some(Inside::Loop) = self.inside {
+        Ok(())
+      } else {
+        return Err(
+          response!(
+            Wrong("can't skip outside loop"),
+            self.source.file,
+            statement.pos
+          )
+        )
       },
 
       Import(ref path, ref specifics) => {
@@ -485,11 +516,15 @@ impl<'v> Visitor<'v> {
       },
 
       While(ref condition, ref body) => {
-         self.visit_expression(&*condition)?;
+        self.visit_expression(&*condition)?;
 
         let condition_type = self.type_expression(&*condition)?.node;
 
         if condition_type == TypeNode::Bool {
+          let inside_backup = self.inside.clone();
+
+          self.inside = Some(Inside::Loop);
+
           self.push_scope();
 
           self.visit_expression(body)?;
@@ -507,6 +542,8 @@ impl<'v> Visitor<'v> {
           }
 
           self.pop_scope();
+
+          self.inside = inside_backup;
 
           Ok(())
 

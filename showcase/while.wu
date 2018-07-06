@@ -2,8 +2,22 @@ foo: def(a: int) -> str {
   "hey"
 }
 
+a := 0
+
 while true {
+  a = a + 1
+
   b := foo(10)
+
+  if a >= 10 {
+    while false {
+      if a > 11 {
+        skip
+      }
+    }
+  }
+
+  skip
 }
 
 a := while foo(0) == "hey" {

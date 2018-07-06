@@ -39,11 +39,11 @@ impl<'p> Parser<'p> {
       self.next()?
     }
 
+    let position = self.current_position();
+
     let statement = match self.current_type() {
       Keyword => match self.current_lexeme().as_str() {
         "import" => {
-          let position = self.current_position();
-
           self.next()?;
 
           let path = self.eat_type(&Identifier)?;
@@ -61,8 +61,6 @@ impl<'p> Parser<'p> {
         }
 
         "return" => {
-          let position = self.current_position();
-
           self.next()?;
 
           if ["}", "\n"].contains(&self.current_lexeme().as_str()) {
@@ -76,6 +74,24 @@ impl<'p> Parser<'p> {
               self.span_from(position)
             )
           }
+        },
+
+        "break" => {
+          self.next()?;
+
+          Statement::new(
+            StatementNode::Break,
+            position
+          )
+        },
+
+        "skip" => {
+          self.next()?;
+
+          Statement::new(
+            StatementNode::Skip,
+            position
+          )
         },
 
         _ => {

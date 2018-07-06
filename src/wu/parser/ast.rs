@@ -12,6 +12,9 @@ pub enum StatementNode {
   Assignment(Expression, Expression),
   Return(Option<Rc<Expression>>),
   Import(String, Vec<String>),
+
+  Break,
+  Skip,
 }
 
 #[derive(Debug, Clone, PartialEq)]
