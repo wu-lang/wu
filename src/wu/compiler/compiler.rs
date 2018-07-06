@@ -46,7 +46,7 @@ impl<'g> Generator<'g> {
 
     let file_name = Path::new(&self.source.file.0).file_name().unwrap().to_str().unwrap().split(".").collect::<Vec<&str>>()[0];
 
-    result.push_str(&format!("  local ___{} = setmetatable({{}}, {{__index=_ENV}})\n", file_name));
+    result.push_str(&format!("  local ___{} = setmetatable({{}}, {{__index=_ENV}})", file_name));
 
     let mut output = String::new();
 
@@ -447,6 +447,16 @@ impl<'g> Generator<'g> {
         result
       },
 
+      Initialization(_, ref body) => {
+        let mut inner = String::new();
+
+        for &(ref name, ref expression) in body.iter() {
+          inner.push_str(&format!("{} = {},\n", name, self.generate_expression(expression)))
+        }
+
+        format!("{{\n{}}}", self.make_line(&inner))
+      },
+
       Int(ref n)        => format!("{}", n),
       Float(ref n)      => format!("{}", n),
       Bool(ref n)       => format!("{}", n),
@@ -483,7 +493,7 @@ impl<'g> Generator<'g> {
 
     if let &Some(ref right) = right {
       if let ExpressionNode::Struct(..) = right.node {
-        return format!("-- type `{}` is defined here", name)
+        return String::new()
       }
 
       let right_str = self.generate_expression(right);

@@ -10,7 +10,7 @@ player_pos := point {
 }
 
 
-foo: def(bar: point<float>) {
+foo: def(bar: point<int>) {
   return
 }
 
