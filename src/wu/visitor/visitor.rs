@@ -532,11 +532,17 @@ impl<'v> Visitor<'v> {
           let body_type = self.type_expression(body)?;
 
           if body_type.node != TypeNode::Nil {
+            let body_pos = if let Block(ref content) = body.node {
+              content.last().unwrap().pos.clone()
+            } else {
+              unreachable!()
+            };
+            
             return Err(
               response!(
                 Wrong("mismatched types, expected `()`"),
                 self.source.file,
-                expression.pos
+                body_pos
               )
             )
           }

@@ -22,6 +22,4 @@ while true {
 
 a := while foo(0) == "hey" {
   foo(0)
-
-  ()
 }
