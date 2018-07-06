@@ -707,7 +707,6 @@ impl<'v> Visitor<'v> {
 
           let mut type_buffer: Option<Type> = None; // for unwraps
 
-
           let mut has_unwrap = false;
 
           for (index, param) in params.iter().enumerate() {
@@ -731,7 +730,7 @@ impl<'v> Visitor<'v> {
 
             let mut param_new = param.clone();
 
-            if let TypeNode::Id(ref name, ref cover) = param.node {
+            if let TypeNode::Id(ref name, _) = param.node {
               if generics.contains(name) {
                 if let Some(kind) = covers.get(name) {
                   if &arg_type == kind {
@@ -739,9 +738,9 @@ impl<'v> Visitor<'v> {
                   } else {
                     return Err(
                       response!(
-                        Wrong(format!("mismatched argument, expected `{}` got `{}`", expression_type, arg_type)),
+                        Wrong(format!("mismatched argument, expected `{}` got `{}`", kind, arg_type)),
                         self.source.file,
-                        expression.pos
+                        args[index].pos
                       )
                     )
                   }
@@ -751,24 +750,40 @@ impl<'v> Visitor<'v> {
 
                 continue
               } else {
-                if let TypeNode::Struct(ref struct_name, ref args, _) = arg_type.node {
+                if let TypeNode::Struct(ref struct_name, ref struct_args, _) = arg_type.node {
                   if name == struct_name {
-                    if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
-                      let kind = self.current_tab().1.get_type(index, env_index)?;
+                    if let Some((type_index, env_index)) = self.current_tab().0.get_name(name) {
+                      let kind = self.current_tab().1.get_type(type_index, env_index)?;
 
-                      if let TypeNode::Struct(ref other_name, ref other_args, ref generics) = kind.node {
+                      if let TypeNode::Struct(_, ref other_args, ref generics) = kind.node {
 
                         let mut cover_type = Vec::new();
 
-                        for (i, arg) in args.iter().enumerate() {
+                        for arg in struct_args.iter() {
                           if let TypeNode::Id(ref name, _) = other_args[arg.0].node {
                             if generics.contains(name) {
+                              if let Some(ref kind) = covers.get(name) {
+                                if arg.1 != *kind {
+                                  return Err(
+                                    response!(
+                                      Wrong(format!("mismatched argument, expected `{0}<{1}>` got `{0}<{2}>`", struct_name, kind, arg.1)),
+                                      self.source.file,
+                                      args[index].pos
+                                    )
+                                  )
+                                }
+                              }
+
+                              if covers.get(name).is_none() {
+                                covers.insert(name.clone(), arg.1.clone());
+                              }
+
                               cover_type.push(arg.1.clone())
                             }
                           }
                         }
 
-                        param_new = self.degeneralize(name, cover, &expression.pos)?
+                        param_new = self.degeneralize(name, &cover_type, &expression.pos)?
                       }
                     }
                   }
@@ -1124,7 +1139,7 @@ impl<'v> Visitor<'v> {
         )
       }
 
-      generics_buffer.push(&name)
+      name_buffer.push(&name)
     }
 
     let mut param_names = Vec::new();
@@ -1152,7 +1167,21 @@ impl<'v> Visitor<'v> {
               param.1.clone()
             }
           } else {
-            self.degeneralize(&name, args, &pos)?
+            let mut covers_new = Vec::new();
+
+            for arg in args {
+              if let TypeNode::Id(ref name, _) = arg.node {
+                if generics.contains(name) {
+                  if let Some(ref covers) = generic_covers {
+                    covers_new.push(Type::new(covers.get(name).unwrap().clone().node, arg.mode.clone()))
+                  } else {
+                    covers_new.push(arg.clone())
+                  }
+                }
+              }
+            }
+
+            self.degeneralize(&name, &covers_new, &pos)?
           }
         } else {
           param.1.clone()

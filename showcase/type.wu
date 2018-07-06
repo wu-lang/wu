@@ -3,15 +3,13 @@ point: type<T> {
   y: T
 }
 
-
-player_pos := point {
-  x: 100
-  y: 100
+foo := point {
+  x: 100.0
+  y: 100.0
 }
 
-
-foo: def(bar: point<int>) {
+bar: def<T>(a: point<T>, b: T) {
   return
 }
 
-foo(player_pos)
+bar(foo, "hey")
