@@ -92,8 +92,10 @@ impl PartialEq for TypeNode {
           if let Some(ref element_b) = content_b.get(*name) {
             if element != element_b {
 
-              if !generics.contains(name) && !generics_b.contains(name) {
-                false_0 = false
+              if let TypeNode::Id(ref name, _) = element.node {
+                if !generics.contains(name) && !generics_b.contains(name) {
+                  false_0 = false
+                }
               }
             }
           }
@@ -103,16 +105,17 @@ impl PartialEq for TypeNode {
           if let Some(ref element) = content.get(*name_b) {
             if element != element_b {
 
-              if !generics.contains(name_b) && !generics_b.contains(name_b) {
-                false_1 = false
+              if let TypeNode::Id(ref name_b, _) = element.node {
+                if !generics.contains(name_b) && !generics_b.contains(name_b) {
+                  false_1 = false
+                }
               }
-
             }
           }
         }
 
         false_0 || false_1
-      },
+      },      
 
       _ => false,
     }
@@ -766,7 +769,7 @@ impl<'v> Visitor<'v> {
                                 if arg.1 != *kind {
                                   return Err(
                                     response!(
-                                      Wrong(format!("mismatched argument, expected `{0}<{1}>` got `{0}<{2}>`", struct_name, kind, arg.1)),
+                                      Wrong(format!("mismatched argument, expected `{}` got `{}`", kind, arg.1)),
                                       self.source.file,
                                       args[index].pos
                                     )
@@ -783,14 +786,14 @@ impl<'v> Visitor<'v> {
                           }
                         }
 
-                        param_new = self.degeneralize(name, &cover_type, &expression.pos)?
+                        param_new = self.degeneralize(name, &cover_type, &expression.pos)?;
                       }
                     }
                   }
                 }
               }
             }
-
+            
             if (index < args.len() && !param_new.node.check_expression(&args[index].node)) && param_new != arg_type {
               return Err(
                 response!(

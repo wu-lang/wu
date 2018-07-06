@@ -1,15 +1,15 @@
-point: type<T> {
+point: type<T, K> {
   x: T
-  y: T
+  y: K
 }
 
 foo := point {
   x: 100.0
-  y: 100.0
+  y: 10
 }
 
-bar: def<T>(a: point<T>, b: T) {
+bar: def<T, K>(a: point<T, K>, b: T, c: K) {
   return
 }
 
-bar(foo, "hey")
+bar(foo, 1.0, false)
