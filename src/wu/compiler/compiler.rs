@@ -155,7 +155,7 @@ impl<'g> Generator<'g> {
       Module(ref content) => {
         if let Block(ref elements) = content.node {
           let mut result = "(function()\n".to_string();
-          
+
           let mut body = "local __module = setmetatable({}, {__index=_ENV})\n".to_string();
 
           let flag_backup = self.flag.clone();
@@ -179,7 +179,7 @@ impl<'g> Generator<'g> {
         } else {
           unreachable!()
         }
-      }
+      },
 
       Block(ref content) => {
         let flag_backup = self.flag.clone();
@@ -482,6 +482,10 @@ impl<'g> Generator<'g> {
     };
 
     if let &Some(ref right) = right {
+      if let ExpressionNode::Struct(..) = right.node {
+        return format!("-- type `{}` is defined here", name)
+      }
+
       let right_str = self.generate_expression(right);
 
       result.push_str(&format!(" = {}", right_str))

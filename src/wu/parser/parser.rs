@@ -258,7 +258,7 @@ impl<'p> Parser<'p> {
               params,
               retty,
               Rc::new(self.parse_expression()?),
-              Some(generics)
+              generics
             ),
 
             position
@@ -286,6 +286,38 @@ impl<'p> Parser<'p> {
           )
         )
       },
+
+      "type" => {
+        let mut position = self.current_position();
+        
+        self.next()?;
+        self.next_newline()?;
+
+        let generics = if self.current_lexeme() == "<" {
+          self.parse_block_of(("<", ">"), &Self::_parse_name_comma)?
+        } else {
+          Vec::new()
+        };
+
+        self.next_newline()?;
+
+        position = self.span_from(position);
+
+        self.expect_lexeme("{")?;
+
+        let params = self.parse_block_of(("{", "}"), &Self::_parse_param_comma)?;
+
+        Some(
+          Expression::new(
+            ExpressionNode::Struct(
+              params,
+              generics
+            ),
+
+            position
+          )
+        )
+      }
 
       _ => None
     };
@@ -1040,12 +1072,18 @@ impl<'p> Parser<'p> {
 
     let param = Some((name, kind));
 
-    if self.remaining() > 0 && self.current_lexeme() == "\n" {
-      self.next()?
-    }
-
     if self.remaining() > 0 {
-      self.eat_lexeme(",")?;
+      if ![",", "\n"].contains(&self.current_lexeme().as_str()) {
+        return Err(
+          response!(
+            Wrong(format!("expected `,` or newline, found `{}`", self.current_lexeme())),
+            self.source.file,
+            self.current_position()
+          )
+        )
+      } else {
+        self.next()?;
+      }
 
       if self.remaining() > 0 && self.current_lexeme() == "\n" {
         self.next()?

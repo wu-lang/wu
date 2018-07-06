@@ -8,8 +8,17 @@ fib: def(a: int) -> int {
 
 fac: def(a: int) -> int {
   if a < 3 {
-    return a
+    return "Hey"
   }
 
   fac(a - 1) * a
+}
+
+
+foo: def(
+  a: float
+  b: float
+) -> str
+{
+  "hey this actually works"
 }

@@ -48,11 +48,12 @@ pub enum ExpressionNode {
   Cast(Rc<Expression>, Type),
   Array(Vec<Expression>),
   Index(Rc<Expression>, Rc<Expression>),
-  Function(Vec<(String, Type)>, Type, Rc<Expression>, Option<Vec<String>>),
+  Function(Vec<(String, Type)>, Type, Rc<Expression>, Vec<String>),
   Call(Rc<Expression>, Vec<Expression>),
   If(Rc<Expression>, Rc<Expression>, Option<Vec<(Option<Expression>, Expression, TokenElement)>>),
   Module(Rc<Expression>),
   While(Rc<Expression>, Rc<Expression>),
+  Struct(Vec<(String, Type)>, Vec<String>),
   EOF,
   Empty,
 }

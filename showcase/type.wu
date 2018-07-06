@@ -1,0 +1,4 @@
+point: type<T, K> {
+  x: T
+  y: K
+}

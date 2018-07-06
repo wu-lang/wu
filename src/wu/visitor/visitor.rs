@@ -29,6 +29,7 @@ pub enum TypeNode {
   Array(Rc<Type>, usize),
   Func(Vec<Type>, Rc<Type>, Vec<String>, Option<Rc<ExpressionNode>>),
   Module(HashMap<String, Type>),
+  Struct(HashMap<String, Type>, Vec<String>),
 }
 
 impl TypeNode {
@@ -114,6 +115,16 @@ impl Display for TypeNode {
       Array(ref n, l)  => write!(f, "[{}; {}]", n, l),
       Id(ref n)        => write!(f, "{}", n),
       Module(_)        => write!(f, "module"),
+
+      Struct(_, ref generics) => {
+        write!(f, "struct")?;
+
+        if generics.len() > 0 {
+          write!(f, "<{}>", generics.join(", "))
+        } else {
+          Ok(())
+        }
+      },
 
       Func(ref params, ref return_type, ..) => {
         write!(f, "(");
@@ -876,6 +887,41 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
+      Struct(ref params, ref generics) => {
+        let mut generics_buffer = Vec::new();
+        let mut name_buffer     = Vec::new();
+
+        for generic in generics.iter() {
+          if generics_buffer.contains(&generic) {
+            return Err(
+              response!(
+                Wrong(format!("generic `{}` defined more than once", generic)),
+                self.source.file,
+                expression.pos
+              )
+            )
+          }
+
+          generics_buffer.push(&generic)
+        }
+
+        for &(ref name, _) in params.iter() {
+          if name_buffer.contains(&name) {
+            return Err(
+              response!(
+                Wrong(format!("field `{}` defined more than once", name)),
+                self.source.file,
+                expression.pos
+              )
+            )
+          }
+
+          name_buffer.push(&name)
+        }
+
+        Ok(())
+      },
+
       _ => Ok(())
     }
   }
@@ -886,9 +932,40 @@ impl<'v> Visitor<'v> {
       &mut self,
       pos: TokenElement,
       params: &Vec<(String, Type)>, return_type: &Type,
-      body: &Rc<Expression>, generics: &Option<Vec<String>>, generic_covers: Option<HashMap<String, Type>>,
+      body: &Rc<Expression>, generics: &Vec<String>, generic_covers: Option<HashMap<String, Type>>,
       splat_len: usize
   ) -> Result<(), ()> {
+    let mut generics_buffer = Vec::new();
+    let mut name_buffer     = Vec::new();
+
+    for generic in generics.iter() {
+      if generics_buffer.contains(&generic) {
+        return Err(
+          response!(
+            Wrong(format!("can't shadow generic `{}`", generic)),
+            self.source.file,
+            pos.clone()
+          )
+        )
+      }
+
+      generics_buffer.push(&generic)
+    }
+
+    for &(ref name, _) in params.iter() {
+      if name_buffer.contains(&name) {
+        return Err(
+          response!(
+            Wrong(format!("can't shadow field `{}`", name)),
+            self.source.file,
+            pos.clone()
+          )
+        )
+      }
+
+      generics_buffer.push(&name)
+    }
+
     let mut param_names = Vec::new();
     let mut param_types = Vec::new();
 
@@ -897,7 +974,7 @@ impl<'v> Visitor<'v> {
     for param in params {
       param_names.push(param.0.clone());
 
-      let kind = if let Some(ref generics) = *generics {
+      let kind = if generics.len() > 0 {
         if let TypeNode::Id(ref name) = return_type.node {
           if generics.contains(name) {
             if let Some(ref covers) = generic_covers {
@@ -934,7 +1011,7 @@ impl<'v> Visitor<'v> {
       param_types[len - 1] = Type::new(last_type.node, TypeMode::Splat(Some(splat_len)))
     }
 
-    if generics.is_none() != generic_covers.is_none() && splat_len == 0 {
+    if generics.len() > 0 && generic_covers.is_none() {
       return Ok(())
     }
 
@@ -1185,7 +1262,7 @@ impl<'v> Visitor<'v> {
           param_types.push(param.1.clone())
         }
 
-        Type::from(TypeNode::Func(param_types, Rc::new(return_type.clone()), generics.clone().unwrap_or(Vec::new()), Some(Rc::new(expression.node.clone()))))
+        Type::from(TypeNode::Func(param_types, Rc::new(return_type.clone()), generics.clone(), Some(Rc::new(expression.node.clone()))))
       },
 
       Block(ref statements) => {
@@ -1275,6 +1352,16 @@ impl<'v> Visitor<'v> {
 
         block_type
       },
+
+      Struct(ref params, ref generics) => {
+        let mut param_hash = HashMap::new();
+
+        for param in params {
+          param_hash.insert(param.0.clone(), param.1.clone());
+        }
+
+        Type::new(TypeNode::Struct(param_hash, generics.clone()), TypeMode::Undeclared)
+      } 
 
       _ => Type::from(TypeNode::Nil)
     };
