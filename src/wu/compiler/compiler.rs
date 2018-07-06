@@ -169,8 +169,7 @@ impl<'g> Generator<'g> {
 
           self.flag = flag_backup;
 
-          body.push_str("_ENV = getmetatable(__module).__index\n");
-          body.push_str("return __module");
+          body.push_str("\nreturn __module");
 
           self.push_line(&mut result, &body);
 
