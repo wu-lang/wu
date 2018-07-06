@@ -44,7 +44,9 @@ impl<'g> Generator<'g> {
   pub fn generate(&mut self, ast: &'g Vec<Statement>) -> String {
     let mut result = "return (\nfunction()\n".to_string();
 
-    result.push_str("  local ___file = setmetatable({}, {__index=_ENV})\n");
+    let file_name = Path::new(&self.source.file.0).file_name().unwrap().to_str().unwrap().split(".").collect::<Vec<&str>>()[0];
+
+    result.push_str(&format!("  local ___{} = setmetatable({{}}, {{__index=_ENV}})\n", file_name));
 
     let mut output = String::new();
 
@@ -61,8 +63,7 @@ impl<'g> Generator<'g> {
 
     self.push_line(&mut result, &output);
 
-    result.push_str("  _ENV = getmetatable(___file).__index\n");
-    result.push_str("  return ___file");
+    result.push_str(&format!("  return ___{}", file_name));
 
     result.push_str("\nend)()");
 
