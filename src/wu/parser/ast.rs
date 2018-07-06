@@ -53,7 +53,8 @@ pub enum ExpressionNode {
   If(Rc<Expression>, Rc<Expression>, Option<Vec<(Option<Expression>, Expression, TokenElement)>>),
   Module(Rc<Expression>),
   While(Rc<Expression>, Rc<Expression>),
-  Struct(Vec<(String, Type)>, Vec<String>),
+  Struct(String, Vec<(String, Type)>, Vec<String>),
+  Initialization(Rc<Expression>, Vec<(String, Expression)>),
   EOF,
   Empty,
 }

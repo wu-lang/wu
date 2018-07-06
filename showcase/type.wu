@@ -1,4 +1,17 @@
-point: type<T, K> {
+point: type<T> {
   x: T
-  y: K
+  y: T
 }
+
+
+player_pos := point {
+  x: 100
+  y: 100
+}
+
+
+foo: def(bar: point<float>) {
+  return
+}
+
+foo(player_pos)

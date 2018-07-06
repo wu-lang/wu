@@ -118,7 +118,7 @@ impl<'p> Parser<'p> {
             let position = self.current_position();
             let backup   = self.index;
 
-            if let Some(right) = self.parse_right_hand()? {
+            if let Some(right) = self.parse_right_hand(name.clone())? {
               Statement::new(
                 StatementNode::Variable(
                   Type::from(TypeNode::Nil),
@@ -216,7 +216,7 @@ impl<'p> Parser<'p> {
     Ok(statement)
   }
 
-  fn parse_right_hand(&mut self) -> Result<Option<Expression>, ()> {
+  fn parse_right_hand(&mut self, name: String) -> Result<Option<Expression>, ()> {
     let declaration = match self.current_lexeme().as_str() {
       "def" => {
         let mut position = self.current_position();
@@ -310,6 +310,7 @@ impl<'p> Parser<'p> {
         Some(
           Expression::new(
             ExpressionNode::Struct(
+              name,
               params,
               generics
             ),
@@ -584,6 +585,19 @@ impl<'p> Parser<'p> {
           self.parse_postfix(index)
         },
 
+        "{" => {
+          let args = self.parse_block_of(("{", "}"), &Self::_parse_definition_comma)?;
+
+          let position = expression.pos.clone();
+
+          Ok(
+            Expression::new(
+              ExpressionNode::Initialization(Rc::new(expression), args),
+              position
+            )
+          )
+        }
+
         _ => Ok(expression)
       },
 
@@ -711,7 +725,15 @@ impl<'p> Parser<'p> {
         "float" => Type::from(TypeNode::Float),
 
         "bool"  => Type::from(TypeNode::Bool),
-        id      => Type::id(id),
+        id      => {
+          let generics = if self.current_lexeme() == "<" {
+            self.parse_block_of(("<", ">"), &Self::_parse_type_comma)?
+          } else {
+            Vec::new()
+          };
+
+          Type::id(id, generics)
+        }
       },
 
       Symbol => match self.current_lexeme().as_str() {
@@ -1071,6 +1093,55 @@ impl<'p> Parser<'p> {
     }
 
     let param = Some((name, kind));
+
+    if self.remaining() > 0 {
+      if ![",", "\n"].contains(&self.current_lexeme().as_str()) {
+        return Err(
+          response!(
+            Wrong(format!("expected `,` or newline, found `{}`", self.current_lexeme())),
+            self.source.file,
+            self.current_position()
+          )
+        )
+      } else {
+        self.next()?;
+      }
+
+      if self.remaining() > 0 && self.current_lexeme() == "\n" {
+        self.next()?
+      }
+    }
+
+    Ok(param)
+  }
+
+
+
+  fn _parse_definition_comma(self: &mut Self) -> Result<Option<(String, Expression)>, ()> {
+    if self.remaining() > 0 && self.current_lexeme() == "\n" {
+      self.next()?
+    }
+
+    if self.remaining() == 0 {
+      return Ok(None)
+    }
+
+    let mut splat = false;
+
+    if self.current_lexeme() == ".." {
+      splat = true;
+
+      self.next()?;
+      self.next_newline()?;
+    }
+
+    let name = self.eat_type(&TokenType::Identifier)?;
+    
+    self.eat_lexeme(":")?;
+
+    let mut value = self.parse_expression()?;
+
+    let param = Some((name, value));
 
     if self.remaining() > 0 {
       if ![",", "\n"].contains(&self.current_lexeme().as_str()) {

@@ -25,11 +25,11 @@ pub enum TypeNode {
   Str,
   Char,
   Nil,
-  Id(String),
+  Id(String, Vec<Type>),
   Array(Rc<Type>, usize),
   Func(Vec<Type>, Rc<Type>, Vec<String>, Option<Rc<ExpressionNode>>),
   Module(HashMap<String, Type>),
-  Struct(HashMap<String, Type>, Vec<String>),
+  Struct(String, HashMap<String, Type>, Vec<String>),
 }
 
 impl TypeNode {
@@ -81,8 +81,38 @@ impl PartialEq for TypeNode {
       (&Bool,                                &Bool)                                => true,
       (&Nil,                                 &Nil)                                 => true,
       (&Array(ref a, ref la),                &Array(ref b, ref lb))                => a == b && la == lb,
-      (&Id(ref a),                           &Id(ref b))                           => a == b,
+      (&Id(ref a, ref b),                    &Id(ref c, ref d))                    => a == c && b == d,
       (&Func(ref a_params, ref a_retty, ..), &Func(ref b_params, ref b_retty, ..)) => a_params == b_params && a_retty == b_retty,
+
+      (&Struct(_, ref content, ref generics), &Struct(_, ref content_b, ref generics_b)) => {
+        let mut false_0 = true;
+        let mut false_1 = true;
+
+        for (ref name, ref element) in content.iter() {
+          if let Some(ref element_b) = content_b.get(*name) {
+            if element != element_b {
+
+              if !generics.contains(name) && !generics_b.contains(name) {
+                false_0 = false
+              }
+            }
+          }
+        }
+
+        for (ref name_b, ref element_b) in content_b.iter() {
+          if let Some(ref element) = content.get(*name_b) {
+            if element != element_b {
+
+              if !generics.contains(name_b) && !generics_b.contains(name_b) {
+                false_1 = false
+              }
+
+            }
+          }
+        }
+
+        false_0 || false_1
+      },
 
       _ => false,
     }
@@ -101,6 +131,22 @@ pub enum TypeMode {
   Unwrap(usize),
 }
 
+impl TypeMode {
+  pub fn check(&self, other: &TypeMode) -> bool {
+    use self::TypeMode::*;
+
+    match (self, other) {
+      (&Regular,    &Regular)     => true,
+      (&Immutable,  &Immutable)   => true,
+      (&Optional,    &Optional)   => true,
+      (&Undeclared, &Undeclared)  => true,
+      (&Splat(a),      &Splat(b)) => &a == &b,
+      (&Unwrap(_),  &Unwrap(_))   => true,
+      _                           => false,
+    }
+  }
+}
+
 impl Display for TypeNode {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     use self::TypeNode::*;
@@ -113,11 +159,21 @@ impl Display for TypeNode {
       Char             => write!(f, "char"),
       Nil              => write!(f, "nil"),
       Array(ref n, l)  => write!(f, "[{}; {}]", n, l),
-      Id(ref n)        => write!(f, "{}", n),
-      Module(_)        => write!(f, "module"),
 
-      Struct(_, ref generics) => {
-        write!(f, "struct")?;
+      Id(ref n, ref generics) => {
+        write!(f, "{}", n)?;
+
+        if generics.len() > 0 {
+          write!(f, "<{}>", generics.iter().map(|x| format!("{}", x)).collect::<Vec<String>>().join(", "))
+        } else {
+          Ok(())
+        }
+      },
+
+      Module(_) => write!(f, "module"),
+
+      Struct(ref name, _, ref generics) => {
+        write!(f, "{}", name)?;
 
         if generics.len() > 0 {
           write!(f, "<{}>", generics.join(", "))
@@ -196,8 +252,8 @@ impl Type {
     }
   }
 
-  pub fn id(id: &str) -> Self {
-    Type::new(TypeNode::Id(id.to_owned()), TypeMode::Regular)
+  pub fn id(id: &str, generics: Vec<Type>) -> Self {
+    Type::new(TypeNode::Id(id.to_owned(), generics), TypeMode::Regular)
   }
 
   pub fn from(node: TypeNode) -> Type {
@@ -673,7 +729,9 @@ impl<'v> Visitor<'v> {
               actual_arg_len += len
             }
 
-            if let TypeNode::Id(ref name) = param.node {
+            let mut param_new = param.clone();
+
+            if let TypeNode::Id(ref name, ref cover) = param.node {
               if generics.contains(name) {
                 if let Some(kind) = covers.get(name) {
                   if &arg_type == kind {
@@ -692,13 +750,36 @@ impl<'v> Visitor<'v> {
                 covers.insert(name.clone(), arg_type.clone());
 
                 continue
+              } else {
+                if let TypeNode::Struct(ref struct_name, ref args, _) = arg_type.node {
+                  if name == struct_name {
+                    if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
+                      let kind = self.current_tab().1.get_type(index, env_index)?;
+
+                      if let TypeNode::Struct(ref other_name, ref other_args, ref generics) = kind.node {
+
+                        let mut cover_type = Vec::new();
+
+                        for (i, arg) in args.iter().enumerate() {
+                          if let TypeNode::Id(ref name, _) = other_args[arg.0].node {
+                            if generics.contains(name) {
+                              cover_type.push(arg.1.clone())
+                            }
+                          }
+                        }
+
+                        param_new = self.degeneralize(name, cover, &expression.pos)?
+                      }
+                    }
+                  }
+                }
               }
             }
 
-            if (index < args.len() && !param.node.check_expression(&args[index].node)) && param != &arg_type {
+            if (index < args.len() && !param_new.node.check_expression(&args[index].node)) && param_new != arg_type {
               return Err(
                 response!(
-                  Wrong(format!("mismatched argument, expected `{}` got `{}`", param, arg_type)),
+                  Wrong(format!("mismatched argument, expected `{}` got `{}`", param_new, arg_type)),
                   self.source.file,
                   args[index].pos
                 )
@@ -717,7 +798,7 @@ impl<'v> Visitor<'v> {
               for splat in &args[params.len()..] {
                 let splat_type = self.type_expression(&splat)?;
 
-                if let TypeNode::Id(ref name) = last.node {
+                if let TypeNode::Id(ref name, _) = last.node {
                   if generics.contains(name) {
                     if let Some(kind) = covers.get(name) {
                       if &splat_type == kind {
@@ -887,7 +968,7 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
-      Struct(ref params, ref generics) => {
+      Struct(_, ref params, ref generics) => {
         let mut generics_buffer = Vec::new();
         let mut name_buffer     = Vec::new();
 
@@ -917,6 +998,86 @@ impl<'v> Visitor<'v> {
           }
 
           name_buffer.push(&name)
+        }
+
+        Ok(())
+      },
+
+      Initialization(ref left, ref args) => {
+        let struct_type = self.type_expression(&*left)?;
+
+        if let TypeNode::Struct(_, ref content, ref generics) = struct_type.node {
+          if struct_type.mode.check(&TypeMode::Undeclared) {
+
+            let mut covers = HashMap::new();
+
+            for arg in args.iter() {
+              self.visit_expression(&arg.1)?;
+
+              let arg_type = self.type_expression(&arg.1)?;
+              
+              if let Some(ref content_type) = content.get(&arg.0) {
+                if !content_type.node.check_expression(&Parser::fold_expression(&arg.1)?.node) && arg_type != **content_type {
+                  if let TypeNode::Id(ref name, _) = content_type.node {
+                    if generics.contains(name) {
+                      if let Some(kind) = covers.get(name) {
+                        if arg_type != *kind {
+                          return Err(
+                            response!(
+                              Wrong(format!("mismatched types, expected `{}` got `{}`", kind, arg_type)),
+                              self.source.file,
+                              arg.1.pos
+                            )
+                          )
+                        } else {
+                          continue
+                        }
+                      }
+
+                      covers.insert(name, arg_type);
+
+                      continue
+                    }
+                  }
+
+                  return Err(
+                    response!(
+                      Wrong(format!("mismatched types, expected `{}` got `{}`", content_type, arg_type)),
+                      self.source.file,
+                      expression.pos
+                    )
+                  )
+                }
+
+
+              } else {
+                return Err(
+                  response!(
+                    Wrong(format!("no such member `{}`", arg.0)),
+                    self.source.file,
+                    arg.1.pos
+                  )
+                )
+              }
+            }
+
+          } else {
+            return Err(
+              response!(
+                Wrong(format!("can't initialize non-struct: `{}`", struct_type.node)),
+                self.source.file,
+                expression.pos
+              )
+            )
+          }
+        } else {
+          return Err(
+            response!(
+              Wrong(format!("can't initialize non-struct: `{}`", struct_type.node)),
+              self.source.file,
+              expression.pos
+            )
+          )
         }
 
         Ok(())
@@ -974,8 +1135,8 @@ impl<'v> Visitor<'v> {
     for param in params {
       param_names.push(param.0.clone());
 
-      let kind = if generics.len() > 0 {
-        if let TypeNode::Id(ref name) = return_type.node {
+      let kind = {
+        if let TypeNode::Id(ref name, _) = return_type.node {
           if generics.contains(name) {
             if let Some(ref covers) = generic_covers {
               return_type = covers.get(name).unwrap()
@@ -983,7 +1144,7 @@ impl<'v> Visitor<'v> {
           }
         }
 
-        if let TypeNode::Id(ref name) = param.1.node {
+        if let TypeNode::Id(ref name, ref args) = param.1.node {
           if generics.contains(name) {
             if let Some(ref covers) = generic_covers {
               Type::new(covers.get(name).unwrap().clone().node, param.1.mode.clone())
@@ -991,13 +1152,11 @@ impl<'v> Visitor<'v> {
               param.1.clone()
             }
           } else {
-            param.1.clone()
+            self.degeneralize(&name, args, &pos)?
           }
         } else {
           param.1.clone()
         }
-      } else {
-        param.1.clone()
       };
 
       param_types.push(kind);
@@ -1137,6 +1296,32 @@ impl<'v> Visitor<'v> {
 
         if let TypeMode::Splat(ref len) = t.mode {
           Type::new(t.node, TypeMode::Unwrap(len.unwrap()))
+        } else {
+          unreachable!()
+        }
+      },
+
+      Initialization(ref left, ref args) => {
+        let mut content_type = HashMap::new();
+
+        if let TypeNode::Struct(name, content, generics) = self.type_expression(left)?.node {
+          let mut generics_type = Vec::new();
+
+          for arg in args {
+            let arg_type = self.type_expression(&arg.1)?;
+
+            if let TypeNode::Id(ref name, _) = content[&arg.0].node {
+              if generics.contains(name) {
+                generics_type.push(format!("{}", arg_type))
+              }
+            }
+
+            content_type.insert(arg.0.clone(), arg_type);
+          }
+
+          generics_type.dedup();
+
+          Type::from(TypeNode::Struct(name, content_type, generics_type))
         } else {
           unreachable!()
         }
@@ -1353,14 +1538,14 @@ impl<'v> Visitor<'v> {
         block_type
       },
 
-      Struct(ref params, ref generics) => {
+      Struct(ref name, ref params, ref generics) => {
         let mut param_hash = HashMap::new();
 
         for param in params {
           param_hash.insert(param.0.clone(), param.1.clone());
         }
 
-        Type::new(TypeNode::Struct(param_hash, generics.clone()), TypeMode::Undeclared)
+        Type::new(TypeNode::Struct(name.to_owned(), param_hash, generics.clone()), TypeMode::Undeclared)
       } 
 
       _ => Type::from(TypeNode::Nil)
@@ -1388,5 +1573,60 @@ impl<'v> Visitor<'v> {
 
   pub fn pop_scope(&mut self) {
     self.tab_frames.push(self.tabs.pop().unwrap());
+  }
+
+
+
+  fn degeneralize(&mut self, name: &String, args: &Vec<Type>, pos: &TokenElement) -> Result<Type, ()> {
+    if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
+      let kind = self.current_tab().1.get_type(index, env_index)?;
+
+      let result = if let TypeNode::Struct(ref struct_name, ref content, ref generics) = kind.node {
+        let mut content_type  = HashMap::new();
+        let mut generics_type = Vec::new();
+
+        for (ref member_name, ref element) in content.iter() {
+          if let TypeNode::Id(ref name, _) = element.node {
+            if let Some(index) = generics.iter().position(|ref r| *r == name) {
+
+              if let Some(kind) = args.get(index) {
+                generics_type.push(format!("{}", kind)); // the worstest of hacks, like this method :)))
+                content_type.insert((*member_name).clone(), kind.clone());
+              } else {
+                return Err(
+                  response!(
+                    Wrong(format!("missing generic type `{}` on `{}`", name, struct_name)),
+                    self.source.file,
+                    pos.clone()
+                  )
+                )
+              }
+
+            } else {
+              content_type.insert((*member_name).clone(), (*element).clone());
+            }
+          } else {
+            content_type.insert((*member_name).clone(), (*element).clone());
+          }
+        }
+
+        generics_type.dedup();
+
+        Type::from(TypeNode::Struct(struct_name.clone(), content_type, generics_type.clone()))
+      } else {
+        kind
+      };
+
+      Ok(result)
+
+    } else {
+      return Err(
+        response!(
+          Wrong(format!("no such type `{}` in this scope", name)),
+          self.source.file,
+          pos.clone()
+        )
+      )
+    }
   }
 }
