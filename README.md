@@ -20,23 +20,17 @@ The language is meant and designed to be a solid alternative to MoonScript, and 
 ### Taster
 
 ```
--- for flexing wu generics
-add: def<T>(a: T, b: T) -> T {
-  a + b
+point: type<T> {
+  x: T
+  y: T
 }
 
-fib: def(a: int) -> int {
-  if a < 3 {
-    return a
-  }
-  
-  add(fib(a - 1), fib(a - 2))
+position := point {
+  x: 100, y: 100
 }
 
-print_fibs: def(..numbers: int) {
-  for i in numbers {
-    prnit(fib(i))
-  }
+copy_point: def<T>(a: point<T>) -> point<T> {
+  a clone()
 }
 ```
 
