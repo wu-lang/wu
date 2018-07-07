@@ -17,7 +17,9 @@ Apart from being the best language ever, Wu strives to be a decently efficient, 
 
 The language is meant and designed to be a solid alternative to MoonScript, and even superior on control and scalability.
 
-### Taster
+### Teaser
+
+#### Structs
 
 ```
 point: type<T> {
@@ -31,6 +33,24 @@ position := point {
 
 copy_point: def<T>(a: point<T>) -> point<T> {
   a clone()
+}
+```
+
+#### Splats
+
+```
+fib: def(a: int) -> int {
+  if a < 3 {
+    return a
+  }
+  
+  fib(a - 1) + fib(a - 2)
+}
+
+print_fibs: def(..numbers: int) {
+  for n in numbers {
+    print(fib(n))
+  }
 }
 ```
 
