@@ -11,9 +11,9 @@ An expression oriented, strongly typed and sweet language
 
 A full walk-through of the language can be found over at the [wu-lang documentation](https://wu-lang.github.io/wu.html).
 
-### A decent language
+### Motivation
 
-Apart from being the best language ever, Wu strives to be a decently efficient, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai language and the sugar of MoonScript and the functional language family.
+Apart from being a strong and exquisite hipster language, Wu strives to be a decently useful, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai language and the sugar of MoonScript and the functional language family.
 
 The language is meant and designed to be a solid alternative to MoonScript, and even superior on control and scalability.
 
