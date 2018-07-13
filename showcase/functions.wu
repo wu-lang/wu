@@ -3,7 +3,8 @@ fib: def(a: int) -> int {
     return a
   }
 
-  fib(a - 1) + fib(a - 2)
+  -- quick testing of future
+  fac(a - 1) + fib(a - 2)
 }
 
 fac: def(a: int) -> int {

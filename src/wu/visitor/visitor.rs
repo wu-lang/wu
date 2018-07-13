@@ -319,6 +319,31 @@ impl<'v> Visitor<'v> {
   }
 
   pub fn visit(&mut self) -> Result<(), ()> {
+    // double pass for future functions :))
+    for statement in self.ast {
+      if let StatementNode::Variable(_, ref name, ref right) = statement.node {
+        if let Some(ref right) = *right {
+          if let ExpressionNode::Function(ref params, ref retty, ref body, ref generics) = right.node {
+
+            let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
+              index
+            } else {
+              self.current_tab().1.grow();
+              self.current_tab().0.add_name(name)
+            };
+
+            let mut types = params.iter().map(|x| x.1.clone()).collect::<Vec<Type>>();
+
+            self.current_tab().1.set_type(index, 0, 
+              Type::from(
+                TypeNode::Func(types, Rc::new(retty.clone()), generics.clone(), Some(Rc::new(body.node.clone())))
+              )
+            )?
+          }
+        }
+      }
+    }
+
     for statement in self.ast {
       self.visit_statement(&statement)?
     }
