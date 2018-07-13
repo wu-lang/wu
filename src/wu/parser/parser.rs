@@ -586,6 +586,13 @@ impl<'p> Parser<'p> {
         },
 
         "{" => {
+          use self::ExpressionNode::*;
+
+          match expression.node {
+            Index(..) | Identifier(_) | Call(..) => (),
+            _ => return Ok(expression)
+          }
+
           let args = self.parse_block_of(("{", "}"), &Self::_parse_definition_comma)?;
 
           let position = expression.pos.clone();
@@ -725,6 +732,7 @@ impl<'p> Parser<'p> {
         "float" => Type::from(TypeNode::Float),
 
         "bool"  => Type::from(TypeNode::Bool),
+
         id      => {
           let generics = if self.current_lexeme() == "<" {
             self.parse_block_of(("<", ">"), &Self::_parse_type_comma)?
@@ -734,6 +742,40 @@ impl<'p> Parser<'p> {
 
           Type::id(id, generics)
         }
+      },
+
+      Keyword => match self.current_lexeme().as_str() {
+        "def"   => {
+          self.next()?;
+
+          let generics = if self.current_lexeme() == "<" {
+            self.parse_block_of(("<", ">"), &Self::_parse_name_comma)?
+          } else {
+            Vec::new()
+          };
+
+          self.expect_lexeme("(")?;
+
+          let params = self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?;
+
+          let return_type = if self.current_lexeme() == "->" {
+            self.next()?;
+
+            self.parse_type()?
+          } else {
+            Type::from(TypeNode::Nil)
+          };
+
+          Type::from(TypeNode::Func(params, Rc::new(return_type), generics, None))
+        },
+
+        _ => return Err(
+          response!(
+            Wrong(format!("unexpected keyword `{}` in type", self.current_lexeme())),
+            self.source.file,
+            self.current_position()
+          )
+        )
       },
 
       Symbol => match self.current_lexeme().as_str() {
@@ -776,6 +818,14 @@ impl<'p> Parser<'p> {
           let return_type = self.parse_type()?;
 
           Type::function(params, return_type)
+        },
+
+        ".." => {
+          self.next()?;
+
+          let splatted = self.parse_type()?;
+
+          Type::new(splatted.node, TypeMode::Splat(None))
         },
 
         _ => return Err(
@@ -910,6 +960,7 @@ impl<'p> Parser<'p> {
 
       Ok(lexeme)
     } else {
+      panic!();
       Err(
         response!(
           Wrong(format!("expected `{}`, found `{}`", token_type, self.current_type())),
@@ -1139,7 +1190,7 @@ impl<'p> Parser<'p> {
     
     self.eat_lexeme(":")?;
 
-    let mut value = self.parse_expression()?;
+    let value = self.parse_expression()?;
 
     let param = Some((name, value));
 

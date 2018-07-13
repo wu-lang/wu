@@ -786,12 +786,58 @@ impl<'v> Visitor<'v> {
                           }
                         }
 
-                        param_new = self.degeneralize(name, &cover_type, &expression.pos)?;
+                        param_new = self.degeneralize_struct(name, &cover_type, &expression.pos)?;
                       }
                     }
                   }
                 }
               }
+            } else {
+                
+              if let TypeNode::Func(ref params, ..) = arg_type.node {
+                if let TypeNode::Func(ref params_expr, ref return_type_expr, ref generics_expr, ref reference) = expression_type {
+
+                  let mut new_params = Vec::new(); 
+                  let mut new_retty  = return_type_expr.clone();
+
+                  for (i, other_param) in params_expr.iter().enumerate() {
+                    if let TypeNode::Id(ref name, _) = other_param.node {
+
+                      if let Some(cover_kind) = covers.get(name) {
+                        new_params.push(cover_kind.clone());
+
+                        if let TypeNode::Id(ref name_ret, ref covers) = return_type_expr.node {
+                          if covers.len() == 0 {
+                            if name == name_ret {
+                              new_retty = Rc::new(cover_kind.clone())
+                            }
+                          }
+                        }
+                      } else {
+                        new_params.push(params[i - 1].clone());
+
+                        if let TypeNode::Id(ref name_ret, ref covers) = return_type_expr.node {
+                          if covers.len() == 0 {
+                            if name == name_ret {
+                              new_retty = Rc::new(params[i - 1].clone())
+                            }
+                          }
+                        }
+                      }
+
+                      if covers.get(name).is_none() {
+                        covers.insert(name.clone(), params[i - 1].clone());
+                      }
+                    }
+                  }
+
+                  // the none generic version ;))
+                  param_new = Type::from(
+                    TypeNode::Func(new_params, new_retty, generics_expr.clone(), reference.clone())
+                  )
+                }
+              }
+
             }
             
             if (index < args.len() && !param_new.node.check_expression(&args[index].node)) && param_new != arg_type {
@@ -1184,7 +1230,7 @@ impl<'v> Visitor<'v> {
               }
             }
 
-            self.degeneralize(&name, &covers_new, &pos)?
+            self.degeneralize_struct(&name, &covers_new, &pos)?
           }
         } else {
           param.1.clone()
@@ -1609,7 +1655,7 @@ impl<'v> Visitor<'v> {
 
 
 
-  fn degeneralize(&mut self, name: &String, args: &Vec<Type>, pos: &TokenElement) -> Result<Type, ()> {
+  fn degeneralize_struct(&mut self, name: &String, args: &Vec<Type>, pos: &TokenElement) -> Result<Type, ()> {
     if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
       let kind = self.current_tab().1.get_type(index, env_index)?;
 

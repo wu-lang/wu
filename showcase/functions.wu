@@ -14,7 +14,6 @@ fac: def(a: int) -> int {
   fac(a - 1) * a
 }
 
-
 foo: def(
   a: float
   b: float
@@ -22,3 +21,11 @@ foo: def(
 {
   "hey this actually works"
 }
+
+
+
+high: def<T>(a: def(T) -> T, value: T) -> T {
+  a(value)
+}
+
+high(fib, 10)
