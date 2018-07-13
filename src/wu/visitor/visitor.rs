@@ -1470,7 +1470,7 @@ impl<'v> Visitor<'v> {
 
       Index(ref array, ref index) => match self.type_expression(array)?.node {
         TypeNode::Array(ref t, _) => (**t).clone(),
-        TypeNode::Module(ref content) => {
+        TypeNode::Module(ref content) | TypeNode::Struct(_, ref content, _) => {
           if let Identifier(ref name) = index.node {
             content.get(name).unwrap().clone()
           } else {
