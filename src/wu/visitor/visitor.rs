@@ -1468,17 +1468,30 @@ impl<'v> Visitor<'v> {
         }
       },
 
-      Index(ref array, ref index) => match self.type_expression(array)?.node {
-        TypeNode::Array(ref t, _) => (**t).clone(),
-        TypeNode::Module(ref content) | TypeNode::Struct(_, ref content, _) => {
-          if let Identifier(ref name) = index.node {
-            content.get(name).unwrap().clone()
-          } else {
-            unreachable!()
-          }
-        },
+      Index(ref array, ref index) => {
+        let kind = self.type_expression(array)?;
+        match kind.node {
+          TypeNode::Array(ref t, _) => (**t).clone(),
+          TypeNode::Module(ref content) | TypeNode::Struct(_, ref content, _) => {
+            if kind.mode == TypeMode::Regular {
+              if let Identifier(ref name) = index.node {
+                content.get(name).unwrap().clone()
+              } else {
+                unreachable!()
+              }
+            } else {
+              return Err(
+                response!(
+                  Wrong(format!("can't index {}", kind)),
+                  self.source.file,
+                  expression.pos
+                )
+              )
+            }
+          },
 
-        _ => unreachable!(),
+          _ => unreachable!(),
+        }
       },
 
       If(_, ref expression, _) | While(_, ref expression) => self.type_expression(expression)?,
