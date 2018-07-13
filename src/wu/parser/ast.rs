@@ -55,6 +55,7 @@ pub enum ExpressionNode {
   While(Rc<Expression>, Rc<Expression>),
   Struct(String, Vec<(String, Type)>, Vec<String>),
   Initialization(Rc<Expression>, Vec<(String, Expression)>),
+  Extern(Type, Option<String>),
   EOF,
   Empty,
 }

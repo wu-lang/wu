@@ -793,9 +793,9 @@ impl<'v> Visitor<'v> {
                 }
               }
             } else {
-                
-              if let TypeNode::Func(ref params, ..) = arg_type.node {
-                if let TypeNode::Func(ref params_expr, ref return_type_expr, ref generics_expr, ref reference) = expression_type {
+
+              if let TypeNode::Func(ref params, .., ref reference) = arg_type.node {
+                if let TypeNode::Func(ref params_expr, ref return_type_expr, ref generics_expr, _) = expression_type {
 
                   let mut new_params = Vec::new(); 
                   let mut new_retty  = return_type_expr.clone();
@@ -909,6 +909,10 @@ impl<'v> Visitor<'v> {
 
 
           if covers.len() > 0 || actual_arg_len > params.len() {
+            if func.is_none() {
+              return Ok(()) // relevant for externals
+            }
+
             if let Function(ref params, ref return_type, ref body, ref generics) = *func.clone().unwrap() {
               let mut real_params = Vec::new();
 
@@ -1378,6 +1382,8 @@ impl<'v> Visitor<'v> {
           unreachable!()
         }
       },
+
+      Extern(ref kind, _) => kind.clone(),
 
       Initialization(ref left, ref args) => {
         let mut content_type = HashMap::new();

@@ -318,7 +318,30 @@ impl<'p> Parser<'p> {
             position
           )
         )
-      }
+      },
+
+      "extern" => {
+        let position = self.current_position();
+
+        self.next()?;
+
+        let kind = self.parse_type()?;
+
+        let lua = if self.current_lexeme() == "=" {
+          self.next()?;
+
+          Some(self.eat_type(&TokenType::Str)?)
+        } else {
+          None
+        };
+
+        Some(
+          Expression::new(
+            ExpressionNode::Extern(kind, lua),
+            self.span_from(position)
+          )
+        )
+      },
 
       _ => None
     };

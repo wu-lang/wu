@@ -457,6 +457,12 @@ impl<'g> Generator<'g> {
         format!("{{\n{}}}", self.make_line(&inner))
       },
 
+      Extern(_, ref lua) => if let &Some(ref lua) = lua {
+        lua.to_owned()
+      } else {
+        String::new()
+      },
+
       Int(ref n)        => format!("{}", n),
       Float(ref n)      => format!("{}", n),
       Bool(ref n)       => format!("{}", n),
@@ -492,8 +498,13 @@ impl<'g> Generator<'g> {
     };
 
     if let &Some(ref right) = right {
-      if let ExpressionNode::Struct(..) = right.node {
-        return String::new()
+      match right.node {
+        ExpressionNode::Struct(..) => return String::new(),
+        ExpressionNode::Extern(_, ref lua) => if lua.is_none() {
+          return String::new()
+        },
+
+        _ => ()
       }
 
       let right_str = self.generate_expression(right);

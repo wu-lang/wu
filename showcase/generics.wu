@@ -1,4 +1,4 @@
-bar: def <T, K> (a: T, b: K) -> bool {
+bar: def <T, K>(a: T, b: K) -> bool {
   a < b
 }
 
