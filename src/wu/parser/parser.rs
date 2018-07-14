@@ -183,10 +183,19 @@ impl<'p> Parser<'p> {
 
             let position = expression.pos.clone();
 
-            Statement::new(
-              StatementNode::Expression(expression),
-              position,
-            )
+            if self.current_lexeme() == "=" {
+              self.next()?;
+
+              Statement::new(
+                StatementNode::Assignment(expression, self.parse_expression()?),
+                position
+              )
+            } else {
+              Statement::new(
+                StatementNode::Expression(expression),
+                position,
+              )
+            }
           },
         }
       },
@@ -777,9 +786,11 @@ impl<'p> Parser<'p> {
             Vec::new()
           };
 
-          self.expect_lexeme("(")?;
-
-          let params = self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?;
+          let params = if self.current_lexeme() == "(" {
+            self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?
+          } else {
+            Vec::new() 
+          };
 
           let return_type = if self.current_lexeme() == "->" {
             self.next()?;

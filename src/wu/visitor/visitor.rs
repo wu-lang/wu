@@ -724,13 +724,13 @@ impl<'v> Visitor<'v> {
       Call(ref expression, ref args) => {
         self.visit_expression(expression)?;
 
-        let expression_type = self.type_expression(expression)?.node;
+        let expression_type = self.type_expression(expression)?;
 
         let mut covers = HashMap::new();
 
         let mut corrected_params = Vec::new(); // because functions don't know what's best for them >:()
 
-        if let TypeNode::Func(ref params, _, ref generics, ref func) = expression_type {
+        if let TypeNode::Func(ref params, _, ref generics, ref func) = expression_type.node {
           let mut actual_arg_len = args.len();
 
           let mut type_buffer: Option<Type> = None; // for unwraps
@@ -820,7 +820,7 @@ impl<'v> Visitor<'v> {
             } else {
 
               if let TypeNode::Func(ref params, .., ref reference) = arg_type.node {
-                if let TypeNode::Func(ref params_expr, ref return_type_expr, ref generics_expr, _) = expression_type {
+                if let TypeNode::Func(ref params_expr, ref return_type_expr, ref generics_expr, _) = expression_type.node {
 
                   let mut new_params = Vec::new(); 
                   let mut new_retty  = return_type_expr.clone();
@@ -839,32 +839,38 @@ impl<'v> Visitor<'v> {
                           }
                         }
                       } else {
-                        new_params.push(params[i - 1].clone());
+                        new_params.push(params[i].clone());
 
                         if let TypeNode::Id(ref name_ret, ref covers) = return_type_expr.node {
                           if covers.len() == 0 {
                             if name == name_ret {
-                              new_retty = Rc::new(params[i - 1].clone())
+                              new_retty = Rc::new(params[i].clone())
                             }
                           }
                         }
                       }
 
                       if covers.get(name).is_none() {
-                        covers.insert(name.clone(), params[i - 1].clone());
+                        covers.insert(name.clone(), params[i].clone());
+                      }
+                    } else {
+                      if params.len() < i {
+                        new_params.push(params[i].clone())
                       }
                     }
                   }
 
+                  if new_params.len() != params_expr.len() {
+                    new_params = params_expr.clone()
+                  }
+
                   // the none generic version ;))
-                  param_new = Type::from(
-                    TypeNode::Func(new_params, new_retty, generics_expr.clone(), reference.clone())
-                  )
+                  param_new = new_params[index].clone()
                 }
               }
 
             }
-            
+
             if (index < args.len() && !param_new.node.check_expression(&args[index].node)) && param_new != arg_type {
               return Err(
                 response!(
@@ -919,12 +925,12 @@ impl<'v> Visitor<'v> {
           }
           
 
-          if actual_arg_len > params.len() {
+          if actual_arg_len != params.len() {
             match params.last().unwrap().mode {
               TypeMode::Splat(_) => (),
               _                  => return Err(
                 response!(
-                  Wrong(format!("too many arguments, expected {} got {}", params.len(), actual_arg_len)),
+                  Wrong(format!("expected {} arguments got {}", params.len(), actual_arg_len)),
                   self.source.file,
                   args.last().unwrap().pos
                 )
@@ -1269,12 +1275,14 @@ impl<'v> Visitor<'v> {
       param_types.push(kind);
     }
 
-    let last_type = param_types.last().unwrap().clone();
+    if param_types.len() > 0 {
+      let last_type = param_types.last().unwrap().clone();
 
-    if let TypeMode::Splat(_) = last_type.mode {
-      let len = param_types.len();
+      if let TypeMode::Splat(_) = last_type.mode {
+        let len = param_types.len();
 
-      param_types[len - 1] = Type::new(last_type.node, TypeMode::Splat(Some(splat_len)))
+        param_types[len - 1] = Type::new(last_type.node, TypeMode::Splat(Some(splat_len)))
+      }
     }
 
     if generics.len() > 0 && generic_covers.is_none() {
@@ -1408,7 +1416,25 @@ impl<'v> Visitor<'v> {
         }
       },
 
-      Extern(ref kind, _) => kind.clone(),
+      Extern(ref kind, _) => {
+        let mut kind = kind.clone();
+
+        if let TypeNode::Id(ref name, _) = kind.node.clone() {
+          if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
+            kind = self.current_tab().1.get_type(index, env_index)?.clone()
+          } else {
+            return Err(
+              response!(
+                Wrong(format!("no such value `{}` in this scope", name)),
+                self.source.file,
+                expression.pos
+              )
+            )
+          }
+        }
+
+        Type::from(kind.node.clone())
+      },
 
       Initialization(ref left, ref args) => {
         let mut content_type = HashMap::new();
@@ -1469,7 +1495,8 @@ impl<'v> Visitor<'v> {
       },
 
       Index(ref array, ref index) => {
-        let kind = self.type_expression(array)?;
+        let mut kind = self.type_expression(array)?;
+
         match kind.node {
           TypeNode::Array(ref t, _) => (**t).clone(),
           TypeNode::Module(ref content) | TypeNode::Struct(_, ref content, _) => {
@@ -1482,7 +1509,7 @@ impl<'v> Visitor<'v> {
             } else {
               return Err(
                 response!(
-                  Wrong(format!("can't index {}", kind)),
+                  Wrong(format!("can't index `{}`", kind)),
                   self.source.file,
                   expression.pos
                 )
@@ -1490,7 +1517,13 @@ impl<'v> Visitor<'v> {
             }
           },
 
-          _ => unreachable!(),
+          _ => return Err(
+            response!(
+              Wrong(format!("can't index `{}`", kind)),
+              self.source.file,
+              expression.pos
+            )
+          ),
         }
       },
 

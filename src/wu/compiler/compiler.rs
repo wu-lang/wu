@@ -41,13 +41,33 @@ impl<'g> Generator<'g> {
 
 
 
+  fn get_names(statements: &Vec<Statement>) -> Vec<String> {
+    use self::StatementNode::*;
+
+    let mut names = Vec::new();
+
+    for statement in statements {
+      match statement.node {
+        Variable(_, ref name, ..)     => names.push(name.to_owned()),
+        Import(ref name, ref imports) => {
+          if imports.len() == 0 {
+            names.push(name.to_owned())
+          } else {
+            names.append(&mut imports.to_owned())
+          }
+        },
+
+        _ => (),
+      }
+    }
+
+    names
+  }
+
+
+
   pub fn generate(&mut self, ast: &'g Vec<Statement>) -> String {
     let mut result = "return (\nfunction()\n".to_string();
-
-    let file_name = Path::new(&self.source.file.0).file_name().unwrap().to_str().unwrap().split(".").collect::<Vec<&str>>()[0];
-
-    result.push_str(&format!("  local ___{} = setmetatable({{}}, {{__index=_ENV}})", file_name));
-
     let mut output = String::new();
 
     let flag_backup = self.flag.clone();
@@ -63,7 +83,17 @@ impl<'g> Generator<'g> {
 
     self.push_line(&mut result, &output);
 
-    result.push_str(&format!("  return ___{}", file_name));
+    result.push_str("  return {\n");
+
+    let mut assignments = String::new();
+
+    for name in Self::get_names(ast) {
+      assignments.push_str(&format!("  {0} = {0},\n", name))
+    }
+
+    self.push_line(&mut result, &assignments);
+
+    result.push_str("  }");
 
     result.push_str("\nend)()");
 
@@ -157,7 +187,7 @@ impl<'g> Generator<'g> {
         if let Block(ref elements) = content.node {
           let mut result = "(function()\n".to_string();
 
-          let mut body = "local __module = setmetatable({}, {__index=_ENV})\n".to_string();
+          let mut body = String::new();
 
           let flag_backup = self.flag.clone();
 
@@ -169,7 +199,17 @@ impl<'g> Generator<'g> {
 
           self.flag = flag_backup;
 
-          body.push_str("\nreturn __module");
+          body.push_str("\nreturn {\n");
+
+          let mut assignments = String::new();
+
+          for name in Self::get_names(elements) {
+            assignments.push_str(&format!("  {0} = {0},\n", name))
+          }
+
+          self.push_line(&mut body, &assignments);
+
+          body.push('}');
 
           self.push_line(&mut result, &body);
 
@@ -509,7 +549,7 @@ impl<'g> Generator<'g> {
 
       let right_str = self.generate_expression(right);
 
-      result.push_str(&format!(" = {}", right_str))
+      result.push_str(&format!(" = {}\n", right_str))
     }
 
     self.flag = flag_backup;

@@ -1,3 +1,5 @@
 print: extern def<T>(..T)
 
-print("hey hey")
+load: def {
+  print("hey love actually works!!")
+}
