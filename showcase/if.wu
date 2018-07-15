@@ -3,3 +3,8 @@ foo := if false {
 } else {
   20
 }
+
+print: extern def<T>(..T)
+
+result := if 2 + 2 == 2 { "it's two" } elif 2 + 2 == 3 {  "it's three"} else {  "something else" }
+print(result)

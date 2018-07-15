@@ -610,6 +610,30 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
+      Cast(ref expr, ref t) => {
+        use self::TypeNode::*;
+
+        match (self.type_expression(expr)?.node, &t.node) {
+          (ref a, ref b) if a == *b => Ok(()),
+
+          (Int,   &Float) |
+          (Float, &Int)   |
+          (Str,   &Char)  |
+          (Char,  &Str)   |
+          (Int,   &Str)   |
+          (Float, &Str)   |
+          (Bool,  &Str)   => Ok(()),
+
+          (a, b) => return Err(
+            response!(
+              Wrong(format!("can't cast `{}` to `{}`", a, b)),
+              self.source.file,
+              expression.pos
+            )
+          )
+        }
+      },
+
       While(ref condition, ref body) => {
         self.visit_expression(&*condition)?;
 

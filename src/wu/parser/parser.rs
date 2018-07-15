@@ -585,6 +585,10 @@ impl<'p> Parser<'p> {
 
 
   fn parse_postfix(&mut self, expression: Expression) -> Result<Expression, ()> {
+    if self.remaining() == 0 {
+      return Ok(expression)
+    }
+
     match self.current_type() {
       TokenType::Symbol => match self.current_lexeme().as_str() {
         "(" => {

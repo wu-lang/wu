@@ -67,7 +67,7 @@ impl<'g> Generator<'g> {
 
 
   pub fn generate(&mut self, ast: &'g Vec<Statement>) -> String {
-    let mut result = "return (\nfunction()\n".to_string();
+    let mut result = "return (function()\n".to_string();
     let mut output = String::new();
 
     let flag_backup = self.flag.clone();
@@ -224,7 +224,7 @@ impl<'g> Generator<'g> {
       Block(ref content) => {
         let flag_backup = self.flag.clone();
 
-        let flag = self.flag.clone();
+        let flag = self.flag.clone();        
 
         let mut result = if let Some(ref f) = flag {
           match *f {
@@ -242,12 +242,12 @@ impl<'g> Generator<'g> {
           "do\n"
         }.to_string();
 
-        for (i, element) in content.iter().enumerate() {
+        for (i, element) in content.iter().enumerate() {          
           if i == content.len() - 1 {
             if self.flag.is_some() {
               if let StatementNode::Expression(ref expression) = element.node {
                 match expression.node {
-                  Block(_) | If(..) => (),
+                  Block(_) | If(..) | While(..) => (),
                   _ => match &self.flag.clone().unwrap() {
                     &FlagImplicit::Return => {
                       let line = format!("return {}\n", self.generate_expression(expression));
@@ -446,9 +446,30 @@ impl<'g> Generator<'g> {
         let mut body_string = String::new(); // doing this to remove redundant 'do' and 'end'
 
         if let Block(ref content) = body.node {
-          for element in content {
-            body_string.push_str(&self.generate_statement(&element));
-            body_string.push('\n')            
+          for (i, element) in content.iter().enumerate() {          
+            if i == content.len() - 1 {
+              if self.flag.is_some() {
+                if let StatementNode::Expression(ref expression) = element.node {
+                  match expression.node {
+                    Block(_) | If(..) | While(..) => (),
+                    _ => match &self.flag.clone().unwrap() {
+                      &FlagImplicit::Return => {
+                        let line = format!("return {}\n", self.generate_expression(expression));
+
+                        result.push_str(&self.make_line(&line));
+
+                        break
+                      },
+
+                      _ => ()
+                    },
+                  }
+                }
+              }
+            }
+
+            let line = self.generate_statement(&element);
+            result.push_str(&self.make_line(&line));
           }
         }
 
@@ -465,10 +486,31 @@ impl<'g> Generator<'g> {
 
             body_string = String::new();
 
-            if let Block(ref content) = body.node {
-              for element in content {
-                body_string.push_str(&self.generate_statement(&element));
-                body_string.push('\n')
+            if let Block(ref content) = branch.1.node {
+              for (i, element) in content.iter().enumerate() {          
+                if i == content.len() - 1 {
+                  if self.flag.is_some() {
+                    if let StatementNode::Expression(ref expression) = element.node {
+                      match expression.node {
+                        Block(_) | If(..) | While(..) => (),
+                        _ => match &self.flag.clone().unwrap() {
+                          &FlagImplicit::Return => {
+                            let line = format!("return {}\n", self.generate_expression(expression));
+
+                            result.push_str(&self.make_line(&line));
+
+                            break
+                          },
+
+                          _ => ()
+                        },
+                      }
+                    }
+                  }
+                }
+
+                let line = self.generate_statement(&element);
+                result.push_str(&self.make_line(&line));
               }
             }
 
@@ -509,6 +551,19 @@ impl<'g> Generator<'g> {
       Str(ref n)        => format!("\"{}\"", n),
       Char(ref n)       => format!("\"{}\"", n),
       Identifier(ref n) => format!("{}", n),
+
+      Cast(ref a, ref t) => {
+        use self::TypeNode::*;
+
+        let result = match t.node {
+          Float => "tonumber(",
+          Str   => "tostring(",
+          Int   => "math.floor(",
+          _     => "(",
+        };
+
+        format!("{}{})", result, self.generate_expression(a))
+      }
 
       Empty             => String::from("nil"),
 
