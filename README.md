@@ -9,7 +9,7 @@ An expression oriented, strongly typed, sweet and mission-critical programming l
 
 ## Syntax
 
-A full walk-through of the language can be found over at the [wu-lang documentation](https://wu-lang.github.io/wu.html).
+A full walk-through of the language can be found over at the [wu-lang documentation](https://wu-lang.gitbook.io/guide/).
 
 ### Motivation
 
