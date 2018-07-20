@@ -590,7 +590,25 @@ impl<'v> Visitor<'v> {
             )
           )
         }
-      }
+      },
+
+      Neg(ref expression) => {
+        self.visit_expression(expression)?;
+
+        let kind = self.type_expression(expression)?;
+
+        if ![TypeNode::Int, TypeNode::Float].contains(&kind.node) {
+          Err(
+            response!(
+              Wrong("can't negate a non-number"),
+              self.source.file,
+              expression.pos
+            )
+          )
+        } else {
+          Ok(())
+        }
+      },
 
       Block(ref statements) => {
         self.push_scope();
@@ -1439,6 +1457,8 @@ impl<'v> Visitor<'v> {
           unreachable!()
         }
       },
+
+      Neg(ref expr) => self.type_expression(expr)?,
 
       Extern(ref kind, _) => {
         let mut kind = kind.clone();

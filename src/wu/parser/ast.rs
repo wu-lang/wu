@@ -42,6 +42,7 @@ pub enum ExpressionNode {
   Char(char),
   Bool(bool),
   Unwrap(Rc<Expression>),
+  Neg(Rc<Expression>),
   Identifier(String),
   Binary(Rc<Expression>, Operator, Rc<Expression>),
   Block(Vec<Statement>),

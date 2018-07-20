@@ -552,6 +552,8 @@ impl<'g> Generator<'g> {
       Char(ref n)       => format!("\"{}\"", n),
       Identifier(ref n) => format!("{}", n),
 
+      Neg(ref n)        => format!("-{}", self.generate_expression(n)),
+
       Cast(ref a, ref t) => {
         use self::TypeNode::*;
 

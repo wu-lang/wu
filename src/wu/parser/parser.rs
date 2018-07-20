@@ -430,6 +430,18 @@ impl<'p> Parser<'p> {
             )
           },
 
+          "-" => {
+            self.next()?;
+
+            Expression::new(
+              ExpressionNode::Neg(
+                Rc::new(self.parse_expression()?)
+              ),
+
+              self.span_from(position)
+            )
+          },
+
           ref symbol => return Err(
             response!(
               Wrong(format!("unexpected symbol `{}`", symbol)),
