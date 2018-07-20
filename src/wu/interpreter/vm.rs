@@ -165,7 +165,7 @@ impl VirtualMachine {
     let mut ip: u32 = 0;
 
     loop {
-      match unsafe { Instruction::from(bytecode[ip as usize]) } {
+      match Instruction::from(bytecode[ip as usize]) {
         Halt => {
           if ip as usize != bytecode.len() - 1 {
             println!("{} -> {}/{} {:?}", "something weird is going on heeere".yellow().bold(), ip, bytecode.len(), &bytecode[(ip - 20) as usize .. ip as usize])
