@@ -92,6 +92,46 @@ impl fmt::Display for Instruction {
 
 
 
+impl From<u8> for Instruction {
+    fn from(x: u8) -> Instruction {
+        use self::Instruction::*;
+        match x {
+            0x00 => Halt  ,
+            0x01 => Push  ,
+            0x02 => Pop   ,
+            0x03 => PushV ,
+            0x04 => ConvIF,
+            0x05 => ConvFI,
+            0x06 => ConvII,
+            0x07 => ConvFF,
+            0x08 => AddI  ,
+            0x09 => AddF  ,
+            0x10 => JmpF  ,
+            0x11 => EqI   ,
+            0x12 => EqF   ,
+            0x13 => GtI   ,
+            0x14 => GtF   ,
+            0x15 => LtI   ,
+            0x16 => LtF   ,
+            0x17 => PushF ,
+            0x18 => PopF  ,
+            0x19 => Dump  ,
+            0x20 => Call  ,
+            0x21 => Ret   ,
+            0x22 => Jmp   ,
+            0x23 => SubI  ,
+            0x24 => SubF  ,
+            0x25 => MulI  ,
+            0x26 => MulF  ,
+            0x27 => PushG ,
+            0x28 => PushD ,
+            0x29 => PopA  ,
+            _ => panic!("no")
+        }
+    }
+}
+
+
 pub struct VirtualMachine {
   pub var_stack:     [u8; 262144],
   pub compute_stack: [u8; 262144],
@@ -125,7 +165,7 @@ impl VirtualMachine {
     let mut ip: u32 = 0;
 
     loop {
-      match unsafe { mem::transmute::<u8, Instruction>(bytecode[ip as usize]) } {
+      match Instruction::from(bytecode[ip as usize]) {
         Halt => {
           if ip as usize != bytecode.len() - 1 {
             println!("{} -> {}/{} {:?}", "something weird is going on heeere".yellow().bold(), ip, bytecode.len(), &bytecode[(ip - 20) as usize .. ip as usize])
