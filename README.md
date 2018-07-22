@@ -5,7 +5,7 @@
 [![Foo](https://user-images.githubusercontent.com/7288322/34429152-141689f8-ecb9-11e7-8003-b5a10a5fcb29.png)](https://discord.gg/qm92sPP)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/wu-lang/wu/blob/master/LICENSE)
 
-An expression oriented, strongly typed, sweet and mission-critical programming language
+An expression oriented, strongly typed, sweet, and mission-critical programming language.
 
 ## Syntax
 
@@ -56,7 +56,7 @@ print_fibs: def(..numbers: int) {
 
 ## Disclaimer
 
-Wu is built by a minimal team of people, all members of which are basically kids working on the compiler when bored in class. The whole thing is currently in its very early stages, but is propably fine, go use it in production.
+Wu is built by a minimal team of people, all of which are basically kids working on the compiler when bored in class. The whole thing is currently in very early stages. That said, it's probably fine, so go use it in production.
 
 ## Contributers
 
