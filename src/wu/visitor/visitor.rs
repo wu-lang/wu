@@ -1306,7 +1306,7 @@ impl<'v> Visitor<'v> {
     let mut param_names = Vec::new();
     let mut param_types = Vec::new();
 
-    let mut return_type = return_type;
+    let mut new_retty = return_type.clone();
 
     for param in params {
       param_names.push(param.0.clone());
@@ -1315,7 +1315,19 @@ impl<'v> Visitor<'v> {
         if let TypeNode::Id(ref name, _) = return_type.node {
           if generics.contains(name) {
             if let Some(ref covers) = generic_covers {
-              return_type = covers.get(name).unwrap()
+              new_retty = covers.get(name).unwrap().clone()
+            }
+          } else {
+            if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
+              new_retty = self.current_tab().1.get_type(index, env_index)?.clone()
+            } else {
+              return Err(
+                response!(
+                  Wrong(format!("no such value `{}` in this scope", name)),
+                  self.source.file,
+                  pos
+                )
+              )
             }
           }
         }
@@ -1381,7 +1393,7 @@ impl<'v> Visitor<'v> {
 
     self.pop_scope();
 
-    if return_type != &body_type {
+    if new_retty.node != body_type.node {
       Err(
         response!(
           Wrong(format!("mismatched return type, expected `{}` got `{}`", return_type, body_type)),

@@ -1,0 +1,10 @@
+person: type {
+  name: str
+}
+
+
+new: def(name: str) -> person {
+  person {
+    name: name
+  }
+}
