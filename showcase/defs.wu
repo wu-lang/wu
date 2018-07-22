@@ -1,0 +1,13 @@
+print: extern def<T>(..T)
+
+a: def {
+   b: def { c() }
+
+   b()
+
+   c: def { print("foo") }
+}
+
+d: def { a() }
+
+a()

@@ -318,9 +318,10 @@ impl<'v> Visitor<'v> {
     }
   }
 
-  pub fn visit(&mut self) -> Result<(), ()> {
-    // double pass for future functions :))
-    for statement in self.ast {
+  pub fn visit_block(&mut self, ast: &Vec<Statement>, ensure_implicits: bool) -> Result<(), ()> {
+    for (i, statement) in ast.iter().enumerate() {
+
+      // don't visit function bodies
       if let StatementNode::Variable(_, ref name, ref right) = statement.node {
         if let Some(ref right) = *right {
           if let ExpressionNode::Function(ref params, ref retty, ref body, ref generics) = right.node {
@@ -334,19 +335,46 @@ impl<'v> Visitor<'v> {
 
             let mut types = params.iter().map(|x| x.1.clone()).collect::<Vec<Type>>();
 
+            let t = Type::from(
+                TypeNode::Func(types, Rc::new(retty.clone()), generics.clone(), Some(Rc::new(right.node.clone())))
+              );
+
             self.current_tab().1.set_type(index, 0, 
-              Type::from(
-                TypeNode::Func(types, Rc::new(retty.clone()), generics.clone(), Some(Rc::new(body.node.clone())))
-              )
-            )?
+              t
+            )?;
+
+            continue
+          }
+        }
+      }
+
+      if ensure_implicits {
+        if i < ast.len() - 1 {
+          if let StatementNode::Expression(ref expression) = statement.node {
+            self.ensure_no_implicit(expression)?
+          }
+        }
+      }
+
+      self.visit_statement(&statement)?
+    }
+
+    for statement in ast {
+      if let StatementNode::Variable(.., ref right) = statement.node {
+        if let Some(ref right) = *right {
+          if let ExpressionNode::Function(..) = right.node {
+            self.visit_statement(statement)?
           }
         }
       }
     }
 
-    for statement in self.ast {
-      self.visit_statement(&statement)?
-    }
+    Ok(())
+  }
+
+  pub fn visit(&mut self) -> Result<(), ()> {
+    // double pass for future functions :))
+    self.visit_block(self.ast, false)?;
 
     self.tab_frames.push(self.tabs.last().unwrap().clone());
 
@@ -613,15 +641,7 @@ impl<'v> Visitor<'v> {
       Block(ref statements) => {
         self.push_scope();
 
-        for (i, statement) in statements.iter().enumerate() {
-          if i < statements.len() - 1 {
-            if let StatementNode::Expression(ref expression) = statement.node {
-              self.ensure_no_implicit(expression)?
-            }
-          }
-
-          self.visit_statement(statement)?
-        }
+        self.visit_block(statements, true)?;
 
         self.pop_scope();
 
@@ -768,8 +788,7 @@ impl<'v> Visitor<'v> {
 
         let expression_type = self.type_expression(expression)?;
 
-        let mut covers = HashMap::new();
-
+        let mut covers           = HashMap::new();
         let mut corrected_params = Vec::new(); // because functions don't know what's best for them >:()
 
         if let TypeNode::Func(ref params, _, ref generics, ref func) = expression_type.node {
@@ -881,36 +900,34 @@ impl<'v> Visitor<'v> {
                           }
                         }
                       } else {
-                        new_params.push(params[i].clone());
+                        new_params.push(params[i - 1].clone());
 
                         if let TypeNode::Id(ref name_ret, ref covers) = return_type_expr.node {
                           if covers.len() == 0 {
                             if name == name_ret {
-                              new_retty = Rc::new(params[i].clone())
+                              new_retty = Rc::new(params[i - 1].clone())
                             }
                           }
                         }
                       }
 
                       if covers.get(name).is_none() {
-                        covers.insert(name.clone(), params[i].clone());
+                        covers.insert(name.clone(), params[i - 1].clone());
                       }
                     } else {
                       if params.len() < i {
-                        new_params.push(params[i].clone())
+                        new_params.push(params[i - 1].clone())
                       }
                     }
                   }
 
                   if new_params.len() != params_expr.len() {
-                    new_params = params_expr.clone()
+                    param_new = arg_type.clone()
+                  } else {
+                    param_new = new_params[index].clone()
                   }
-
-                  // the none generic version ;))
-                  param_new = new_params[index].clone()
                 }
               }
-
             }
 
             if (index < args.len() && !param_new.node.check_expression(&args[index].node)) && param_new != arg_type {
@@ -1004,7 +1021,13 @@ impl<'v> Visitor<'v> {
 
               self.visit_function(expression.pos.clone(), &real_params, return_type, body, generics, Some(covers), actual_arg_len - params.len())?;
             } else {
-              unreachable!()
+              return Err(
+                response!(
+                  Wrong(format!("[dev] expected reference {:#?}", func)),
+                  self.source.file,
+                  expression.pos
+                )
+              )
             }
           }
 
