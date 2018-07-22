@@ -590,16 +590,18 @@ impl<'v> Visitor<'v> {
     use self::ExpressionNode::*;
 
     match expression.node {
-      Identifier(ref name) => if self.current_tab().0.get_name(name).is_none() {
-        Err(
-          response!(
-            Wrong(format!("no such value `{}` in this scope", name)),
-            self.source.file,
-            expression.pos
+      Identifier(ref name) => {
+        if self.current_tab().0.get_name(name).is_none() {
+          Err(
+            response!(
+              Wrong(format!("no such value `{}` in this scope", name)),
+              self.source.file,
+              expression.pos
+            )
           )
-        )
-      } else {
-        Ok(())
+        } else {
+          Ok(())
+        }
       },
 
       Module(ref content) => self.visit_expression(content),
@@ -792,6 +794,16 @@ impl<'v> Visitor<'v> {
         let mut corrected_params = Vec::new(); // because functions don't know what's best for them >:()
 
         if let TypeNode::Func(ref params, _, ref generics, ref func) = expression_type.node {
+          // this is where we visit the func, no diggity
+          if let Some(func) = func {
+            self.visit_expression(
+              &Expression::new(
+                (**func).clone(),
+                expression.pos.clone()
+              )
+            )?;
+          }
+
           let mut actual_arg_len = args.len();
 
           let mut type_buffer: Option<Type> = None; // for unwraps

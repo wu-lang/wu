@@ -1,11 +1,13 @@
 print: extern def<T>(..T)
 
 a: def {
-   b: def { c() }
+    b: def {
+       c()
+    }
 
-   b()
+    b()
 
-   c: def { print("foo") }
+    c: def { print("foo") }
 }
 
 d: def { a() }
