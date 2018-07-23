@@ -79,10 +79,17 @@ impl fmt::Display for TokenElement {
           mark = format!("{}", mark.bold().magenta());
         }
 
-        write!(f, "\n{}\n{}{}{}{}\n{}",
+        let mut arrows = format!("{: <count$}", " ", count=slice.0);
+
+        for _ in 0 .. slice.1 - slice.0 + 1 {
+          arrows.push('^')
+        }
+
+        write!(f, "\n{}\n{}{}{}{}\n{}{}",
           linepad,
           lineno, &line.1[..slice.0.saturating_sub(1)], mark, &line.1[slice.1..],
-          linepad
+          linepad,
+          arrows.bold().magenta()
         )
       },
 

@@ -2,7 +2,7 @@ print: extern def<T>(..T)
 
 a: def {
     b: def {
-       c()
+       ccc()
     }
 
     b()

@@ -2,7 +2,7 @@ use std::fmt::{ self, Display, Write, Formatter };
 use std::rc::Rc;
 use std::collections::HashMap;
 
-use super::super::error::Response::Wrong;
+use super::super::error::Response::*;
 
 use super::*;
 use super::TokenElement;
@@ -289,6 +289,7 @@ pub enum FlagContext {
 #[derive(Debug, Clone)]
 pub enum Inside {
   Loop,
+  Calling(TokenElement),
   Nothing,
 }
 
@@ -592,13 +593,21 @@ impl<'v> Visitor<'v> {
     match expression.node {
       Identifier(ref name) => {
         if self.current_tab().0.get_name(name).is_none() {
-          Err(
+          response!(
+            Wrong(format!("no such value `{}` in this scope", name)),
+            self.source.file,
+            expression.pos
+          );
+
+          if let Some(Inside::Calling(ref pos)) = self.inside {
             response!(
-              Wrong(format!("no such value `{}` in this scope", name)),
+              Note("... that is, at the time of this call"),
               self.source.file,
-              expression.pos
+              pos
             )
-          )
+          }
+
+          Err(())
         } else {
           Ok(())
         }
@@ -786,7 +795,11 @@ impl<'v> Visitor<'v> {
       },
 
       Call(ref expression, ref args) => {
+        let inside_backup = self.inside.clone();
+
         self.visit_expression(expression)?;
+
+        self.inside = Some(Inside::Calling(expression.pos.clone()));
 
         let expression_type = self.type_expression(expression)?;
 
@@ -1052,6 +1065,8 @@ impl<'v> Visitor<'v> {
             )
           )
         }
+
+        self.inside = inside_backup;
 
         Ok(())
       },

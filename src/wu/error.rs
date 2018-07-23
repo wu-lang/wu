@@ -15,7 +15,7 @@ macro_rules! response {
     $(
         print!("{}", $r);
     )*
-    println!("");
+    println!();
   }};
 }
 
@@ -24,13 +24,13 @@ impl<T: fmt::Display> fmt::Display for Response<T> {
     let (color, message_type, message) = match *self {
       Wrong(ref m) => ("magenta", "wrong", m),
       Weird(ref m) => ("yellow",  "weird", m),
-      Note(ref m)  => ("white",   "note",  m),
+      Note(ref m)  => ("cyan",  "note",  m),
     };
 
-    let message_type = format!("\n{}: ", message_type).color(color).bold();
+    let message_type = format!("\n{}", message_type).color(color).bold();
     let message      = format!("{}", message);
 
-    let message      = format!("{}{}", message_type, message);
+    let message      = format!("{}: {}", message_type, message);
 
     write!(f, "{}", message)
   }

@@ -1010,7 +1010,6 @@ impl<'p> Parser<'p> {
 
       Ok(lexeme)
     } else {
-      panic!();
       Err(
         response!(
           Wrong(format!("expected `{}`, found `{}`", token_type, self.current_type())),
