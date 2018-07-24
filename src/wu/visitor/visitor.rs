@@ -389,6 +389,76 @@ impl<'v> Visitor<'v> {
       Expression(ref expression) => self.visit_expression(expression),
       Variable(..)               => self.visit_variable(&statement.node),
 
+      Implement(ref name, ref generics, ref body) => {
+        use self::ExpressionNode::*;
+
+        self.visit_expression(name)?;
+
+        let position = name.pos.clone();
+
+        match name.node {
+          Identifier(ref name) => {
+            if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
+              let kind = self.current_tab().1.get_type(index, env_index)?;
+
+              if let TypeNode::Struct(struct_name, content, generics) = kind.node.clone() {
+                if kind.mode.check(&TypeMode::Undeclared) {
+                  let mut new_content = content;
+
+                  self.visit_expression(body)?;
+
+                  {
+                    let frame = self.tab_frames.last().unwrap();
+                    let names = frame.0.names.clone();
+
+                    for symbol in names.borrow().iter() {
+                      new_content.insert(symbol.0.clone(), frame.1.get_type(*symbol.1, 0)?.clone());
+                    }
+                  }
+
+                  self.current_tab().1.set_type(
+                    index,
+                    env_index,
+                    Type::new(
+                      TypeNode::Struct(struct_name, new_content, generics),
+                      kind.mode.clone()
+                    )
+                  )?;
+
+                  return Ok(())
+                }
+              }
+
+              Err(
+                response!(
+                  Wrong(format!("can't implement on type `{}`", kind)),
+                  self.source.file,
+                  position
+                )
+              )
+            } else {
+              unreachable!()
+            }
+          },
+
+          Index(..) => return Err(
+            response!(
+              Wrong("implementing indexes is currently unimplemented"),
+              self.source.file,
+              position
+            )
+          ),
+
+          _ => return Err(
+            response!(
+              Wrong("can't implement anything but structs"),
+              self.source.file,
+              position
+            )
+          ),
+        }
+      },
+
       Assignment(ref left, ref right) => {
         let left_type  = self.type_expression(left)?;
         let right_type = self.type_expression(right)?;
@@ -1095,9 +1165,11 @@ impl<'v> Visitor<'v> {
 
       Index(ref left, ref index) => {
         let left_type = self.type_expression(left)?;
-        
+
         match left_type.node {
          TypeNode::Array(_, ref len) => {
+            self.visit_expression(index)?;
+
             let index_type = self.type_expression(index)?;
 
             match index_type.node {
@@ -1137,9 +1209,35 @@ impl<'v> Visitor<'v> {
                 )
               }
             } else {
+              let index_type = self.type_expression(index)?;
+
               return Err(
                 response!(
-                  Wrong(format!("module access must be done with an identifier")),
+                  Wrong(format!("can't index module with `{}`", index_type)),
+                  self.source.file,
+                  index.pos
+                )
+              )
+            }
+          },
+
+          TypeNode::Struct(_, ref content, ..) => {
+            if let Identifier(ref name) = index.node {
+              if !content.contains_key(name) {
+                return Err(
+                  response!(
+                    Wrong(format!("no such struct member `{}`", name)),
+                    self.source.file,
+                    index.pos
+                  )
+                )
+              }
+            } else {
+              let index_type = self.type_expression(index)?;
+
+              return Err(
+                response!(
+                  Wrong(format!("can't index struct with `{}`", index_type)),
                   self.source.file,
                   index.pos
                 )
@@ -1435,12 +1533,12 @@ impl<'v> Visitor<'v> {
       };
 
       if let &Some(ref right) = right {
-        let right_type = self.type_expression(&right)?;
-
         match right.node {
           Function(..) | Block(_) | If(..) | While(..) => (),
           _ => self.visit_expression(right)?,
         }
+
+        let right_type = self.type_expression(&right)?;
 
         if variable_type.node != TypeNode::Nil {
           if !variable_type.node.check_expression(&Parser::fold_expression(right)?.node) && variable_type.node != right_type.node {
@@ -1574,7 +1672,6 @@ impl<'v> Visitor<'v> {
         let mut content_type = HashMap::new();
         
         let frame = self.tab_frames.last().unwrap();
-
         let names = frame.0.names.clone();
 
         for symbol in names.borrow().iter() {
@@ -1593,6 +1690,7 @@ impl<'v> Visitor<'v> {
       Float(_) => Type::from(TypeNode::Float),
 
       Call(ref expression, _) => {
+        
         if let TypeNode::Func(_, ref return_type, ..) = self.type_expression(expression)?.node {
           (**return_type).clone()
         } else {
@@ -1605,21 +1703,12 @@ impl<'v> Visitor<'v> {
 
         match kind.node {
           TypeNode::Array(ref t, _) => (**t).clone(),
+          
           TypeNode::Module(ref content) | TypeNode::Struct(_, ref content, _) => {
-            if kind.mode == TypeMode::Regular {
-              if let Identifier(ref name) = index.node {
-                content.get(name).unwrap().clone()
-              } else {
-                unreachable!()
-              }
+            if let Identifier(ref name) = index.node {
+              content.get(name).unwrap().clone()
             } else {
-              return Err(
-                response!(
-                  Wrong(format!("can't index `{}`", kind)),
-                  self.source.file,
-                  expression.pos
-                )
-              )
+              unreachable!()
             }
           },
 

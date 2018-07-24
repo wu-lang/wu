@@ -1,8 +1,6 @@
 use std::rc::Rc;
 use std::fmt;
 
-use std::collections::HashMap;
-
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -12,6 +10,7 @@ pub enum StatementNode {
   Assignment(Expression, Expression),
   Return(Option<Rc<Expression>>),
   Import(String, Vec<String>),
+  Implement(Expression, Vec<String>, Expression),
 
   Break,
   Skip,

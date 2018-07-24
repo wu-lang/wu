@@ -58,7 +58,49 @@ impl<'p> Parser<'p> {
             StatementNode::Import(path, specifics),
             self.span_from(position)
           )
-        }
+        },
+
+        "implement" => {
+          let pos = self.span_from(position);
+
+          self.next()?;
+          self.next_newline()?;
+
+          let generics = if self.current_lexeme() == "<" {
+            self.parse_block_of(("<", ">"), &Self::_parse_name_comma)?
+          } else {
+            Vec::new()
+          };
+
+          self.next_newline()?;
+          self.expect_type(TokenType::Identifier)?;
+
+          let start = self.index;
+
+          while self.current_lexeme() != "{" && self.remaining() > 1 {
+            self.next()?;
+          }
+
+          let end = self.index;
+
+          let mut name_parser = Parser::new(self.tokens[start .. end].to_vec(), self.source);
+
+          let name = name_parser.parse_expression()?;
+          self.next_newline()?;
+
+          self.expect_lexeme("{")?;
+
+          let body = self.parse_expression()?;
+
+          Statement::new(
+            StatementNode::Implement(
+              name,
+              generics,
+              body,
+            ),
+            pos
+          )
+        },
 
         "return" => {
           self.next()?;
@@ -675,11 +717,13 @@ impl<'p> Parser<'p> {
       },
 
       TokenType::Identifier => {
+        let position = self.current_position();
+
         let id = Expression::new(
           ExpressionNode::Identifier(
             self.eat()?
           ),
-          self.current_position()
+          position
         );
 
         let position = expression.pos.clone();
@@ -935,7 +979,6 @@ impl<'p> Parser<'p> {
       self.index += 1;
       Ok(())
     } else {
-      panic!();
       Err(
         response!(
           Wrong("moving outside token stack"),

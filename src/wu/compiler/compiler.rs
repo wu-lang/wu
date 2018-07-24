@@ -132,6 +132,32 @@ impl<'g> Generator<'g> {
         result
       },
 
+      Implement(ref name, _, ref body) => if let ExpressionNode::Block(ref content) = body.node {
+        let assign = self.generate_expression(name);
+
+        let flag_backup = self.flag.clone();
+
+        let mut result = String::new();
+
+        for element in content {
+          if let Variable(_, ref name, ref right) = element.node {
+            let assign = format!("{}.{}", assign, name);
+
+            self.flag = Some(FlagImplicit::Assign(assign.clone()));
+
+            let right = self.generate_expression(&right.clone().unwrap());
+
+            result.push_str(&format!("{} = {}\n", assign, right))
+          }
+        }
+
+        self.flag = flag_backup;
+
+        result
+      } else {
+        unreachable!()
+      },
+
       Break => String::from("break"),
       Skip  => format!("goto __while_{}", self.loop_depth),
     };
