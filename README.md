@@ -27,13 +27,15 @@ point: type<T> {
   y: T
 }
 
-position := point {
-  x: 100, y: 100
+implement<T> point<T> {
+  new: def(x: T, y: T) -> point<T> {
+    point {
+      x, y
+    }
+  }
 }
 
-copy_point: def<T>(a: point<T>) -> point<T> {
-  a clone()
-}
+pos := point new(100, 100)
 ```
 
 #### Splats
