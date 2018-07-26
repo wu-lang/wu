@@ -29,7 +29,9 @@ pub enum TypeNode {
   Array(Rc<Type>, usize),
   Func(Vec<Type>, Rc<Type>, Vec<String>, Option<Rc<ExpressionNode>>),
   Module(HashMap<String, Type>),
+  // name, (name: type), generics
   Struct(String, HashMap<String, Type>, Vec<String>),
+  This,
 }
 
 impl TypeNode {
@@ -80,6 +82,7 @@ impl PartialEq for TypeNode {
       (&Char,                                &Char)                                => true,
       (&Bool,                                &Bool)                                => true,
       (&Nil,                                 &Nil)                                 => true,
+      (&This,                                &This)                                => true,
       (&Array(ref a, ref la),                &Array(ref b, ref lb))                => a == b && la == lb,
       (&Id(ref a, ref b),                    &Id(ref c, ref d))                    => a == c && b == d,
       (&Func(ref a_params, ref a_retty, ..), &Func(ref b_params, ref b_retty, ..)) => a_params == b_params && a_retty == b_retty,
@@ -161,6 +164,7 @@ impl Display for TypeNode {
       Str              => write!(f, "str"),
       Char             => write!(f, "char"),
       Nil              => write!(f, "nil"),
+      This             => write!(f, "self"),
       Array(ref n, l)  => write!(f, "[{}; {}]", n, l),
 
       Id(ref n, ref generics) => {
@@ -286,10 +290,11 @@ pub enum FlagContext {
   Nothing,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Inside {
   Loop,
   Calling(TokenElement),
+  Implement(Type),
   Nothing,
 }
 
@@ -302,7 +307,7 @@ pub struct Visitor<'v> {
   pub ast:     &'v Vec<Statement>,
 
   pub flag:   Option<FlagContext>,
-  pub inside: Option<Inside>,
+  pub inside: Vec<Inside>,
 }
 
 impl<'v> Visitor<'v> {
@@ -315,7 +320,7 @@ impl<'v> Visitor<'v> {
       ast,
 
       flag:   None,
-      inside: None,
+      inside: vec!(),
     }
   }
 
@@ -325,7 +330,7 @@ impl<'v> Visitor<'v> {
       // don't visit function bodies
       if let StatementNode::Variable(_, ref name, ref right) = statement.node {
         if let Some(ref right) = *right {
-          if let ExpressionNode::Function(ref params, ref retty, ref body, ref generics) = right.node {
+          if let ExpressionNode::Function(ref params, ref retty, _, ref generics) = right.node {
 
             let index = if let Some((index, _)) = self.current_tab().0.get_name(name) {
               index
@@ -401,9 +406,11 @@ impl<'v> Visitor<'v> {
             if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
               let kind = self.current_tab().1.get_type(index, env_index)?;
 
+              self.inside.push(Inside::Implement(kind.clone()));
+
               if let TypeNode::Struct(struct_name, content, generics) = kind.node.clone() {
                 if kind.mode.check(&TypeMode::Undeclared) {
-                  let mut new_content = content;
+                  let mut new_content         = content;
 
                   self.visit_expression(body)?;
 
@@ -425,13 +432,15 @@ impl<'v> Visitor<'v> {
                     )
                   )?;
 
+                  self.inside.pop();
+
                   return Ok(())
                 }
               }
 
               Err(
                 response!(
-                  Wrong(format!("can't implement on type `{}`", kind)),
+                  Wrong(format!("can't implement type `{}`", kind)),
                   self.source.file,
                   position
                 )
@@ -482,7 +491,7 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
-      Break => if let Some(Inside::Loop) = self.inside {
+      Break => if self.inside.contains(&Inside::Loop) {
         Ok(())
       } else {
         return Err(
@@ -494,7 +503,7 @@ impl<'v> Visitor<'v> {
         )
       },
 
-      Skip => if let Some(Inside::Loop) = self.inside {
+      Skip => if self.inside.contains(&Inside::Loop) {
         Ok(())
       } else {
         return Err(
@@ -669,12 +678,14 @@ impl<'v> Visitor<'v> {
             expression.pos
           );
 
-          if let Some(Inside::Calling(ref pos)) = self.inside {
-            response!(
-              Note("... that is, at the time of this call"),
-              self.source.file,
-              pos
-            )
+          for inside in self.inside.iter() {
+            if let Inside::Calling(ref pos) = inside {
+              response!(
+                Note("... that is, at the time of this call"),
+                self.source.file,
+                pos
+              )
+            }
           }
 
           Err(())
@@ -759,9 +770,7 @@ impl<'v> Visitor<'v> {
         let condition_type = self.type_expression(&*condition)?.node;
 
         if condition_type == TypeNode::Bool {
-          let inside_backup = self.inside.clone();
-
-          self.inside = Some(Inside::Loop);
+          self.inside.push(Inside::Loop);
 
           self.push_scope();
 
@@ -787,7 +796,7 @@ impl<'v> Visitor<'v> {
 
           self.pop_scope();
 
-          self.inside = inside_backup;
+          self.inside.pop();
 
           Ok(())
 
@@ -865,11 +874,9 @@ impl<'v> Visitor<'v> {
       },
 
       Call(ref expression, ref args) => {
-        let inside_backup = self.inside.clone();
-
         self.visit_expression(expression)?;
 
-        self.inside = Some(Inside::Calling(expression.pos.clone()));
+        self.inside.push(Inside::Calling(expression.pos.clone()));
 
         let expression_type = self.type_expression(expression)?;
 
@@ -891,9 +898,23 @@ impl<'v> Visitor<'v> {
 
           let mut type_buffer: Option<Type> = None; // for unwraps
 
-          let mut has_unwrap = false;
-
           for (index, param) in params.iter().enumerate() {
+            if TypeNode::This == param.node {
+              if index != 0 {
+                return Err(
+                  response!(
+                    Wrong("`self` must be first argument"),
+                    self.source.file,
+                    args[index].pos
+                  )
+                )
+              }
+
+              actual_arg_len += 1;
+
+              continue // "yes, why check `this` haha"
+            }
+
             let arg_type = if index < args.len() {
               self.type_expression(&args[index])?
             } else {
@@ -905,8 +926,6 @@ impl<'v> Visitor<'v> {
             let mode = arg_type.mode.clone();
 
             if let TypeMode::Unwrap(ref len) = mode {
-              has_unwrap = true;
-
               type_buffer = Some(arg_type.clone());
 
               actual_arg_len += len
@@ -934,7 +953,7 @@ impl<'v> Visitor<'v> {
 
                 continue
               } else {
-                if let TypeNode::Struct(ref struct_name, ref struct_args, _) = arg_type.node {
+                if let TypeNode::Struct(ref struct_name, ref struct_args, ..) = arg_type.node {
                   if name == struct_name {
                     if let Some((type_index, env_index)) = self.current_tab().0.get_name(name) {
                       let kind = self.current_tab().1.get_type(type_index, env_index)?;
@@ -1036,10 +1055,6 @@ impl<'v> Visitor<'v> {
             }
           }
 
-          if has_unwrap {
-            actual_arg_len -= 0
-          }
-
           if actual_arg_len > params.len() {
             let last = params.last().unwrap();
 
@@ -1086,7 +1101,7 @@ impl<'v> Visitor<'v> {
                 response!(
                   Wrong(format!("expected {} arguments got {}", params.len(), actual_arg_len)),
                   self.source.file,
-                  args.last().unwrap().pos
+                  args.last().unwrap_or(expression).pos
                 )
               )
             }
@@ -1136,7 +1151,11 @@ impl<'v> Visitor<'v> {
           )
         }
 
-        self.inside = inside_backup;
+        self.inside.pop();
+
+        if let Index(..) = expression.node {
+          self.inside.pop();
+        }
 
         Ok(())
       },
@@ -1168,6 +1187,8 @@ impl<'v> Visitor<'v> {
 
         match left_type.node {
          TypeNode::Array(_, ref len) => {
+            self.inside.push(Inside::Nothing);
+
             self.visit_expression(index)?;
 
             let index_type = self.type_expression(index)?;
@@ -1198,6 +1219,8 @@ impl<'v> Visitor<'v> {
           },
 
           TypeNode::Module(ref content) => {
+            self.inside.push(Inside::Nothing);
+
             if let Identifier(ref name) = index.node {
               if !content.contains_key(name) {
                 return Err(
@@ -1222,6 +1245,8 @@ impl<'v> Visitor<'v> {
           },
 
           TypeNode::Struct(_, ref content, ..) => {
+            self.inside.push(Inside::Implement(left_type.clone()));
+
             if let Identifier(ref name) = index.node {
               if !content.contains_key(name) {
                 return Err(
@@ -1247,7 +1272,7 @@ impl<'v> Visitor<'v> {
 
           _ => return Err(
             response!(
-              Wrong(format!("can't index `{}`", left_type)),
+              Wrong(format!("can't index type `{}`", left_type)),
               self.source.file,
               left.pos
             )
@@ -1421,30 +1446,30 @@ impl<'v> Visitor<'v> {
 
     let mut new_retty = return_type.clone();
 
+    if let TypeNode::Id(ref name, _) = return_type.node {
+      if generics.contains(name) {
+        if let Some(ref covers) = generic_covers {
+          new_retty = covers.get(name).unwrap().clone()
+        }
+      } else {
+        if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
+          new_retty = self.current_tab().1.get_type(index, env_index)?.clone()
+        } else {
+          return Err(
+            response!(
+              Wrong(format!("no such value `{}` in this scope", name)),
+              self.source.file,
+              pos
+            )
+          )
+        }
+      }
+    }
+
     for param in params {
       param_names.push(param.0.clone());
 
       let kind = {
-        if let TypeNode::Id(ref name, _) = return_type.node {
-          if generics.contains(name) {
-            if let Some(ref covers) = generic_covers {
-              new_retty = covers.get(name).unwrap().clone()
-            }
-          } else {
-            if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
-              new_retty = self.current_tab().1.get_type(index, env_index)?.clone()
-            } else {
-              return Err(
-                response!(
-                  Wrong(format!("no such value `{}` in this scope", name)),
-                  self.source.file,
-                  pos
-                )
-              )
-            }
-          }
-        }
-
         if let TypeNode::Id(ref name, ref args) = param.1.node {
           if generics.contains(name) {
             if let Some(ref covers) = generic_covers {
@@ -1469,6 +1494,26 @@ impl<'v> Visitor<'v> {
 
             self.degeneralize_struct(&name, &covers_new, &pos)?
           }
+        } else if param.1.node == TypeNode::This {
+          let mut a = param.1.clone();
+
+          for inside in self.inside.iter() {
+            if let Inside::Implement(ref thing) = inside {
+              a = thing.clone();
+
+              break
+            } else {
+              return Err(
+                response!(
+                  Wrong(format!("`self` can't mean anything outside implementation")),
+                  self.source.file,
+                  pos
+                )
+              )
+            }
+          }
+
+          a
         } else {
           param.1.clone()
         }
@@ -1704,7 +1749,7 @@ impl<'v> Visitor<'v> {
         match kind.node {
           TypeNode::Array(ref t, _) => (**t).clone(),
           
-          TypeNode::Module(ref content) | TypeNode::Struct(_, ref content, _) => {
+          TypeNode::Module(ref content) | TypeNode::Struct(_, ref content, ..) => {
             if let Identifier(ref name) = index.node {
               content.get(name).unwrap().clone()
             } else {
@@ -1714,7 +1759,7 @@ impl<'v> Visitor<'v> {
 
           _ => return Err(
             response!(
-              Wrong(format!("can't index `{}`", kind)),
+              Wrong(format!("can't index type `{}`", kind)),
               self.source.file,
               expression.pos
             )
@@ -1901,7 +1946,16 @@ impl<'v> Visitor<'v> {
       _ => Type::from(TypeNode::Nil)
     };
 
-    Ok(t)
+    if let TypeNode::Id(name, _) = t.node {
+      self.type_expression(
+        &Expression::new(
+          ExpressionNode::Identifier(name),
+          expression.pos.clone()
+        )
+      )
+    } else {
+      Ok(t)
+    }
   }
 
 

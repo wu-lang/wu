@@ -18,6 +18,7 @@ pub enum Inside {
 }
 
 
+
 pub struct Generator<'g> {
   source: &'g Source,
 
@@ -147,7 +148,7 @@ impl<'g> Generator<'g> {
 
             let right = self.generate_expression(&right.clone().unwrap());
 
-            result.push_str(&format!("{} = {}\n", assign, right))
+            result.push_str(&format!("{} = {}\n\n", assign, right))
           }
         }
 
@@ -555,14 +556,14 @@ impl<'g> Generator<'g> {
         result
       },
 
-      Initialization(_, ref body) => {
+      Initialization(ref name, ref body) => {
         let mut inner = String::new();
 
         for &(ref name, ref expression) in body.iter() {
           inner.push_str(&format!("{} = {},\n", name, self.generate_expression(expression)))
         }
 
-        format!("{{\n{}}}", self.make_line(&inner))
+        format!("setmetatable({{\n{}}}, {{__index={}}})", self.make_line(&inner), self.generate_expression(name))
       },
 
       Extern(_, ref lua) => if let &Some(ref lua) = lua {
@@ -621,16 +622,12 @@ impl<'g> Generator<'g> {
     };
 
     if let &Some(ref right) = right {
-      match right.node {
-        ExpressionNode::Struct(..) => return String::new(),
-        ExpressionNode::Extern(_, ref lua) => if lua.is_none() {
-          return String::new()
-        },
+      let right_str = match right.node {
+        ExpressionNode::Struct(..)                          => "{}".to_string(),
+        ExpressionNode::Extern(_, ref lua) if lua.is_none() => return String::new(),
 
-        _ => ()
-      }
-
-      let right_str = self.generate_expression(right);
+        _ => self.generate_expression(right)
+      };
 
       result.push_str(&format!(" = {}\n", right_str))
     }

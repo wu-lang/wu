@@ -1218,6 +1218,8 @@ impl<'p> Parser<'p> {
 
     let mut splat = false;
 
+    let position = self.current_position();
+
     if self.current_lexeme() == ".." {
       splat = true;
 
@@ -1226,14 +1228,33 @@ impl<'p> Parser<'p> {
     }
 
     let name = self.eat_type(&TokenType::Identifier)?;
-    
-    self.eat_lexeme(":")?;
 
-    let mut kind = self.parse_type()?;
+    let kind = if name == "self" {
+      if splat {
+        return Err(
+          response!(
+            Wrong("can't splat `self`"),
+            self.source.file,
+            position
+          )
+        )
+      }
 
-    if splat {
-      kind.mode = TypeMode::Splat(None)
-    }
+      Type::new(
+        TypeNode::This,
+        TypeMode::Regular,
+      )
+    } else {
+      self.eat_lexeme(":")?;
+
+      let mut kind = self.parse_type()?;
+
+      if splat {
+        kind.mode = TypeMode::Splat(None)
+      }
+
+      kind
+    };
 
     let param = Some((name, kind));
 

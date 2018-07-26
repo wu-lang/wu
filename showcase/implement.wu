@@ -1,3 +1,5 @@
+print: extern def<T>(..T)
+
 person: type {
   name: str
 }
@@ -8,6 +10,12 @@ implement person {
       name: name
     }
   }
+
+  introduce: def(self) {
+    print("my name is " ++ self name)
+  }
 }
 
 bob := person new("bob")
+
+bob introduce()

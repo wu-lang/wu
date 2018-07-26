@@ -108,7 +108,7 @@ impl Operator {
 
   pub fn as_str(&self) -> &str {
     use self::Operator::*;
-    
+
     match *self {
       Add    => "+",
       Sub    => "-",

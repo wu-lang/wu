@@ -182,18 +182,17 @@ pub fn run(content: &str, file: &str) -> Option<String> {
   let mut parser  = Parser::new(tokens, &source);
 
   match parser.parse() {
-    Ok(ast) => {
-      let mut visitor = Visitor::new(&source, &ast);
+    Ok(ref ast) => {
+      let mut visitor = Visitor::new(&source, ast);
 
       match visitor.visit() {
-        Ok(_) => {
-          let mut generator = Generator::new(&source);
-
-          Some(generator.generate(&ast))
-        },
-
-        _ => None
+        Ok(_) => (),
+        _     => return None
       }
+
+      let mut generator = Generator::new(&source);
+
+      Some(generator.generate(&ast))
     },
 
     _ => None,
