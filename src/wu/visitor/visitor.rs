@@ -884,6 +884,8 @@ impl<'v> Visitor<'v> {
         let mut covers           = HashMap::new();
         let mut corrected_params = Vec::new(); // because functions don't know what's best for them >:()
 
+        let mut is_method = false;
+
         if let TypeNode::Func(ref params, _, ref generics, ref func) = expression_type.node {
           // this is where we visit the func, no diggity
           if let Some(func) = func {
@@ -911,7 +913,19 @@ impl<'v> Visitor<'v> {
                 )
               }
 
+              if expression_type.mode == TypeMode::Undeclared {
+                return Err(
+                  response!(
+                    Wrong("can't call static method on instance"),
+                    self.source.file,
+                    expression.pos
+                  )
+                )
+              }
+
               self.method_calls.insert(expression.pos.clone(), true);
+
+              is_method = true;
 
               actual_arg_len += 1;
 
@@ -1158,6 +1172,16 @@ impl<'v> Visitor<'v> {
 
         if let Index(..) = expression.node {
           self.inside.pop();
+        }
+
+        if is_method && expression_type.mode != TypeMode::Undeclared {
+          return Err(
+            response!(
+              Wrong("can't call method on non-instance"),
+              self.source.file,
+              expression.pos
+            )
+          )
         }
 
         Ok(())

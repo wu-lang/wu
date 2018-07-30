@@ -18,4 +18,8 @@ implement person {
 
 bob := person new("bob")
 
+person introduce()
+
+a := bob new("hey")
+
 bob introduce()
