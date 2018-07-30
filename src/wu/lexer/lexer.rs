@@ -97,7 +97,7 @@ impl<'l> Iterator for Lexer<'l> {
               response!(
                 Wrong("bumped into weird character"),
                 self.source.file,
-                TokenElement::Pos(
+                Pos(
                   (pos.0, self.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(self.source.lines.last().unwrap_or(&String::new())).to_string()),
                   (pos.1 + 1, pos.1 + 1),
                 )

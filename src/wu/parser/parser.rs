@@ -993,25 +993,20 @@ impl<'p> Parser<'p> {
     self.tokens.len().saturating_sub(self.index)
   }
 
-  fn current_position(&self) -> TokenElement {
+  fn current_position(&self) -> Pos {
     let current = self.current();
 
-    TokenElement::Pos(
+    Pos(
       current.line.clone(),
       current.slice
     )
   }
 
-  fn span_from(&self, left_position: TokenElement) -> TokenElement {
-    match left_position {
-      TokenElement::Pos(ref line, ref slice) => if let TokenElement::Pos(_, ref slice2) = self.current_position() {
-        TokenElement::Pos(line.clone(), (slice.0, if slice2.1 < line.1.len() { slice2.1 } else { line.1.len() } ))
-      } else {
-        left_position.clone()
-      },
+  fn span_from(&self, left_position: Pos) -> Pos {
+    let Pos(ref line, ref slice) = left_position;
+    let Pos(_, ref slice2)       = self.current_position();
 
-      _ => left_position.clone(),
-    }
+    Pos(line.clone(), (slice.0, if slice2.1 < line.1.len() { slice2.1 } else { line.1.len() } ))
   }
 
   fn current(&self) -> Token {
@@ -1357,13 +1352,13 @@ impl<'p> Parser<'p> {
     let node = match expression.node {
       Binary(ref left, ref op, ref right) => {
         let node = match (&Self::fold_expression(&*left)?.node, op, &Self::fold_expression(&*right)?.node) {
-          (&Int(ref a),   &Add, &Int(ref b))     => Int(a + b),
+          (&Int(ref a),   &Add, &Int(ref b))   => Int(a + b),
           (&Float(ref a), &Add, &Float(ref b)) => Float(a + b),
-          (&Int(ref a),   &Sub, &Int(ref b))     => Int(a - b),
+          (&Int(ref a),   &Sub, &Int(ref b))   => Int(a - b),
           (&Float(ref a), &Sub, &Float(ref b)) => Float(a - b),
-          (&Int(ref a),   &Mul, &Int(ref b))     => Int(a * b),
+          (&Int(ref a),   &Mul, &Int(ref b))   => Int(a * b),
           (&Float(ref a), &Mul, &Float(ref b)) => Float(a * b),
-          (&Int(ref a),   &Div, &Int(ref b))     => Int(a / b),
+          (&Int(ref a),   &Div, &Int(ref b))   => Int(a / b),
           (&Float(ref a), &Div, &Float(ref b)) => Float(a / b),
 
           _ => expression.node.clone()

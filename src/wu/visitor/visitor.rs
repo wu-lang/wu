@@ -5,15 +5,12 @@ use std::collections::HashMap;
 use super::super::error::Response::*;
 
 use super::*;
-use super::TokenElement;
 
-use std::fs;
+
+
 use std::fs::File;
-
 use std::io::prelude::*;
 use std::path::Path;
-
-use std::env;
 
 
 
@@ -293,7 +290,7 @@ pub enum FlagContext {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Inside {
   Loop,
-  Calling(TokenElement),
+  Calling(Pos),
   Implement(Type),
   Nothing,
 }
@@ -1405,7 +1402,7 @@ impl<'v> Visitor<'v> {
 
   fn visit_function(
       &mut self,
-      pos: TokenElement,
+      pos: Pos,
       params: &Vec<(String, Type)>, return_type: &Type,
       body: &Rc<Expression>, generics: &Vec<String>, generic_covers: Option<HashMap<String, Type>>,
       splat_len: usize
@@ -1981,7 +1978,7 @@ impl<'v> Visitor<'v> {
 
 
 
-  fn degeneralize_struct(&mut self, name: &String, args: &Vec<Type>, pos: &TokenElement) -> Result<Type, ()> {
+  fn degeneralize_struct(&mut self, name: &String, args: &Vec<Type>, pos: &Pos) -> Result<Type, ()> {
     if let Some((index, env_index)) = self.current_tab().0.get_name(name) {
       let kind = self.current_tab().1.get_type(index, env_index)?;
 

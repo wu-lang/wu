@@ -167,7 +167,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
             response!(
               Wrong("no such thing as a raw character literal"),
               tokenizer.source.file,
-              TokenElement::Pos(
+              Pos(
                 (pos.0, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
                 (pos.1 - 1, pos.1),
               )
@@ -191,7 +191,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
           response!(
             Wrong(format!("unterminated delimeter `{}`", delimeter)),
             tokenizer.source.file,
-            TokenElement::Pos(
+            Pos(
               (pos.0 + 1, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
               (pos.1.saturating_sub(1), pos.1 + 1),
             )
@@ -216,7 +216,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
               response!(
                 Wrong(format!("unexpected escape character: {}", escaped)),
                 tokenizer.source.file,
-                TokenElement::Pos(
+                Pos(
                   (tokenizer.pos.0, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
                   (tokenizer.pos.1 - 1, tokenizer.pos.1),
                 )
@@ -259,7 +259,7 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
           response!(
             Wrong("character literal may not contain more than one codepoint"),
             tokenizer.source.file,
-            TokenElement::Pos(
+            Pos(
               (pos.0, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
               (pos.1 + 2, pos.1 + string.len() + 1),
             )
@@ -318,7 +318,7 @@ impl<'t> Matcher<'t> for NumberLiteralMatcher {
             response!(
               Wrong("unexpected extra decimal point"),
               tokenizer.source.file,
-              TokenElement::Pos(
+              Pos(
                 (pos.0, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
                 (pos.1 + 1, pos.1 + 1),
               )

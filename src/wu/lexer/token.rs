@@ -1,6 +1,8 @@
 use colored::Colorize;
 use std::fmt;
 
+
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
   Int,
@@ -38,63 +40,35 @@ impl fmt::Display for TokenType {
   }
 }
 
+
+
 #[derive(Debug, Clone, PartialEq)]
-pub enum TokenElement {
-  Type(TokenType),
-  Line((usize, String)),
-  Pos((usize, String), (usize, usize)),
-}
+pub struct Pos(pub (usize, String), pub (usize, usize));
 
-use self::TokenElement::*;
+impl fmt::Display for Pos {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    let linepad = format!("{:5} │", " ").blue().bold();
+    let lineno = format!("{:5} │ ", (self.0).0).blue().bold();
+    let mut mark = (self.0).1[(self.1).0.saturating_sub(1) .. (self.1).1].to_string();
 
-impl<'t> PartialEq<Token> for TokenElement {
-  fn eq (&self, rhs: &Token) -> bool {
-    rhs == self
-  }
-}
-
-impl fmt::Display for TokenElement {
-  fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match *self {
-      Line(ref line) => {
-        let linepad = format!("{:5} │", " ").blue().bold();
-        let lineno = format!("{:5} │ ", line.0);
-        let srcline = format!("{}{}", lineno.blue().bold(), line.1);
-
-        write!(f, "\n{}\n{}\n{}",
-          linepad,
-          srcline,
-          linepad
-        )
-      },
-
-      Pos(ref line, ref slice) => {
-        let linepad = format!("{:5} │", " ").blue().bold();
-        let lineno = format!("{:5} │ ", line.0).blue().bold();
-        let mut mark = line.1[slice.0.saturating_sub(1) .. slice.1].to_string();
-
-        if mark.split_whitespace().count() == 0 {
-          mark = format!("{:─>count$}", ">".bold().magenta(), count=mark.len());
-        } else {
-          mark = format!("{}", mark.bold().magenta());
-        }
-
-        let mut arrows = format!("{: <count$}", " ", count=slice.0);
-
-        for _ in 0 .. slice.1 - slice.0 + 1 {
-          arrows.push('^')
-        }
-
-        write!(f, "\n{}\n{}{}{}{}\n{}{}",
-          linepad,
-          lineno, &line.1[..slice.0.saturating_sub(1)], mark, &line.1[slice.1..],
-          linepad,
-          arrows.bold().magenta()
-        )
-      },
-
-      _ => write!(f, ""),
+    if mark.split_whitespace().count() == 0 {
+      mark = format!("{:─>count$}", ">".magenta().bold(), count=mark.len());
+    } else {
+      mark = format!("{}", mark.magenta().bold());
     }
+
+    let mut arrows = format!("{: <count$}", " ", count=(self.1).0);
+
+    for _ in 0 .. (self.1).1 - (self.1).0 + 1 {
+      arrows.push('^')
+    }
+
+    write!(f, "\n{}\n{}{}{}{}\n{}{}",
+      linepad,
+      lineno, &(self.0).1[..(self.1).0.saturating_sub(1)], mark, &(self.0).1[(self.1).1..],
+      linepad,
+      arrows.magenta().bold()
+    )
   }
 }
 
@@ -119,11 +93,15 @@ impl Token {
   }
 }
 
-impl PartialEq<TokenElement> for Token {
-  fn eq (&self, rhs: &TokenElement) -> bool {
-    match *rhs {
-      Type(ref t)        => self.token_type == *t,
-      _                  => false
-    }
+impl fmt::Display for Token {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(
+      f,
+      "{}",
+      Pos(
+        (self.line.0,  self.line.1.clone()),
+        (self.slice.0, self.slice.1)
+      )
+    )
   }
 }

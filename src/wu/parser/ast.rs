@@ -19,11 +19,11 @@ pub enum StatementNode {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Statement {
   pub node: StatementNode,
-  pub pos:  TokenElement,
+  pub pos:  Pos,
 }
 
 impl Statement {
-  pub fn new(node: StatementNode, pos: TokenElement) -> Self {
+  pub fn new(node: StatementNode, pos: Pos) -> Self {
     Statement {
       node,
       pos,
@@ -50,7 +50,7 @@ pub enum ExpressionNode {
   Index(Rc<Expression>, Rc<Expression>),
   Function(Vec<(String, Type)>, Type, Rc<Expression>, Vec<String>),
   Call(Rc<Expression>, Vec<Expression>),
-  If(Rc<Expression>, Rc<Expression>, Option<Vec<(Option<Expression>, Expression, TokenElement)>>),
+  If(Rc<Expression>, Rc<Expression>, Option<Vec<(Option<Expression>, Expression, Pos)>>),
   Module(Rc<Expression>),
   While(Rc<Expression>, Rc<Expression>),
   Struct(String, Vec<(String, Type)>, Vec<String>),
@@ -63,11 +63,11 @@ pub enum ExpressionNode {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expression {
   pub node: ExpressionNode,
-  pub pos:  TokenElement
+  pub pos:  Pos
 }
 
 impl Expression {
-  pub fn new(node: ExpressionNode, pos: TokenElement) -> Self {
+  pub fn new(node: ExpressionNode, pos: Pos) -> Self {
     Expression {
       node,
       pos,
