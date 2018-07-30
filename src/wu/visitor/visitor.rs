@@ -305,6 +305,8 @@ pub struct Visitor<'v> {
 
   pub flag:   Option<FlagContext>,
   pub inside: Vec<Inside>,
+
+  pub method_calls: HashMap<Pos, bool>, // hackest of hacks
 }
 
 impl<'v> Visitor<'v> {
@@ -318,6 +320,8 @@ impl<'v> Visitor<'v> {
 
       flag:   None,
       inside: vec!(),
+
+      method_calls: HashMap::new(),
     }
   }
 
@@ -870,12 +874,12 @@ impl<'v> Visitor<'v> {
         }
       },
 
-      Call(ref expression, ref args) => {
-        self.visit_expression(expression)?;
+      Call(ref expr, ref args) => {
+        self.visit_expression(expr)?;
 
-        self.inside.push(Inside::Calling(expression.pos.clone()));
+        self.inside.push(Inside::Calling(expr.pos.clone()));
 
-        let expression_type = self.type_expression(expression)?;
+        let expression_type = self.type_expression(expr)?;
 
         let mut covers           = HashMap::new();
         let mut corrected_params = Vec::new(); // because functions don't know what's best for them >:()
@@ -906,6 +910,8 @@ impl<'v> Visitor<'v> {
                   )
                 )
               }
+
+              self.method_calls.insert(expression.pos.clone(), true);
 
               actual_arg_len += 1;
 

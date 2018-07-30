@@ -190,7 +190,7 @@ pub fn run(content: &str, file: &str) -> Option<String> {
         _     => return None
       }
 
-      let mut generator = Generator::new(&source);
+      let mut generator = Generator::new(&source, &visitor.method_calls);
 
       Some(generator.generate(&ast))
     },

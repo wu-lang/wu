@@ -42,7 +42,7 @@ impl fmt::Display for TokenType {
 
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Pos(pub (usize, String), pub (usize, usize));
 
 impl fmt::Display for Pos {

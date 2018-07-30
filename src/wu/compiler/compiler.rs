@@ -1,6 +1,7 @@
 use super::*;
 
 use std::path::Path;
+use std::collections::HashMap;
 
 
 
@@ -26,17 +27,21 @@ pub struct Generator<'g> {
   inside: Option<Inside>,
 
   loop_depth: usize,
+
+  method_calls: &'g HashMap<Pos, bool>
 }
 
 impl<'g> Generator<'g> {
-  pub fn new(source: &'g Source) -> Self {
+  pub fn new(source: &'g Source, method_calls: &'g HashMap<Pos, bool>) -> Self {
     Generator {
       source,
 
       flag: None,
       inside: None,
 
-      loop_depth: 0
+      loop_depth: 0,
+
+      method_calls,
     }
   }
 
@@ -191,9 +196,19 @@ impl<'g> Generator<'g> {
       Call(ref called, ref args) => {
         let flag_backup = self.flag.clone();
 
-        self.flag = Some(FlagImplicit::Assign("none".to_string()));
+        self.flag      = Some(FlagImplicit::Assign("none".to_string()));
+        let mut caller = self.generate_expression(called);
+        let mut result = format!("{}(", caller);
 
-        let mut result = format!("{}(", self.generate_expression(called));
+        let prefix = self.method_calls.get(&expression.pos).is_some();
+
+        if let Index(ref left, _) = called.node {
+          caller = self.generate_expression(left)
+        }
+
+        if prefix {
+          result.push_str(&caller);
+        }
 
         for (i, arg) in args.iter().enumerate() {
           result.push_str(&self.generate_expression(arg));
