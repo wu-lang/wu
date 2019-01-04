@@ -1,3 +1,0 @@
-add: def<T>(a: T, b: T) -> T {
-  a + b
-}

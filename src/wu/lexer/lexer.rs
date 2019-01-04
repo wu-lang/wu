@@ -33,8 +33,24 @@ impl<'l> Lexer<'l> {
     lexer.matchers.push(
       Rc::new(
         KeyMatcher::new(Keyword, &[
-          "def", "->", "as", "if", "elif", "else", "return", "module", "import",
-          "while", "break", "skip", "type", "extern", "implement",
+          "fun",
+          "->",
+          "=>",
+          "return",
+          "as",
+          "if",
+          "elif",
+          "else",
+          "switch",
+          "while",
+          "skip",
+          "break",
+          "module",
+          "extern",
+          "struct",
+          "new",
+          "implement",
+          "import",
         ])
       )
     );
@@ -47,19 +63,20 @@ impl<'l> Lexer<'l> {
 
     lexer.matchers.push(
       Rc::new(
-        ConstantStringMatcher::new(Symbol, &[".."])
+        ConstantStringMatcher::new(Symbol, &["...", ".."])
       )
     );
 
-    lexer.matchers.push(Rc::new(IdentifierMatcher));
     lexer.matchers.push(Rc::new(NumberLiteralMatcher));
     lexer.matchers.push(Rc::new(WhitespaceMatcher));
 
     lexer.matchers.push(
       Rc::new(
-        ConstantStringMatcher::new(Operator, &["^", "++", "+", "-", "*", "/", "%", "==", "!=", "<=", ">=", "<", ">",])
+        ConstantStringMatcher::new(Operator, &["^", "++", "+", "-", "*", "/", "%", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not"])
       )
     );
+
+    lexer.matchers.push(Rc::new(IdentifierMatcher));
 
     lexer.matchers.push(
       Rc::new(

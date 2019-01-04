@@ -3,67 +3,170 @@ use std::collections::HashMap;
 
 use std::rc::Rc;
 
+use super::visitor::*;
 
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
+pub struct Frame {
+  pub table: RefCell<HashMap<String, Type>>,
+  pub depth: usize,
+}
+
+impl Frame {
+  pub fn new(depth: usize) -> Self {
+    Frame {
+      table: RefCell::new(HashMap::new()),
+      depth,
+    }
+  }
+
+  pub fn from(table: HashMap<String, Type>, depth: usize) -> Self {
+    Frame {
+      table: RefCell::new(table),
+      depth,
+    }
+  }
+
+  pub fn get(&self, name: &String) -> Option<Type> {
+    if let Some(v) = self.table.borrow().get(name) {
+      Some(v.clone())
+    } else {
+      None
+    }
+  }
+
+  pub fn assign(&mut self, name: String, t: Type) {
+    self.table.borrow_mut().insert(name, t);
+  }
+
+  pub fn debug(&self) {
+    for (name, t) in self.table.borrow().iter() {
+      println!("{} = {}", name, t)
+    }
+
+    println!()
+  }
+}
+
+
+#[derive(Debug, Clone)]
 pub struct SymTab {
-  pub parent: Option<Rc<SymTab>>,
-  pub names:  RefCell<HashMap<String, usize>>,
+  pub stack:  Vec<Frame>, // active frames
+  pub record: Vec<Frame>, // popped frames
+
+  pub implementations: HashMap<String, HashMap<String, Type>>,
 }
 
 impl SymTab {
-  pub fn new(parent: Rc<Self>, names: &[String]) -> Self {
-    let mut hash_names = HashMap::new();
-
-    for (i, name) in names.iter().enumerate() {
-      hash_names.insert((*name).clone(), i);
-    }
-
+  pub fn new() -> Self {
     SymTab {
-      parent:  Some(parent),
-      names:   RefCell::new(hash_names),
+      stack:  vec!(Frame::new(0)),
+      record: Vec::new(),
+      implementations: HashMap::new(),
     }
   }
 
-  pub fn global() -> Self {
+  pub fn from(table: HashMap<String, Type>) -> Self {
     SymTab {
-      parent:  None,
-      names:   RefCell::new(HashMap::new()),
+      stack:  vec!(Frame::from(table, 0)),
+      record: Vec::new(),
+      implementations: HashMap::new(),
     }
   }
 
-  pub fn add_name(&self, name: &str) -> usize {
-    let new_index = self.names.borrow().len();
-    self.names.borrow_mut().insert(name.to_string(), new_index);
 
-    new_index
+
+  pub fn assign(&mut self, name: String, t: Type) {
+    self.current_frame_mut().assign(name, t)
   }
 
-  pub fn get_name(&self, name: &str) -> Option<(usize, usize)> {
-    self.get_name_internal(name, 0)
+  pub fn assign_str(&mut self, name: &str, t: Type) {
+    self.current_frame_mut().assign(name.to_string(), t)
   }
 
-  fn get_name_internal(&self, name: &str, env_index: usize) -> Option<(usize, usize)> {
-    if let Some(index) = self.names.borrow().get(name) {
-      return Some((*index, env_index));
-    }
 
-    match self.parent {
-      Some(ref parent) => parent.get_name_internal(name, env_index + 1),
-      None => None,
-    }
-  }
 
-  pub fn visualize(&self, env_index: usize) {
-    if env_index > 0 {
-      if let Some(ref p) = self.parent {
-        p.visualize(env_index - 1);
-        println!("------------------------------");
+  pub fn fetch(&self, name: &String) -> Option<Type> {
+    let mut offset = self.stack.len() - 1;
+
+    loop {
+      let len = self.stack.len();
+
+      if offset < 0 {
+        return None
+      }
+
+      if let Some(t) = self.stack[offset].get(name) {
+        return Some(t)
+      } else {
+        if offset == 0 {
+          return None
+        }
+
+        offset -= 1;
       }
     }
+  }
 
-    for (i, v) in self.names.borrow().iter().enumerate() {
-      println!("({} : {}) = {:?}", i, env_index, v)
+  pub fn fetch_str(&self, name: &str) -> Option<Type> {
+    self.fetch(&name.to_string())
+  }
+
+
+
+  pub fn revert_frame(&mut self) {
+    self.stack.push(self.record.pop().unwrap().clone());
+  }
+
+
+
+  pub fn current_frame(&self) -> &Frame {
+    self.stack.last().unwrap()
+  }
+
+  pub fn current_frame_mut(&mut self) -> &mut Frame {
+    self.stack.last_mut().unwrap()
+  }
+
+
+
+  pub fn put_frame(&mut self, frame: Frame) {
+    self.stack.push(frame)
+  }
+
+
+
+  pub fn push(&mut self) {
+    self.stack.push(Frame::new(self.stack.len()))
+  }
+
+  pub fn pop(&mut self) {
+    let popped = self.stack.pop().unwrap();
+
+    self.record.push(popped)
+  }
+
+
+
+  pub fn get_implementations(&self, id: &String) -> Option<&HashMap<String, Type>>  {
+    self.implementations.get(id)
+  }
+
+  pub fn get_implementation_force(&self, id: &String, method_name: &String) -> Type {
+    self.get_implementations(id).unwrap().get(method_name).unwrap().clone()
+  }
+
+  pub fn implement(&mut self, id: &String, method_name: String, method_type: Type) {
+    if let Some(ref mut content) = self.implementations.get_mut(id) {
+      content.insert(method_name, method_type);
+
+      return
     }
+
+    let mut hash = HashMap::new();
+
+    hash.insert(method_name, method_type);
+
+    self.implementations.insert(id.to_owned(), hash);
   }
 }

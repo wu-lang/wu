@@ -35,21 +35,7 @@ pub struct CommentMatcher;
 
 impl<'t> Matcher<'t> for CommentMatcher {
   fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
-    if tokenizer.peek_range(3).unwrap_or_else(String::new) == "---" {
-      tokenizer.advance_n(3);
-
-      while !tokenizer.end() {
-        if tokenizer.peek_range(3).unwrap_or_else(String::new) == "---" {
-          tokenizer.advance_n(3);
-          break
-        }
-
-        tokenizer.advance()
-      }
-
-      Ok(Some(token!(tokenizer, EOL, "\n".into())))
-
-    } else if tokenizer.peek_range(2).unwrap_or_else(String::new) == "--" {
+    if tokenizer.peek_range(1).unwrap_or_else(String::new) == "#" {
       while !tokenizer.end() && tokenizer.peek() != Some('\n') {
         tokenizer.advance()
       }
@@ -99,6 +85,7 @@ impl<'t> Matcher<'t> for ConstantStringMatcher {
         return Ok(Some(token))
       }
     }
+
     Ok(None)
   }
 }
@@ -248,20 +235,26 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
     }
 
     tokenizer.advance();
-    
+
     if delimeter == '"' {
-      Ok(Some(token!(tokenizer, Str, string)))
+      let mut token = token!(tokenizer, Str, string);
+
+      if raw_marker {
+        token.slice.1 += 1
+      }
+
+      Ok(Some(token))
     } else {
       if string.len() > 1 {
         let pos = tokenizer.last_position();
 
         Err(
           response!(
-            Wrong("character literal may not contain more than one codepoint"),
+            Wrong("char literals may not contain more than one codepoint"),
             tokenizer.source.file,
             Pos(
               (pos.0, tokenizer.source.lines.get(pos.0.saturating_sub(1)).unwrap_or(tokenizer.source.lines.last().unwrap()).to_string()),
-              (pos.1 + 2, pos.1 + string.len() + 1),
+              (pos.1 + 2, pos.1 + string.len() + 1 + if raw_marker { 1 } else { 0 }),
             )
           )
         )
@@ -278,11 +271,11 @@ pub struct IdentifierMatcher;
 
 impl<'t> Matcher<'t> for IdentifierMatcher {
   fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
-    if !tokenizer.peek().unwrap().is_alphabetic() && !(tokenizer.peek().unwrap() == '_') {
+    if !tokenizer.peek().unwrap().is_alphabetic() {
       return Ok(None)
     }
 
-    let accum = tokenizer.collect_while(|c| c.is_alphanumeric() || "_!?".contains(c));
+    let accum = tokenizer.collect_while(|c| c.is_alphanumeric() || "_-!?".contains(c));
 
     if accum.is_empty() {
       Ok(None)
@@ -304,7 +297,9 @@ impl<'t> Matcher<'t> for NumberLiteralMatcher {
       accum.push(curr)
     } else if curr == '.' {
       accum.push_str("0.")
-    } else {
+    } else if curr == '-' {
+      accum.push('-')
+    }  else {
       return Ok(None)
     }
 
@@ -331,20 +326,21 @@ impl<'t> Matcher<'t> for NumberLiteralMatcher {
       }
     }
 
-    if &accum == "0." {
+    if ["-", "-0.", "-.", "0."].contains(&accum.as_str()) {
       Ok(None)
     } else {
+
       if accum.contains(".") {
         let literal: String = match accum.parse::<f64>() {
           Ok(result) => result.to_string(),
-          Err(error) => panic!("unable to parse float: {}", error)
+          Err(error) => panic!("unable to parse float `{}`: {}", accum, error)
         };
 
         Ok(Some(token!(tokenizer, Float, literal)))
       } else {
-        let literal: String = match accum.parse::<i64>() {
+        let literal: String = match accum.parse::<f64>() {
           Ok(result) => result.to_string(),
-          Err(error) => panic!("unable to parse int: {}", error)
+          Err(error) => panic!("unable to parse int `{}`: {}", accum, error)
         };
 
         Ok(Some(token!(tokenizer, Int, literal)))

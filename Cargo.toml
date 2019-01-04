@@ -1,8 +1,10 @@
 [package]
-name = "wu"
+name    = "wu"
 version = "0.1.0"
 authors = ["nilq <i.am@nilq.dk>"]
+edition = "2018"
 
 [dependencies]
 colored   = "*"
 rustyline = "*"
+backtrace = "0.3"

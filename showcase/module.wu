@@ -1,8 +1,0 @@
-foo: module {
-  bar: def(a: int) -> int {
-    b := a * 100
-    b
-  }
-}
-
-baz: int = foo bar(100)
