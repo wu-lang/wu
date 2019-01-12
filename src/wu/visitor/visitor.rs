@@ -218,7 +218,7 @@ impl Display for TypeMode {
       Undeclared  => write!(f, "undeclared "),
       Optional    => write!(f, "optional "),
       Implemented => Ok(()),
-      Splat(_)    => write!(f, ".."),
+      Splat(_)    => write!(f, "..."),
       Unwrap(_)   => write!(f, "*"),
     }
   }
@@ -527,6 +527,24 @@ impl<'v> Visitor<'v> {
         }
       },
 
+      Module(ref content) => self.visit_expression(content),
+
+      Unwrap(ref expression) => {
+        self.visit_expression(&**expression)?;
+
+        if let TypeMode::Splat(_) = self.type_expression(&**expression)?.mode {
+          Ok(())
+        } else {
+          Err(
+            response!(
+              Wrong("can't unwrap a non-splat value"),
+              self.source.file,
+              expression.pos
+            )
+          )
+        }
+      },
+
       Initialization(ref left, ref args) => {
         let struct_type = self.type_expression(&*left)?;
 
@@ -766,6 +784,7 @@ impl<'v> Visitor<'v> {
           let mut type_buffer: Option<Type> = None;
 
           for (i, param_type) in params.iter().enumerate() {
+            let param_type = self.deid(param_type.clone())?;
             let arg_type   = self.type_expression(&args[i])?;
 
             if !param_type.node.check_expression(&Parser::fold_expression(&args[i])?.node) && arg_type.node != param_type.node {
@@ -794,7 +813,7 @@ impl<'v> Visitor<'v> {
           }
 
           if actual_arg_len > params.len() {
-            let last = params.last().unwrap();
+            let last = self.deid(params.last().unwrap().clone())?;
 
             if let TypeMode::Splat(_) = last.mode {
               for splat in &args[params.len()..] {
@@ -861,7 +880,23 @@ impl<'v> Visitor<'v> {
 
         return_type = Type::from(return_type.node.clone());
 
+        let mut found_splat = false;
+
         for param in params.iter() {
+          if let TypeMode::Splat(_) = param.1.mode {
+            if found_splat {
+              return Err(
+                response!(
+                  Wrong("can't have multiple splat parameters in function"),
+                  self.source.file,
+                  expression.pos
+                )
+              )
+            }
+
+            found_splat = true
+          }
+
           frame_hash.insert(param.0.clone(), param.1.clone());
         }
 
@@ -915,7 +950,12 @@ impl<'v> Visitor<'v> {
       },
 
       Index(ref left, ref index) => {
-        let left_type = self.type_expression(left)?;
+        let mut left_type = self.type_expression(left)?;
+
+        if let TypeMode::Splat(_) = left_type.mode {
+          println!("eow", );
+          left_type = Type::from(TypeNode::Array(Rc::new(left_type.clone()), None))
+        }
 
         match left_type.node {
           TypeNode::Array(_, ref len) => {
@@ -1112,7 +1152,29 @@ impl<'v> Visitor<'v> {
         let t = self.fetch(name, &expression.pos)?;
 
         self.deid(t)?
-      }
+      },
+
+      Extern(ref kind, _) => {
+        let mut kind = kind.clone();
+
+        if let TypeNode::Id(ref ident) = kind.node.clone() {
+          let ident_type = self.type_expression(&ident)?;
+
+          if let TypeNode::Struct(..) = ident_type.node {
+            kind = Type::from(ident_type.node)
+          } else {
+            return Err(
+              response!(
+                Wrong(format!("can't use `{}` as type", ident_type)),
+                self.source.file,
+                ident.pos
+              )
+            )
+          }
+        }
+
+        Type::from(kind.node.clone())
+      },
 
       Str(_)   => Type::from(TypeNode::Str),
       Char(_)  => Type::from(TypeNode::Char),
@@ -1135,6 +1197,11 @@ impl<'v> Visitor<'v> {
 
       Index(ref array, ref index) => {
         let mut kind = self.type_expression(array)?;
+
+        if let TypeMode::Splat(_) = kind.mode {
+          println!("eow", );
+          kind = Type::from(TypeNode::Array(Rc::new(kind.clone()), None))
+        }
 
         match kind.node {
           TypeNode::Array(ref t, _) => (**t).clone(),
@@ -1226,7 +1293,7 @@ impl<'v> Visitor<'v> {
         let mut param_types = Vec::new();
 
         for param in params {
-          param_types.push(param.1.clone())
+          param_types.push(self.deid(param.1.clone())?)
         }
 
         let return_type = self.deid(return_type.clone())?;
@@ -1458,6 +1525,39 @@ impl<'v> Visitor<'v> {
         }
       },
 
+      Module(ref content) => {
+        self.visit_expression(content)?;
+
+        let mut content_type = HashMap::new();
+
+        self.symtab.revert_frame();
+
+        let names = &self.symtab.current_frame().table;
+
+        for symbol in names.borrow().iter() {
+          content_type.insert(symbol.0.clone(), self.fetch(symbol.0, &expression.pos)?.clone());
+        }
+
+        Type::from(TypeNode::Module(content_type))
+      },
+
+      Unwrap(ref expr) => {
+        let t = self.type_expression(&**expr)?;
+
+        if let TypeMode::Splat(_) = t.mode {
+          if let Some(Inside::Splat(Some(ref len))) = self.inside.last() {
+            Type::new(t.node, TypeMode::Unwrap(*len))
+          } else {
+            Type::from(TypeNode::Any)
+          }
+        } else {
+          unreachable!()
+        }
+      },
+
+      Neg(ref expr) => self.type_expression(expr)?,
+      Not(_)        => Type::from(TypeNode::Bool),
+
       _ => Type::from(TypeNode::Nil)
     };
 
@@ -1496,6 +1596,16 @@ impl<'v> Visitor<'v> {
       }
 
       self.visit_statement(&statement)?
+    }
+
+    for statement in content.iter() {
+      if let StatementNode::Variable(.., ref right) = statement.node {
+        if let Some(ref right) = *right {
+          if let ExpressionNode::Function(..) = right.node {
+            self.visit_statement(statement)?
+          }
+        }
+      }
     }
 
     Ok(())
@@ -1701,7 +1811,11 @@ impl<'v> Visitor<'v> {
 
   pub fn deid(&mut self, t: Type) -> Result<Type, ()> {
     if let TypeNode::Id(ref expr) = t.node {
-      self.type_expression(expr)
+      let mut new_t = self.type_expression(expr)?;
+
+      new_t.mode = t.mode.clone();
+
+      Ok(new_t)
     } else {
       Ok(t)
     }

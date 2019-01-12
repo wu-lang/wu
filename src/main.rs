@@ -6,17 +6,63 @@ use self::wu::source::*;
 use self::wu::lexer::*;
 use self::wu::parser::*;
 use self::wu::visitor::*;
+use self::wu::compiler::*;
 
 fn main() {
   let test = r#"
-A: struct {}
-B: struct {
-  a: A
+GraphicsType: struct {
+  rectangle: fun(str, float, float, float, float)
+} 
+
+LoveType: struct {
+  graphics: GraphicsType
+  load: fun
 }
 
+# hey
+love: extern LoveType = "love"
 
-x := new B {
-  a: new A {}
+love graphics rectangle("fill", 100, 100, 100, 100)
+
+love load = fun {
+  print: extern fun(...)
+
+  print("hey", "and hey")
+}
+
+Foo: struct {
+  x: int
+}
+
+foo: fun(...b: Foo) -> ...Foo {
+  a := *b
+
+  x: Foo = b[0]
+  
+  a
+}
+
+a := new Foo { x: 1 }
+b := new Foo { x: 2 }
+c := new Foo { x: 3 }
+
+foo(a, b, c)
+  "#;
+
+  let test = r#"
+fib: fun(a: int) -> int {
+  if a < 3 {
+    return a
+  }
+  
+  fib(a - 1) + fib(a - 2)
+}
+
+# binding lua functions is easy
+print: extern fun(...)
+
+print_fibs: fun(numbers: ...int) {
+  print(*numbers)
 }
   "#;
 
@@ -39,7 +85,15 @@ x := new B {
     Ok(ref ast) => {
       let mut visitor = Visitor::new(&ast, &source);
 
-      visitor.visit();
+      match visitor.visit() {
+        Ok(_) => {
+          let mut compiler = Generator::new(&source, &visitor.method_calls);
+
+          println!("input:\n```\n{}\n```\n\noutput:\n```lua\n{}\n```", test, compiler.generate(ast))
+        },
+
+        _ => ()
+      }
     },
 
     _ => ()

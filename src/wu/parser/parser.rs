@@ -246,56 +246,7 @@ impl<'p> Parser<'p> {
 
   fn parse_right_hand(&mut self, name: String) -> Result<Option<Expression>, ()> {
     let declaration = match self.current_lexeme().as_str() {
-      "fun" => {
-        let mut position = self.current_position();
-
-        self.next()?;
-        self.next_newline()?;
-
-        let mut params = if self.current_lexeme() == "(" {
-          self.parse_block_of(("(", ")"), &Self::_parse_param_comma)?
-        } else {
-          Vec::new()
-        };
-
-        let mut is_method = false;
-
-        if params.len() > 0 {
-          if params[0].1.node.strong_cmp(&TypeNode::This) {
-
-            params.remove(0);
-
-            is_method = true
-          }
-        }
-
-        let retty = if self.current_lexeme() == "->" {
-          self.next()?;
-
-          self.parse_type()?
-        } else {
-          Type::from(TypeNode::Nil)
-        };
-
-        position = self.span_from(position);
-
-        self.next_newline()?;
-
-        self.expect_lexeme("{")?;
-
-        Some(
-          Expression::new(
-            ExpressionNode::Function(
-              params,
-              retty,
-              Rc::new(self.parse_expression()?),
-              is_method
-            ),
-
-            position
-          )
-        )
-      },
+      "fun" => Some(self.parse_function()?),
 
       "struct" => {
         let mut position = self.current_position();
@@ -370,6 +321,59 @@ impl<'p> Parser<'p> {
     };
 
     Ok(declaration)
+  }
+
+
+
+  fn parse_function(&mut self) -> Result<Expression, ()> {
+    let mut position = self.current_position();
+
+    self.next()?;
+    self.next_newline()?;
+
+    let mut params = if self.current_lexeme() == "(" {
+      self.parse_block_of(("(", ")"), &Self::_parse_param_comma)?
+    } else {
+      Vec::new()
+    };
+
+    let mut is_method = false;
+
+    if params.len() > 0 {
+      if params[0].1.node.strong_cmp(&TypeNode::This) {
+
+        params.remove(0);
+
+        is_method = true
+      }
+    }
+
+    let retty = if self.current_lexeme() == "->" {
+      self.next()?;
+
+      self.parse_type()?
+    } else {
+      Type::from(TypeNode::Nil)
+    };
+
+    position = self.span_from(position);
+
+    self.next_newline()?;
+
+    self.expect_lexeme("{")?;
+
+    Ok(
+      Expression::new(
+        ExpressionNode::Function(
+          params,
+          retty,
+          Rc::new(self.parse_expression()?),
+          is_method
+        ),
+
+        position
+      )
+    )
   }
 
 
@@ -518,6 +522,8 @@ impl<'p> Parser<'p> {
         },
 
         Keyword => match self.current_lexeme().as_str() {
+          "fun" => self.parse_function()?,
+
           "if" => {
             self.next()?;
 
