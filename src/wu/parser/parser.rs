@@ -42,112 +42,6 @@ impl<'p> Parser<'p> {
     let position = self.current_position();
 
     let statement = match self.current_type() {
-      Keyword => match self.current_lexeme().as_str() {
-        "import" => {
-          self.next()?;
-
-          let path = self.eat_type(&Identifier)?;
-
-          let specifics = if self.current_lexeme() == "(" {
-            self.parse_block_of(("(", ")"), &Self::_parse_name_comma)?
-          } else {
-            Vec::new()
-          };
-
-          Statement::new(
-            StatementNode::Import(path, specifics),
-            self.span_from(position)
-          )
-        },
-
-        "implement" => {
-          let pos = self.span_from(position);
-
-          self.next()?;
-          self.next_newline()?;
-
-          let generics = if self.current_lexeme() == "<" {
-            self.parse_block_of(("<", ">"), &Self::_parse_name_comma)?
-          } else {
-            Vec::new()
-          };
-
-          self.next_newline()?;
-          self.expect_type(TokenType::Identifier)?;
-
-          let start = self.index;
-
-          while self.current_lexeme() != "{" && self.remaining() > 1 {
-            self.next()?;
-          }
-
-          let end = self.index;
-
-          let mut name_parser = Parser::new(self.tokens[start .. end].to_vec(), self.source);
-
-          let name = name_parser.parse_expression()?;
-          self.next_newline()?;
-
-          self.expect_lexeme("{")?;
-
-          let body = self.parse_expression()?;
-
-          Statement::new(
-            StatementNode::Implement(
-              name,
-              generics,
-              body,
-            ),
-            pos
-          )
-        },
-
-        "return" => {
-          self.next()?;
-
-          if ["}", "\n"].contains(&self.current_lexeme().as_str()) {
-            Statement::new(
-              StatementNode::Return(None),
-              position
-            )
-          } else {
-            Statement::new(
-              StatementNode::Return(Some(Rc::new(self.parse_expression()?))),
-              self.span_from(position)
-            )
-          }
-        },
-
-        "break" => {
-          self.next()?;
-
-          Statement::new(
-            StatementNode::Break,
-            position
-          )
-        },
-
-        "skip" => {
-          self.next()?;
-
-          Statement::new(
-            StatementNode::Skip,
-            position
-          )
-        },
-
-        _ => {
-          let expression = self.parse_expression()?;
-
-          let position = expression.pos.clone();
-
-          Statement::new(
-            StatementNode::Expression(expression),
-            position,
-          )
-        },
-      },
-
       Identifier => {
         let backup_index = self.index;
         let position     = self.current_position();
@@ -242,6 +136,104 @@ impl<'p> Parser<'p> {
         }
       },
 
+      Keyword => match self.current_lexeme().as_str() {
+        "return" => {
+          self.next()?;
+
+          if ["}", "\n"].contains(&self.current_lexeme().as_str()) {
+            Statement::new(
+              StatementNode::Return(None),
+              position
+            )
+          } else {
+            Statement::new(
+              StatementNode::Return(Some(Rc::new(self.parse_expression()?))),
+              self.span_from(position)
+            )
+          }
+        },
+
+        "break" => {
+          self.next()?;
+
+          Statement::new(
+            StatementNode::Break,
+            position
+          )
+        },
+
+        "skip" => {
+          self.next()?;
+
+          Statement::new(
+            StatementNode::Skip,
+            position
+          )
+        },
+
+        "import" => {
+          self.next()?;
+
+          let path = self.eat_type(&Identifier)?;
+
+          let specifics = if self.current_lexeme() == "{" {
+            self.parse_block_of(("{", "}"), &Self::_parse_name_comma)?
+          } else {
+            Vec::new()
+          };
+
+          Statement::new(
+            StatementNode::Import(path, specifics),
+            self.span_from(position)
+          )
+        },
+
+        "implement" => {
+          let pos = self.span_from(position);
+
+          self.next()?;
+          self.next_newline()?;
+
+          self.expect_type(TokenType::Identifier)?;
+
+          let start = self.index;
+
+          while self.current_lexeme() != "{" && self.remaining() > 1 {
+            self.next()?;
+          }
+
+          let end = self.index;
+
+          let mut name_parser = Parser::new(self.tokens[start .. end].to_vec(), self.source);
+
+          let name = name_parser.parse_expression()?;
+          self.next_newline()?;
+
+          self.expect_lexeme("{")?;
+
+          let body = self.parse_expression()?;
+
+          Statement::new(
+            StatementNode::Implement(
+              name,
+              body,
+            ),
+            pos
+          )
+        },
+
+        _ => {
+          let expression = self.parse_expression()?;
+
+          let position = expression.pos.clone();
+
+          Statement::new(
+            StatementNode::Expression(expression),
+            position,
+          )
+        },
+      },
+
       _ => {
         let expression = self.parse_expression()?;
         let position   = expression.pos.clone();
@@ -267,49 +259,30 @@ impl<'p> Parser<'p> {
     Ok(statement)
   }
 
+
+
   fn parse_right_hand(&mut self, name: String) -> Result<Option<Expression>, ()> {
     let declaration = match self.current_lexeme().as_str() {
-      "def" => {
-        let mut position = self.current_position();
+      "fun" => Some(self.parse_function()?),
 
+      "struct" => {
+        let mut position = self.current_position();
+        
         self.next()?;
         self.next_newline()?;
 
-        let generics = if self.current_lexeme() == "<" {
-          self.parse_block_of(("<", ">"), &Self::_parse_name_comma)?
-        } else {
-          Vec::new()
-        };
-
-        self.next_newline()?;
-
-        let params = if self.current_lexeme() == "(" {
-          self.parse_block_of(("(", ")"), &Self::_parse_param_comma)?
-        } else {
-          Vec::new()
-        };
-
-        let retty = if self.current_lexeme() == "->" {
-          self.next()?;
-
-          self.parse_type()?
-        } else {
-          Type::from(TypeNode::Nil)
-        };
-
         position = self.span_from(position);
-
-        self.next_newline()?;
 
         self.expect_lexeme("{")?;
 
+        let params = self.parse_block_of(("{", "}"), &Self::_parse_struct_param_comma)?;
+
         Some(
           Expression::new(
-            ExpressionNode::Function(
+            ExpressionNode::Struct(
+              name,
               params,
-              retty,
-              Rc::new(self.parse_expression()?),
-              generics
+              format!("{}{}", self.source.file, position),
             ),
 
             position
@@ -331,39 +304,6 @@ impl<'p> Parser<'p> {
           Expression::new(
             ExpressionNode::Module(
               Rc::new(self.parse_expression()?),
-            ),
-
-            position
-          )
-        )
-      },
-
-      "type" => {
-        let mut position = self.current_position();
-        
-        self.next()?;
-        self.next_newline()?;
-
-        let generics = if self.current_lexeme() == "<" {
-          self.parse_block_of(("<", ">"), &Self::_parse_name_comma)?
-        } else {
-          Vec::new()
-        };
-
-        self.next_newline()?;
-
-        position = self.span_from(position);
-
-        self.expect_lexeme("{")?;
-
-        let params = self.parse_block_of(("{", "}"), &Self::_parse_param_comma)?;
-
-        Some(
-          Expression::new(
-            ExpressionNode::Struct(
-              name,
-              params,
-              generics
             ),
 
             position
@@ -398,6 +338,59 @@ impl<'p> Parser<'p> {
     };
 
     Ok(declaration)
+  }
+
+
+
+  fn parse_function(&mut self) -> Result<Expression, ()> {
+    let mut position = self.current_position();
+
+    self.next()?;
+    self.next_newline()?;
+
+    let mut params = if self.current_lexeme() == "(" {
+      self.parse_block_of(("(", ")"), &Self::_parse_param_comma)?
+    } else {
+      Vec::new()
+    };
+
+    let mut is_method = false;
+
+    if params.len() > 0 {
+      if params[0].1.node.strong_cmp(&TypeNode::This) {
+
+        params.remove(0);
+
+        is_method = true
+      }
+    }
+
+    let retty = if self.current_lexeme() == "->" {
+      self.next()?;
+
+      self.parse_type()?
+    } else {
+      Type::from(TypeNode::Nil)
+    };
+
+    position = self.span_from(position);
+
+    self.next_newline()?;
+
+    self.expect_lexeme("{")?;
+
+    Ok(
+      Expression::new(
+        ExpressionNode::Function(
+          params,
+          retty,
+          Rc::new(self.parse_expression()?),
+          is_method
+        ),
+
+        position
+      )
+    )
   }
 
 
@@ -484,9 +477,21 @@ impl<'p> Parser<'p> {
             )
           },
 
+          "not" => {
+            self.next()?;
+
+            Expression::new(
+              ExpressionNode::Not(
+                Rc::new(self.parse_expression()?)
+              ),
+
+              self.span_from(position)
+            )
+          },
+
           ref symbol => return Err(
             response!(
-              Wrong(format!("unexpected symbol `{}`", symbol)),
+              Wrong(format!("unexpected operator `{}`", symbol)),
               self.source.file,
               self.current_position()
             )
@@ -534,27 +539,7 @@ impl<'p> Parser<'p> {
         },
 
         Keyword => match self.current_lexeme().as_str() {
-          "while" => {
-            self.next()?;
-
-            self.next_newline()?;
-
-            let condition = self.parse_expression()?;
-
-            self.next_newline()?;
-
-            self.expect_lexeme("{")?;
-
-            let position = self.span_from(position);
-
-            Expression::new(
-              ExpressionNode::While(
-                Rc::new(condition),
-                Rc::new(self.parse_expression()?)
-              ),
-              position
-            )
-          },
+          "fun" => self.parse_function()?,
 
           "if" => {
             self.next()?;
@@ -609,6 +594,46 @@ impl<'p> Parser<'p> {
               if_position
             )
           },
+
+          "while" => {
+            self.next()?;
+
+            self.next_newline()?;
+
+            let condition = self.parse_expression()?;
+
+            self.next_newline()?;
+
+            self.expect_lexeme("{")?;
+
+            let position = self.span_from(position);
+
+            Expression::new(
+              ExpressionNode::While(
+                Rc::new(condition),
+                Rc::new(self.parse_expression()?)
+              ),
+              position
+            )
+          },
+
+          "new" => {
+            self.next()?;
+            self.next_newline()?;
+
+            let expression = self.parse_expression()?;
+
+            let position = self.span_from(position);
+
+            self.next_newline()?;
+
+            let args = self.parse_block_of(("{", "}"), &Self::_parse_definition_comma)?;
+
+            Expression::new(
+              ExpressionNode::Initialization(Rc::new(expression), args),
+              position
+            )
+          }
 
           ref symbol => return Err(
             response!(
@@ -675,26 +700,6 @@ impl<'p> Parser<'p> {
           self.parse_postfix(index)
         },
 
-        "{" => {
-          use self::ExpressionNode::*;
-
-          match expression.node {
-            Index(..) | Identifier(_) | Call(..) => (),
-            _ => return Ok(expression)
-          }
-
-          let args = self.parse_block_of(("{", "}"), &Self::_parse_definition_comma)?;
-
-          let position = expression.pos.clone();
-
-          Ok(
-            Expression::new(
-              ExpressionNode::Initialization(Rc::new(expression), args),
-              position
-            )
-          )
-        }
-
         _ => Ok(expression)
       },
 
@@ -745,8 +750,6 @@ impl<'p> Parser<'p> {
 
 
 
-  // A simple shunting-yard implementation
-  // ... naively hoping for unary operations to just play along
   fn parse_binary(&mut self, left: Expression) -> Result<Expression, ()> {
     let left_position = left.pos.clone();
 
@@ -819,38 +822,37 @@ impl<'p> Parser<'p> {
       Identifier => match self.eat()?.as_str() {
         "str"   => Type::from(TypeNode::Str),
         "char"  => Type::from(TypeNode::Char),
-
         "int"   => Type::from(TypeNode::Int),
         "float" => Type::from(TypeNode::Float),
-
+        "any"   => Type::from(TypeNode::Any),
         "bool"  => Type::from(TypeNode::Bool),
+        "self"  => Type::from(TypeNode::This),
 
-        id      => {
-          let generics = if self.current_lexeme() == "<" {
-            self.parse_block_of(("<", ">"), &Self::_parse_type_comma)?
-          } else {
-            Vec::new()
-          };
-
-          Type::id(id, generics)
+        _ => {
+          self.index -= 1; // lol
+          Type::id(Rc::new(self.parse_expression()?))
         }
       },
 
       Keyword => match self.current_lexeme().as_str() {
-        "def"   => {
+        "fun"   => {
           self.next()?;
 
-          let generics = if self.current_lexeme() == "<" {
-            self.parse_block_of(("<", ">"), &Self::_parse_name_comma)?
+          let mut params = if self.current_lexeme() == "(" {
+            self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?
           } else {
             Vec::new()
           };
 
-          let params = if self.current_lexeme() == "(" {
-            self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?
-          } else {
-            Vec::new() 
-          };
+          let mut is_method = false;
+
+          if params.len() > 0 {
+            if params[0].node.strong_cmp(&TypeNode::This) {
+              params.remove(0);
+
+              is_method = true
+            }
+          }
 
           let return_type = if self.current_lexeme() == "->" {
             self.next()?;
@@ -860,7 +862,7 @@ impl<'p> Parser<'p> {
             Type::from(TypeNode::Nil)
           };
 
-          Type::from(TypeNode::Func(params, Rc::new(return_type), generics, None))
+          Type::from(TypeNode::Func(params, Rc::new(return_type), None, is_method))
         },
 
         _ => return Err(
@@ -881,43 +883,44 @@ impl<'p> Parser<'p> {
 
           self.next_newline()?;
 
-          self.eat_lexeme(";")?;
+          let mut len = None;
 
-          self.next_newline()?;
+          if self.current_lexeme() == ";" {
+            self.eat_lexeme(";")?;
 
-          let expression = self.parse_expression()?;
+            self.next_newline()?;
 
-          let len = if let ExpressionNode::Int(ref len) = Self::fold_expression(&expression)?.node {
-            *len as usize
-          } else {
-            return Err(
-              response!(
-                Wrong(format!("length of array can be nothing but int")),
-                self.source.file,
-                expression.pos
+            let expression = self.parse_expression()?;
+
+            len = if let ExpressionNode::Int(ref len) = Self::fold_expression(&expression)?.node {
+              Some(*len as usize)
+            } else {
+              return Err(
+                response!(
+                  Wrong(format!("length of array can be nothing but int")),
+                  self.source.file,
+                  expression.pos
+                )
               )
-            )
-          };
+            };
+          }
 
           self.eat_lexeme("]")?;
 
           Type::array(t, len)
         },
 
-        "(" => {
-          let params = self.parse_block_of(("(", ")"), &Self::_parse_type_comma)?;
-
-          self.eat_lexeme("->")?;
-
-          let return_type = self.parse_type()?;
-
-          Type::function(params, return_type)
-        },
-
-        ".." => {
+        "..." => {
           self.next()?;
 
-          let splatted = self.parse_type()?;
+          self.next_newline()?;
+
+          let splatted = if self.current_lexeme() == ")" || self.remaining() == 0 {
+            Type::from(TypeNode::Any)
+
+          } else {
+            self.parse_type()?
+          };
 
           Type::new(splatted.node, TypeMode::Splat(None))
         },
@@ -929,7 +932,7 @@ impl<'p> Parser<'p> {
             self.current_position()
           )
         )
-      }
+      },
 
       _ => return Err(
         response!(
@@ -1212,10 +1215,9 @@ impl<'p> Parser<'p> {
     }
 
     let mut splat = false;
+    let position  = self.current_position();
 
-    let position = self.current_position();
-
-    if self.current_lexeme() == ".." {
+    if self.current_lexeme() == "..." {
       splat = true;
 
       self.next()?;
@@ -1240,12 +1242,16 @@ impl<'p> Parser<'p> {
         TypeMode::Regular,
       )
     } else {
-      self.eat_lexeme(":")?;
+      let mut kind = Type::from(TypeNode::Any);
 
-      let mut kind = self.parse_type()?;
+      if self.current_lexeme() == ":" {
+        self.eat_lexeme(":")?;
 
-      if splat {
-        kind.mode = TypeMode::Splat(None)
+        kind = self.parse_type()?;
+
+        if splat {
+          kind.mode = TypeMode::Splat(None)
+        }
       }
 
       kind
@@ -1285,21 +1291,53 @@ impl<'p> Parser<'p> {
       return Ok(None)
     }
 
-    let mut splat = false;
-
-    if self.current_lexeme() == ".." {
-      splat = true;
-
-      self.next()?;
-      self.next_newline()?;
-    }
+    let position = self.current_position();
 
     let name = self.eat_type(&TokenType::Identifier)?;
     
     self.eat_lexeme(":")?;
 
-    let value = self.parse_expression()?;
+    let mut value = self.parse_expression()?;
 
+    value.pos = position;
+
+    let param = Some((name, value));
+
+    if self.remaining() > 0 {
+      if ![",", "\n"].contains(&self.current_lexeme().as_str()) {
+        return Err(
+          response!(
+            Wrong(format!("expected `,` or newline, found `{}`", self.current_lexeme())),
+            self.source.file,
+            self.current_position()
+          )
+        )
+      } else {
+        self.next()?;
+      }
+
+      if self.remaining() > 0 && self.current_lexeme() == "\n" {
+        self.next()?
+      }
+    }
+
+    Ok(param)
+  }
+
+  fn _parse_struct_param_comma(self: &mut Self) -> Result<Option<(String, Type)>, ()> {
+    if self.remaining() > 0 && self.current_lexeme() == "\n" {
+      self.next()?
+    }
+
+    if self.remaining() == 0 {
+      return Ok(None)
+    }
+
+    let name = self.eat_type(&TokenType::Identifier)?;
+
+    self.eat_lexeme(":")?;
+
+    let value = self.parse_type()?;
     let param = Some((name, value));
 
     if self.remaining() > 0 {

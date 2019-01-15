@@ -1,19 +1,17 @@
 use colored::Colorize;
 use std::fmt;
 
-
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
+  Identifier,
   Int,
   Float,
+  Keyword,
   Str,
   Char,
-  Bool,
-  Identifier,
-  Keyword,
   Symbol,
   Operator,
+  Bool,
   Whitespace,
   EOL,
   EOF,
@@ -24,14 +22,14 @@ impl fmt::Display for TokenType {
     use self::TokenType::*;
 
     match *self {
+      Identifier => write!(f, "Identifier"),
       Int        => write!(f, "Int"),
-      Float     => write!(f, "Float"),
+      Float      => write!(f, "Float"),
       Str        => write!(f, "Str"),
       Char       => write!(f, "Char"),
-      Bool       => write!(f, "Bool"),
-      Identifier => write!(f, "Identifier"),
-      Symbol     => write!(f, "Symbol"),
       Keyword    => write!(f, "Keyword"),
+      Bool       => write!(f, "Bool"),
+      Symbol     => write!(f, "Symbol"),
       Operator   => write!(f, "Operator"),
       Whitespace => write!(f, "Whitespace"),
       EOL        => write!(f, "EOL"),
@@ -40,10 +38,14 @@ impl fmt::Display for TokenType {
   }
 }
 
-
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Pos(pub (usize, String), pub (usize, usize));
+
+impl Pos {
+  pub fn get_lexeme(&self) -> String {
+    (self.0).1[(self.1).0 - if (self.1).0 > 0 { 1 } else { 0 } .. (self.1).1].to_string()
+  }
+}
 
 impl fmt::Display for Pos {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -52,9 +54,9 @@ impl fmt::Display for Pos {
     let mut mark = (self.0).1[(self.1).0.saturating_sub(1) .. (self.1).1].to_string();
 
     if mark.split_whitespace().count() == 0 {
-      mark = format!("{:─>count$}", ">".magenta().bold(), count=mark.len());
+      mark = format!("{:─>count$}", ">".red().bold(), count=mark.len());
     } else {
-      mark = format!("{}", mark.magenta().bold());
+      mark = format!("{}", mark.red().bold());
     }
 
     let mut arrows = format!("{: <count$}", " ", count=(self.1).0);
@@ -67,7 +69,7 @@ impl fmt::Display for Pos {
       linepad,
       lineno, &(self.0).1[..(self.1).0.saturating_sub(1)], mark, &(self.0).1[(self.1).1..],
       linepad,
-      arrows.magenta().bold()
+      arrows.red().bold()
     )
   }
 }

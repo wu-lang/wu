@@ -1,4 +1,0 @@
-a: int = 100
-b: float = 1.5
-
-c: int = 100.5 as int

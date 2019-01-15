@@ -1,0 +1,12 @@
+GraphicsType: struct {
+  setColor: fun(float, float, float, float)
+  rectangle: fun(str, float, float, float, float)
+}
+
+LoveType: struct {
+  graphics: GraphicsType
+
+  load:   fun
+  update: fun(float)
+  draw:   fun
+}

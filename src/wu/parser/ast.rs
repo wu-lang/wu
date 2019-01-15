@@ -9,11 +9,10 @@ pub enum StatementNode {
   Variable(Type, String, Option<Expression>),
   Assignment(Expression, Expression),
   Return(Option<Rc<Expression>>),
+  Implement(Expression, Expression),
   Import(String, Vec<String>),
-  Implement(Expression, Vec<String>, Expression),
-
-  Break,
   Skip,
+  Break,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,23 +40,31 @@ pub enum ExpressionNode {
   Char(char),
   Bool(bool),
   Unwrap(Rc<Expression>),
+
   Neg(Rc<Expression>),
+  Not(Rc<Expression>),
+
   Identifier(String),
   Binary(Rc<Expression>, Operator, Rc<Expression>),
-  Block(Vec<Statement>),
-  Cast(Rc<Expression>, Type),
   Array(Vec<Expression>),
-  Index(Rc<Expression>, Rc<Expression>),
-  Function(Vec<(String, Type)>, Type, Rc<Expression>, Vec<String>),
+
   Call(Rc<Expression>, Vec<Expression>),
+  Index(Rc<Expression>, Rc<Expression>),
+
+  Cast(Rc<Expression>, Type),
+  Block(Vec<Statement>),
+
+  Function(Vec<(String, Type)>, Type, Rc<Expression>, bool), // is_method: bool
   If(Rc<Expression>, Rc<Expression>, Option<Vec<(Option<Expression>, Expression, Pos)>>),
-  Module(Rc<Expression>),
+
   While(Rc<Expression>, Rc<Expression>),
-  Struct(String, Vec<(String, Type)>, Vec<String>),
-  Initialization(Rc<Expression>, Vec<(String, Expression)>),
+  Module(Rc<Expression>),
   Extern(Type, Option<String>),
-  EOF,
+  Struct(String, Vec<(String, Type)>, String),
+  Initialization(Rc<Expression>, Vec<(String, Expression)>),
+
   Empty,
+  EOF,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -79,7 +86,7 @@ impl Expression {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operator {
-  Add, Sub, Mul, Div, Mod, Pow, Concat, Eq, Lt, Gt, NEq, LtEq, GtEq,
+  Add, Sub, Mul, Div, Mod, Pow, Concat, Eq, Lt, Gt, NEq, LtEq, GtEq, Or, And,
 }
 
 impl Operator {
@@ -87,20 +94,22 @@ impl Operator {
     use self::Operator::*;
 
     let op_prec = match operator {
-      "==" => (Eq,     1),
-      "<"  => (Lt,     1),
-      ">"  => (Gt,     1),
-      "!=" => (NEq,    1),
-      "<=" => (LtEq,   1),
-      ">=" => (GtEq,   1),
-      "+"  => (Add,    2),
-      "-"  => (Sub,    2),
-      "++" => (Concat, 2),
-      "*"  => (Mul,    3),
-      "/"  => (Div,    3),
-      "%"  => (Mod,    3),
-      "^"  => (Pow,    4),
-      _    => return None,
+      "or"  => (Or,     0),
+      "and" => (And,    0),
+      "=="  => (Eq,     1),
+      "<"   => (Lt,     1),
+      ">"   => (Gt,     1),
+      "!="  => (NEq,    1),
+      "<="  => (LtEq,   1),
+      ">="  => (GtEq,   1),
+      "+"   => (Add,    2),
+      "-"   => (Sub,    2),
+      "++"  => (Concat, 2),
+      "*"   => (Mul,    3),
+      "/"   => (Div,    3),
+      "%"   => (Mod,    3),
+      "^"   => (Pow,    4),
+      _     => return None,
     };
 
     Some(op_prec)
@@ -123,6 +132,8 @@ impl Operator {
       NEq    => "!=",
       LtEq   => "<=",
       GtEq   => ">=",
+      Or     => "or",
+      And    => "and",
     }
   }
 }

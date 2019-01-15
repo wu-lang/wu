@@ -1,15 +1,14 @@
 extern crate colored;
-extern crate rustyline;
 
-use colored::Colorize;
+use self::colored::Colorize;
 
 mod wu;
-use wu::source::*;
-use wu::lexer::*;
-use wu::parser::*;
-use wu::visitor::*;
-use wu::compiler::*;
 
+use self::wu::source::*;
+use self::wu::lexer::*;
+use self::wu::parser::*;
+use self::wu::visitor::*;
+use self::wu::compiler::*;
 
 use std::fs;
 use std::fs::File;
@@ -20,75 +19,18 @@ use std::env;
 use std::io::prelude::*;
 use std::path::Path;
 
-use rustyline::error::ReadlineError;
 
-
-
-const PROMPT:        &'static str = ">> ";
-const PROMPT_INDENT: &'static str = " | ";
 
 const HELP: &'static str = "\
-the wu compiler
+The Wu Compiler
+- made by Niels
 
-usage:
-  wu                -- show this message
-  wu repl           -- run the repl
-  wu <file>         -- compile .wu file to corresponding .lua file
-  wu <folder>       -- compile all .wu files in given folder
-  wu clean <folder> -- removes all compiled .lua files in given folder
+Usage:
+  wu                # Show this message
+  wu <file>         # Compile .wu file to corresponding .lua file
+  wu <folder>       # Compile all .wu files in given folder
+  wu clean <folder> # Removes all compiled .lua files in given folder
 ";
-
-
-
-fn repl() {
-  let mut repl = rustyline::Editor::<()>::new();
-
-  let mut is_indented = false;
-
-  let mut program = String::new();
-
-  loop {
-    let line = repl.readline(if is_indented { PROMPT_INDENT } else { PROMPT });
-
-    match line {
-      Ok(content) => {
-        if content.len() == 0 {
-          continue
-        }
-
-        is_indented = content.chars().last().unwrap() == '\\';
-
-        if is_indented {
-          program.push_str(&content[.. content.len() - 1]);
-          program.push('\n')
-        } else {
-          program.push_str(&content);
-
-          println!();
-
-          println!("{}", run(&program, "<repl>").unwrap_or(String::new()));
-
-          program.push('\n');
-        }
-      }
-
-      Err(ReadlineError::Interrupted) => {
-        println!("<Interrupted>");
-        break
-      }
-
-      Err(ReadlineError::Eof) => {
-        println!("<EOF>");
-        break
-      }
-
-      Err(err) => {
-        println!("<Error>: {:?}", err);
-        break
-      }
-    }
-  }
-}
 
 
 
@@ -183,7 +125,7 @@ pub fn run(content: &str, file: &str) -> Option<String> {
 
   match parser.parse() {
     Ok(ref ast) => {
-      let mut visitor = Visitor::new(&source, ast);
+      let mut visitor = Visitor::new(ast, &source);
 
       match visitor.visit() {
         Ok(_) => (),
@@ -261,7 +203,6 @@ fn main() {
         }
       },
 
-      "repl" => repl(),
       file   => compile_path(&file),
     }
   } else {

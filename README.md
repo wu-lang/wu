@@ -5,7 +5,7 @@
 [![Foo](https://user-images.githubusercontent.com/7288322/34429152-141689f8-ecb9-11e7-8003-b5a10a5fcb29.png)](https://discord.gg/qm92sPP)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/wu-lang/wu/blob/master/LICENSE)
 
-An expression oriented, strongly typed, sweet, and mission-critical programming language.
+An expression oriented, gradually typed, sweet, and mission-critical programming language.
 
 ## Syntax
 
@@ -13,35 +13,45 @@ A full walk-through of the language can be found over at the [wu-lang documentat
 
 ### Motivation
 
-Apart from being a strong and exquisite hipster language, Wu strives to be a decently useful, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai language and the sugar of MoonScript and the functional language family.
+Apart from being a strong and exquisite hipster language, Wu strives to be a decently useful, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai syntax and the sugar of MoonScript and the functional language family.
 
-The language is meant and designed to be a solid alternative to MoonScript, and even superior on control and scalability.
+The language is meant and designed to be a solid alternative to MoonScript, while being superior on control and maintainability.
 
 ### Teaser
 
 #### Structs
 
 ```
-point: type<T> {
-  x: T
-  y: T
+Point: struct {
+  x: float
+  y: float
 }
 
-implement<T> point<T> {
-  new: def(x: T, y: T) -> point<T> {
-    point {
-      x, y
-    }
+implement Point {
+  length: fun(self) -> float {
+    (self x^2 + self y^2)^.5
+  }
+
+  normalize!: fun(self) {
+    len := self length()
+
+    self x = self x / len
+    self y = self y / len
   }
 }
 
-pos := point new(100, 100)
+pos := new Point {
+  x: 100
+  y: 100
+}
+
+pos normalize!()
 ```
 
 #### Splats
 
 ```
-fib: def(a: int) -> int {
+fib: fun(a: int) -> int {
   if a < 3 {
     return a
   }
@@ -49,10 +59,11 @@ fib: def(a: int) -> int {
   fib(a - 1) + fib(a - 2)
 }
 
-print_fibs: def(..numbers: int) {
-  for n in numbers {
-    print(fib(n))
-  }
+# binding lua functions is easy
+print: extern fun(...)
+
+print_fibs: fun(numbers: ...int) {
+  print(*numbers)
 }
 ```
 
