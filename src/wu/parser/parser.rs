@@ -171,6 +171,23 @@ impl<'p> Parser<'p> {
           )
         },
 
+        "import" => {
+          self.next()?;
+
+          let path = self.eat_type(&Identifier)?;
+
+          let specifics = if self.current_lexeme() == "{" {
+            self.parse_block_of(("{", "}"), &Self::_parse_name_comma)?
+          } else {
+            Vec::new()
+          };
+
+          Statement::new(
+            StatementNode::Import(path, specifics),
+            self.span_from(position)
+          )
+        },
+
         "implement" => {
           let pos = self.span_from(position);
 

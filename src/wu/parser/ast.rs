@@ -10,6 +10,7 @@ pub enum StatementNode {
   Assignment(Expression, Expression),
   Return(Option<Rc<Expression>>),
   Implement(Expression, Expression),
+  Import(String, Vec<String>),
   Skip,
   Break,
 }

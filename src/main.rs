@@ -50,6 +50,8 @@ foo(a, b, c)
   "#;
 
   let test = r#"
+import foo
+
 fib: fun(a: int) -> int {
   if a < 3 {
     return a

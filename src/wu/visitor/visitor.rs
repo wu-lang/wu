@@ -352,6 +352,135 @@ impl<'v> Visitor<'v> {
       Expression(ref expr) => self.visit_expression(expr),
       Variable(..)         => self.visit_variable(&statement.node, &statement.pos),
 
+      Return(ref value)    => if self.inside.contains(&Inside::Function) {
+        if let Some(ref expression) = *value {
+          self.visit_expression(expression)
+        } else {
+          Ok(())
+        }
+      } else {
+        return Err(
+          response!(
+            Wrong("can't return outside of function"),
+            self.source.file,
+            statement.pos
+          )
+        )
+      },
+
+      Break => if self.inside.contains(&Inside::Loop) {
+        Ok(())
+      } else {
+        return Err(
+          response!(
+            Wrong("can't break outside loop"),
+            self.source.file,
+            statement.pos
+          )
+        )
+      },
+
+      Skip => if self.inside.contains(&Inside::Loop) {
+        Ok(())
+      } else {
+        return Err(
+          response!(
+            Wrong("can't skip outside loop"),
+            self.source.file,
+            statement.pos
+          )
+        )
+      },
+
+      Import(ref path, ref specifics) => {
+        let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
+        let file_path  = format!("{}/{}.niels", my_folder.to_str().unwrap(), path);
+
+        let mut module = Path::new(&file_path);
+
+        let init_path = format!("{}/{}/init.niels", my_folder.to_str().unwrap(), path);
+
+        let module = if !module.exists() {
+          let module = Path::new(&init_path);
+
+          if !module.exists() {
+            return Err(
+              response!(
+                Wrong(format!("no such module `{0}`, needed either `{0}.niels` or `{0}/init.niels`", path)),
+                self.source.file,
+                statement.pos
+              )
+            )
+          }
+
+          module
+        } else {
+          module
+        };
+
+
+        let display = module.display();
+
+        let mut file = match File::open(&module) {
+          Err(why) => panic!("failed to open {}: {}", display, why),
+          Ok(file) => file,
+        };
+
+        let mut content = String::new();
+
+        match file.read_to_string(&mut content) {
+          Err(why) => panic!("failed to read {}: {}", display, why),
+          Ok(_)    => {
+            let source = Source::new(module.to_str().unwrap().to_string());
+            let lexer = Lexer::default(content.chars().collect(), &source);
+
+            let mut tokens = Vec::new();
+
+            for token_result in lexer {
+              if let Ok(token) = token_result {
+                tokens.push(token)
+              } else {
+                panic!()
+              }
+            }
+
+            let parsed = Parser::new(tokens, self.source).parse()?;
+
+            let mut visitor = Visitor::new(&parsed, self.source);
+
+            visitor.visit()?;
+
+            let mut content_type = HashMap::new();
+
+            let frame = self.symtab.record.last().unwrap();
+
+            let names = frame.clone();
+
+            content_type.extend(names.table.borrow().clone());
+
+            for name in specifics {
+              if let Some(kind) = content_type.get(name) {
+                self.assign(name.clone(), kind.clone())
+              } else {
+                return Err(
+                  response!(
+                    Wrong(format!("no such member `{}`", name)),
+                    self.source.file,
+                    statement.pos
+                  )
+                )
+              }
+            }
+
+            let module_type = Type::from(TypeNode::Module(content_type));
+
+            self.assign(path.clone(), module_type.clone())
+          }
+        }
+
+        Ok(())
+      },
+
       Implement(ref name, ref body) => {
         use self::ExpressionNode::*;
 

@@ -54,8 +54,15 @@ impl<'g> Generator<'g> {
 
     for statement in statements {
       match statement.node {
-        Variable(_, ref name, ..) => names.push(name.to_owned()),
-        _                         => (),
+        Variable(_, ref name, ..)     => names.push(name.to_owned()),
+        Import(ref name, ref imports) => {
+          if imports.len() == 0 {
+            names.push(name.to_owned())
+          } else {
+            names.append(&mut imports.to_owned())
+          }
+        },
+        _ => (),
       }
     }
 
@@ -106,6 +113,22 @@ impl<'g> Generator<'g> {
         format!("return {}\n", self.generate_expression(expr))
       } else {
         "return\n".to_string()
+      },
+
+      Import(ref name, ref specifics) => {
+        let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
+        let file_path  = format!("{}/{}", my_folder.to_str().unwrap(), name);
+
+
+        let mut result = format!("local {} = require('{}')\n", name, file_path);
+
+        for specific in specifics {
+          result.push_str(&format!("{0} = {1}['{0}']\n", specific, name))
+        }
+
+        result.push('\n');
+
+        result
       },
 
       Break => String::from("break"),

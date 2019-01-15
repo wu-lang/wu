@@ -22,9 +22,9 @@ macro_rules! response {
 impl<T: fmt::Display> fmt::Display for Response<T> {
   fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
     let (color, message_type, message) = match *self {
-      Wrong(ref m) => ("magenta", "wrong", m),
+      Wrong(ref m) => ("red",     "wrong", m),
       Weird(ref m) => ("yellow",  "weird", m),
-      Note(ref m)  => ("cyan",  "note",  m),
+      Note(ref m)  => ("cyan",    "note",  m),
     };
 
     let message_type = format!("\n{}", message_type).color(color).bold();
