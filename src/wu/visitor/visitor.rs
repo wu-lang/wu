@@ -394,11 +394,11 @@ impl<'v> Visitor<'v> {
 
       Import(ref path, ref specifics) => {
         let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
-        let file_path  = format!("{}/{}.niels", my_folder.to_str().unwrap(), path);
+        let file_path  = format!("{}/{}.wu", my_folder.to_str().unwrap(), path);
 
-        let mut module = Path::new(&file_path);
+        let module = Path::new(&file_path);
 
-        let init_path = format!("{}/{}/init.niels", my_folder.to_str().unwrap(), path);
+        let init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
 
         let module = if !module.exists() {
           let module = Path::new(&init_path);
@@ -406,7 +406,7 @@ impl<'v> Visitor<'v> {
           if !module.exists() {
             return Err(
               response!(
-                Wrong(format!("no such module `{0}`, needed either `{0}.niels` or `{0}/init.niels`", path)),
+                Wrong(format!("no such module `{0}`, needed either `{0}.wu` or `{0}/init.wu`", path)),
                 self.source.file,
                 statement.pos
               )
@@ -452,11 +452,11 @@ impl<'v> Visitor<'v> {
 
             let mut content_type = HashMap::new();
 
-            let frame = self.symtab.record.last().unwrap();
-
-            let names = frame.clone();
-
-            content_type.extend(names.table.borrow().clone());
+            for names in visitor.symtab.stack.iter() {
+              if names.depth == 0 {
+                content_type.extend(names.table.borrow().clone());
+              }
+            }
 
             for name in specifics {
               if let Some(kind) = content_type.get(name) {
@@ -1082,7 +1082,6 @@ impl<'v> Visitor<'v> {
         let mut left_type = self.type_expression(left)?;
 
         if let TypeMode::Splat(_) = left_type.mode {
-          println!("eow", );
           left_type = Type::from(TypeNode::Array(Rc::new(left_type.clone()), None))
         }
 
@@ -1328,7 +1327,6 @@ impl<'v> Visitor<'v> {
         let mut kind = self.type_expression(array)?;
 
         if let TypeMode::Splat(_) = kind.mode {
-          println!("eow", );
           kind = Type::from(TypeNode::Array(Rc::new(kind.clone()), None))
         }
 
@@ -1666,6 +1664,8 @@ impl<'v> Visitor<'v> {
         for symbol in names.borrow().iter() {
           content_type.insert(symbol.0.clone(), self.fetch(symbol.0, &expression.pos)?.clone());
         }
+
+        self.pop_scope();
 
         Type::from(TypeNode::Module(content_type))
       },
