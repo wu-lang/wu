@@ -110,7 +110,20 @@ impl<'g> Generator<'g> {
       Assignment(ref left, ref right)  => self.generate_assignment(left, right),
 
       Return(ref expr)  => if let Some(ref expr) = *expr {
-        format!("return {}\n", self.generate_expression(expr))
+        use self::ExpressionNode::*;
+
+        let flag_backup = self.flag.clone();
+
+        self.flag = Some(FlagImplicit::Return);
+
+        let line = match expr.node {
+          Block(..) | If(..) | While(..) => self.generate_expression(expr),
+          _                              => format!("return {}", self.generate_expression(expr)),
+        };
+
+        self.flag = flag_backup;
+
+        line
       } else {
         "return\n".to_string()
       },
@@ -201,6 +214,10 @@ impl<'g> Generator<'g> {
 
         if prefix {
           result.push_str(&caller);
+
+          if args.len() > 0 {
+            result.push_str(", ")
+          }
         }
 
         for (i, arg) in args.iter().enumerate() {
@@ -279,7 +296,10 @@ impl<'g> Generator<'g> {
                   Block(_) => (),
                   _ => match &self.flag.clone().unwrap() {
                     &FlagImplicit::Return => {
-                      let line = format!("return {}\n", self.generate_expression(expression));
+                      let line = match expression.node {
+                        Block(..) | If(..) | While(..) => self.generate_expression(expression),
+                        _                              => format!("return {}", self.generate_expression(expression)),
+                      };
 
                       result.push_str(&self.make_line(&line));
 
@@ -356,10 +376,9 @@ impl<'g> Generator<'g> {
 
         self.flag = Some(FlagImplicit::Return);
 
-        let line = if let Block(..) = body.node {
-          self.generate_expression(body)
-        } else {
-          format!("return {}", self.generate_expression(body))
+        let line = match body.node {
+          Block(..) | If(..) | While(..) => self.generate_expression(body),
+          _                              => format!("return {}", self.generate_expression(body)),
         };
 
         result.push_str(&&line);
@@ -426,7 +445,10 @@ impl<'g> Generator<'g> {
                     Block(_) | If(..) | While(..) => (),
                     _ => match &self.flag.clone().unwrap() {
                       &FlagImplicit::Return => {
-                        let line = format!("return {}\n", self.generate_expression(expression));
+                        let line = match body.node {
+                          Block(..) | If(..) | While(..) => self.generate_expression(body),
+                          _                              => format!("return {}", self.generate_expression(body)),
+                        };
 
                         result.push_str(&self.make_line(&line));
 
@@ -467,7 +489,10 @@ impl<'g> Generator<'g> {
                         Block(_) | If(..) | While(..) => (),
                         _ => match &self.flag.clone().unwrap() {
                           &FlagImplicit::Return => {
-                            let line = format!("return {}\n", self.generate_expression(expression));
+                            let line = match body.node {
+                              Block(..) | If(..) | While(..) => self.generate_expression(body),
+                              _                              => format!("return {}", self.generate_expression(body)),
+                            };
 
                             result.push_str(&self.make_line(&line));
 

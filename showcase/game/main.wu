@@ -1,12 +1,18 @@
 import love_wrapper
 
-
 love: extern love_wrapper LoveType
 
 print: extern fun(...)
 
 love load = fun {
-  print("safkj")
+
+  x := if true {
+    "hey"
+  } else {
+    "eh"
+  }
+
+  print("safkj", x)
 }
 
 love draw = fun {

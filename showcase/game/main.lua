@@ -5,7 +5,14 @@ return (function()
   
   
   love['load'] = function()
-    return print("safkj")
+    local x = (function()
+    if true then
+      return "hey"
+    else
+      return "eh"
+    end
+    end)()
+    return print("safkj", x)
   end
   love['draw'] = function()
     love['graphics']['setColor'](1, 0, 1, 1)
