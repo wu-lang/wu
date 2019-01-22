@@ -67,6 +67,14 @@ print_fibs: fun(numbers: ...int) {
 }
 ```
 
+## Roadmap
+
+- [x] Minimum viable product
+- [ ] Trait system
+- [ ] For-loops and ranges
+- [ ] Lexical macros
+- [ ] A custom, super fast virtual machine
+
 ## Disclaimer
 
 Wu is built by a minimal team of people, all of which are basically kids working on the compiler when bored in class. The whole thing is currently in very early stages. That said, it's probably fine, so go use it in production.
