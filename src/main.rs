@@ -121,7 +121,7 @@ pub fn run(content: &str, file: &str) -> Option<String> {
     }
   }
 
-  let mut parser  = Parser::new(tokens, &source);
+  let mut parser = Parser::new(tokens, &source);
 
   match parser.parse() {
     Ok(ref ast) => {

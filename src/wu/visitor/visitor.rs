@@ -1313,6 +1313,8 @@ impl<'v> Visitor<'v> {
       Array(ref content)          => Type::array(self.type_expression(content.first().unwrap())?, Some(content.len())),
       Initialization(ref name, _) => Type::from(self.type_expression(name)?.node),
 
+      If(_, ref body, ..) => self.type_expression(body)?,
+
       Struct(ref name, ref params, ref id) => {
         let mut param_hash = HashMap::new();
 

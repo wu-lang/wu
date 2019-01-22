@@ -1,0 +1,23 @@
+Foo: struct {
+  x: float
+  y: float
+}
+
+Bar: struct {
+  a: Foo
+}
+
+bob := new Bar {
+  a: new Foo {
+  	x: 100
+  	y: 200
+  }
+}
+
+system: module {
+  print: extern fun(...)
+}
+
+system print(bob a x, bob a y)
+
+cover: any = Bar
