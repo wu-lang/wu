@@ -7,9 +7,9 @@ return (function()
   love['load'] = function()
     local x = (function()
     if true then
-      return "hey"
+        return "hey"
     else
-      return "eh"
+        return "hey"
     end
     end)()
     return print("safkj", x)

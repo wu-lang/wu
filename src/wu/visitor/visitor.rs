@@ -1311,7 +1311,23 @@ impl<'v> Visitor<'v> {
       Float(_) => Type::from(TypeNode::Float),
 
       Array(ref content)          => Type::array(self.type_expression(content.first().unwrap())?, Some(content.len())),
-      Initialization(ref name, _) => Type::from(self.type_expression(name)?.node),
+      Initialization(ref name, _) => {
+        let struct_type = Type::from(self.type_expression(name)?.node);
+
+        if struct_type.node == TypeNode::Any {
+          return Err(
+            response!(
+              Wrong(format!("can't initialize type `any`")),
+              self.source.file,
+              expression.pos
+            )
+          )
+        } else {
+          struct_type
+        }
+      },
+
+      If(_, ref body, ..) => self.type_expression(body)?,
 
       Struct(ref name, ref params, ref id) => {
         let mut param_hash = HashMap::new();

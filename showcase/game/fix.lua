@@ -1,12 +1,8 @@
 return (function()
   local aaaa = function()
-    if true then
-        return "10"
-    else
-        return "10"
-    end
+    return 
   end
-
+  
   return {
     aaaa = aaaa,
   }
