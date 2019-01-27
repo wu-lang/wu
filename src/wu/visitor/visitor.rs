@@ -28,6 +28,7 @@ pub enum TypeNode {
   Func(Vec<Type>, Rc<Type>, Option<Rc<ExpressionNode>>, bool),
   Module(HashMap<String, Type>),
   Struct(String, HashMap<String, Type>, String),
+  Trait(String, HashMap<String, Type>),
   This,
 }
 
@@ -105,6 +106,22 @@ impl PartialEq for TypeNode {
       (&Func(ref a_params, ref a_retty, .., a), &Func(ref b_params, ref b_retty, .., b)) => a_params == b_params && a_retty == b_retty && a == b,
 
       (&Struct(ref name, _, ref content), &Struct(ref name_b, _, ref content_b)) => name == name_b && content == content_b,
+      (&Trait(_, ref content), &Trait(_, ref content_b)) => content == content_b,
+      (&Trait(_, ref content), &Struct(_, ref content_b, _)) => {
+        for (name, ty) in content.iter() {
+          if let Some(ty_b) = content_b.get(name) {
+            if ty.node != ty_b.node {
+              return false
+            }
+          } else {
+            return false
+          }
+        }
+
+        true
+      },
+
+      (&Struct(..), &Trait(..)) => other == self,
 
       (&Any, _) => true,
       (_, &Any) => true,
@@ -149,15 +166,18 @@ impl Display for TypeNode {
     use self::TypeNode::*;
 
     match *self {
-      Int              => write!(f, "int"),
-      Float            => write!(f, "float"),
-      Bool             => write!(f, "bool"),
-      Str              => write!(f, "str"),
-      Char             => write!(f, "char"),
-      Nil              => write!(f, "nil"),
-      This             => write!(f, "self"),
-      Any              => write!(f, "any"),
-      Array(ref n, l)  => if let Some(len) = l {
+      Int   => write!(f, "int"),
+      Float => write!(f, "float"),
+      Bool  => write!(f, "bool"),
+      Str   => write!(f, "str"),
+      Char  => write!(f, "char"),
+      Nil   => write!(f, "nil"),
+      This  => write!(f, "self"),
+      Any   => write!(f, "any"),
+
+      Trait(ref name, _) => write!(f, "{}", name),
+
+      Array(ref n, l) => if let Some(len) = l {
         write!(f, "[{}; {}]", n, len)
       } else {
         write!(f, "[{}]", n)
@@ -481,28 +501,29 @@ impl<'v> Visitor<'v> {
         Ok(())
       },
 
-      Implement(ref name, ref body) => {
+      Implement(ref struct_name, ref body, ref parent) => {
         use self::ExpressionNode::*;
 
-        self.visit_expression(name)?;
-
+        self.symtab.enter();
         self.push_scope();
 
-        let t = self.type_expression(name)?;
+        self.visit_expression(struct_name)?;
+
+        let t = self.type_expression(struct_name)?;
 
         self.assign_str("Self", t.clone());
 
-        let position = name.pos.clone();
+        let position = struct_name.pos.clone();
 
-        match name.node {
+        match struct_name.node {
           Identifier(ref name) => {
             let kind = self.fetch(name, &position)?;
 
             self.inside.push(Inside::Implement(kind.clone()));
 
             if let TypeNode::Struct(struct_name, content, id) = kind.node.clone() {
-              if kind.mode.strong_cmp(&TypeMode::Undeclared) {
-                let mut new_content = content;
+              if kind.mode.strong_cmp(&TypeMode::Undeclared) {                
+                let new_content = content;
 
                 if let ExpressionNode::Block(ref ast) = body.node {
                   self.visit_implement_block(
@@ -519,6 +540,44 @@ impl<'v> Visitor<'v> {
                 self.inside.pop();
 
                 self.pop_scope();
+                self.symtab.exit();
+
+                if let Some(ref expr) = parent {
+                  let trait_ty = self.type_expression(expr)?;
+
+                  if let TypeNode::Struct(_, ref content, _) = self.fetch(&struct_name, &position)?.node {
+
+                    if let TypeNode::Trait(_, ref content_b) = trait_ty.node {
+                      for (name, ty) in content_b.iter() {
+                        if let Some(ty_b) = content.get(name) {
+
+                          if ty.node != ty_b.node {
+                            return Err(
+                              response!(
+                                Wrong(format!("expected implemented type `{}` for `{}`", ty, name)),
+                                self.source.file,
+                                position
+                              )
+                            )
+                          }
+
+                        } else {
+                          return Err(
+                            response!(
+                              Wrong(format!("missing implementation of method `{}: {}`", name, ty)),
+                              self.source.file,
+                              position
+                            )
+                          )
+                        }
+                      }
+                    }
+
+                  }
+                }
+
+                self.pop_scope();
+                self.symtab.revert_frame();
 
                 return Ok(())
               }
@@ -546,14 +605,14 @@ impl<'v> Visitor<'v> {
                   if let Identifier(ref name) = indexing.node {
                     if let Some(ref kind) = module_content.get(name) {
 
-                      if let TypeNode::Struct(struct_name, content, id) = kind.node.clone() {
+                      if let TypeNode::Struct(name, content, id) = kind.node.clone() {
                         if kind.mode.strong_cmp(&TypeMode::Undeclared) {
-                          let mut new_content = content;
+                          let new_content = content;
 
                           if let ExpressionNode::Block(ref ast) = body.node {
                             self.visit_implement_block(
                               ast,
-                              &struct_name,
+                              &name,
                               &new_content,
                               &id,
                               &kind,
@@ -565,6 +624,45 @@ impl<'v> Visitor<'v> {
                           self.inside.pop();
 
                           self.pop_scope();
+                          self.symtab.exit();
+
+                          if let Some(ref expr) = parent {
+                            let trait_ty = self.type_expression(expr)?;
+
+                            if let TypeNode::Struct(_, ref content, _) = self.type_expression(&struct_name)?.node {
+
+                              if let TypeNode::Trait(_, ref content_b) = trait_ty.node {
+                                for (name, ty) in content_b.iter() {
+                                  if let Some(ty_b) = content.get(name) {
+
+                                    if ty.node != ty_b.node {
+                                      return Err(
+                                        response!(
+                                          Wrong(format!("expected implemented type `{}` for `{}`", ty, name)),
+                                          self.source.file,
+                                          position
+                                        )
+                                      )
+                                    }
+
+                                  } else {
+                                    return Err(
+                                      response!(
+                                        Wrong(format!("missing implementation of method `{}: {}`", name, ty)),
+                                        self.source.file,
+                                        position
+                                      )
+                                    )
+                                  }
+                                }
+                              }
+
+                            }
+                          }
+
+                          self.pop_scope();
+
+                          self.symtab.revert_frame();
 
                           return Ok(())
                         }
@@ -687,8 +785,10 @@ impl<'v> Visitor<'v> {
 
               if let Some(ref content_type) = content.get(&arg.0) {
                 if !content_type.node.check_expression(&Parser::fold_expression(&arg.1)?.node) && arg_type != **content_type {
+
                   return Err(
                     response!(
+
                       Wrong(format!("mismatched types, expected `{}` got `{}`", content_type, arg_type)),
                       self.source.file,
                       expression.pos
@@ -705,7 +805,7 @@ impl<'v> Visitor<'v> {
                 )
               }
             }
-          
+
           } else {
             return Err(
               response!(
@@ -729,11 +829,13 @@ impl<'v> Visitor<'v> {
       },
 
       Block(ref statements) => {
+        self.symtab.enter(); // depth + 1
         self.push_scope();
 
         self.visit_block(statements, true)?;
 
         self.pop_scope();
+        self.symtab.exit(); // - 1
 
         Ok(())
       },
@@ -868,6 +970,26 @@ impl<'v> Visitor<'v> {
       },
 
       Struct(_, ref params, _) => {
+        let mut name_buffer = Vec::new();
+
+        for &(ref name, _) in params.iter() {
+          if name_buffer.contains(&name) {
+            return Err(
+              response!(
+                Wrong(format!("field `{}` defined more than once", name)),
+                self.source.file,
+                expression.pos
+              )
+            )
+          }
+
+          name_buffer.push(&name)
+        }
+
+        Ok(())
+      },
+
+      Trait(_, ref params) => {
         let mut name_buffer = Vec::new();
 
         for &(ref name, _) in params.iter() {
@@ -1049,17 +1171,19 @@ impl<'v> Visitor<'v> {
           }
         }
 
-        self.symtab.put_frame(Frame::from(frame_hash, self.symtab.stack.len()));
+        self.symtab.put_frame(Frame::from(frame_hash, self.symtab.depth));
 
         self.inside.push(Inside::Function);
 
         self.visit_expression(body)?;
 
+        self.symtab.enter();
         self.symtab.revert_frame(); // we'll need those
 
         let body_type = self.type_expression(body)?;
 
         self.pop_scope(); // we don't need those anymore
+        self.symtab.exit();
 
         self.inside.pop();
 
@@ -1165,6 +1289,30 @@ impl<'v> Visitor<'v> {
               return Err(
                 response!(
                   Wrong(format!("can't index struct with `{}`", index_type)),
+                  self.source.file,
+                  index.pos
+                )
+              )
+            }
+          },
+
+          TypeNode::Trait(_, ref content) => {
+            if let Identifier(ref name) = index.node {
+              if !content.contains_key(name) {
+                return Err(
+                  response!(
+                    Wrong(format!("no such trait member `{}`", name)),
+                    self.source.file,
+                    index.pos
+                  )
+                )
+              }
+            } else {
+              let index_type = self.type_expression(index)?;
+
+              return Err(
+                response!(
+                  Wrong(format!("can't index trait with `{}`", index_type)),
                   self.source.file,
                   index.pos
                 )
@@ -1325,6 +1473,16 @@ impl<'v> Visitor<'v> {
         Type::new(TypeNode::Struct(name.to_owned(), param_hash, id.to_string()), TypeMode::Undeclared)
       },
 
+      Trait(ref name, ref params) => {
+        let mut param_hash = HashMap::new();
+
+        for param in params {
+          param_hash.insert(param.0.clone(), Type::from(self.deid(param.1.clone())?.node));
+        }
+
+        Type::from(TypeNode::Trait(name.to_owned(), param_hash))
+      },
+
       Index(ref array, ref index) => {
         let mut kind = self.type_expression(array)?;
 
@@ -1344,6 +1502,24 @@ impl<'v> Visitor<'v> {
                 return Err(
                   response!(
                     Wrong(format!("no such module member `{}`", name)),
+                    self.source.file,
+                    index.pos
+                  )
+                )
+              }
+            } else {
+              unreachable!()
+            }
+          },
+
+          TypeNode::Trait(_, ref content) => {
+            if let Identifier(ref name) = index.node {
+              if let Some(kind) = content.get(name) {
+                kind.clone()
+              } else {
+                return Err(
+                  response!(
+                    Wrong(format!("no such trait member `{}`", name)),
                     self.source.file,
                     index.pos
                   )
@@ -1484,12 +1660,14 @@ impl<'v> Visitor<'v> {
 
           self.visit_expression(&expression)?;
 
+          self.symtab.enter();
           self.symtab.revert_frame();
 
           let last          = statements.last().unwrap();
           let implicit_type = self.type_statement(last)?;
 
-          self.pop_scope();
+          self.pop_scope(); // for reverted frame
+          self.symtab.exit();
 
           if let Some(flag) = self.flag.clone() {
             if let FlagContext::Block(ref consistent) = flag {
@@ -1659,6 +1837,7 @@ impl<'v> Visitor<'v> {
 
         let mut content_type = HashMap::new();
 
+        self.symtab.enter();
         self.symtab.revert_frame();
 
         let names = &self.symtab.current_frame().table;
@@ -1668,6 +1847,8 @@ impl<'v> Visitor<'v> {
         }
 
         self.pop_scope();
+        self.symtab.exit();
+        self.symtab.exit();
 
         Type::from(TypeNode::Module(content_type))
       },
@@ -1929,7 +2110,7 @@ impl<'v> Visitor<'v> {
   }
 
 
-  
+
   fn push_scope(&mut self) {
     self.symtab.push()
   }

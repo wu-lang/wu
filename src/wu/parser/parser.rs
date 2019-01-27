@@ -198,7 +198,7 @@ impl<'p> Parser<'p> {
 
           let start = self.index;
 
-          while self.current_lexeme() != "{" && self.remaining() > 1 {
+          while !["{", ":"].contains(&self.current_lexeme().as_str()) && self.remaining() > 1 {
             self.next()?;
           }
 
@@ -207,7 +207,17 @@ impl<'p> Parser<'p> {
           let mut name_parser = Parser::new(self.tokens[start .. end].to_vec(), self.source);
 
           let name = name_parser.parse_expression()?;
+
           self.next_newline()?;
+
+          let mut parent = None;
+          if self.current_lexeme() == ":" {
+            self.next()?;
+
+            parent = Some(self.parse_expression()?);
+
+            self.next_newline()?
+          }
 
           self.expect_lexeme("{")?;
 
@@ -217,6 +227,7 @@ impl<'p> Parser<'p> {
             StatementNode::Implement(
               name,
               body,
+              parent
             ),
             pos
           )
@@ -290,9 +301,28 @@ impl<'p> Parser<'p> {
         )
       },
 
+      "trait" => {
+        let position = self.current_position();
+
+        self.next()?;
+
+        let body = self.parse_block_of(("{", "}"), &Self::_parse_param_comma)?;
+
+        Some(
+          Expression::new(
+            ExpressionNode::Trait(
+              name,
+              body
+            ),
+
+            position
+          )
+        )
+      }
+
       "module" => {
-        let mut position = self.current_position();
-        
+        let position = self.current_position();
+
         self.next()?;
         self.next_newline()?;
 
@@ -835,7 +865,7 @@ impl<'p> Parser<'p> {
       },
 
       Keyword => match self.current_lexeme().as_str() {
-        "fun"   => {
+        "fun" => {
           self.next()?;
 
           let mut params = if self.current_lexeme() == "(" {
