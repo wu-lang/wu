@@ -1,0 +1,32 @@
+foo: module {
+  Moving: trait {
+    move: fun(self, float, float)
+  }
+}
+
+Player: struct {
+  x: float
+  y: float
+}
+
+implement Player: foo Moving {
+  move: fun(self, dx: float, dy: float) {
+    self x = self x + dx
+    self y = self y + dy
+  }
+}
+
+here_we_go: fun(hmm: foo Moving) {
+  hmm move(10, 10)
+
+  print: extern fun(...)
+
+  print((hmm as Player) x)
+}
+
+here_we_go(
+  new Player {
+    x: 100
+    y: 100
+  }
+)

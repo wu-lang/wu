@@ -9,7 +9,7 @@ pub enum StatementNode {
   Variable(Type, String, Option<Expression>),
   Assignment(Expression, Expression),
   Return(Option<Rc<Expression>>),
-  Implement(Expression, Expression),
+  Implement(Expression, Expression, Option<Expression>),
   Import(String, Vec<String>),
   Skip,
   Break,
@@ -61,6 +61,7 @@ pub enum ExpressionNode {
   Module(Rc<Expression>),
   Extern(Type, Option<String>),
   Struct(String, Vec<(String, Type)>, String),
+  Trait(String, Vec<(String, Type)>),
   Initialization(Rc<Expression>, Vec<(String, Expression)>),
 
   Empty,

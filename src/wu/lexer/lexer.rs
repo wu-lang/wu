@@ -51,6 +51,8 @@ impl<'l> Lexer<'l> {
           "new",
           "implement",
           "import",
+          "interface",
+          "trait",
         ])
       )
     );

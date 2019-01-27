@@ -147,7 +147,7 @@ impl<'g> Generator<'g> {
       Break => String::from("break"),
       Skip  => format!("goto __while_{}", self.loop_depth),
 
-      Implement(ref name, ref body) => if let ExpressionNode::Block(ref content) = body.node {
+      Implement(ref name, ref body, _) => if let ExpressionNode::Block(ref content) = body.node {
         let assign = self.generate_expression(name);
 
         let flag_backup = self.flag.clone();
@@ -625,7 +625,7 @@ impl<'g> Generator<'g> {
           _     => "(",
         };
 
-        format!("{}{}){}", result, if t.node == Int { ")" } else { "" }, self.generate_expression(a))
+        format!("{}{}){}", result, self.generate_expression(a), if t.node == Int { ")" } else { "" })
       }
 
       Unwrap(ref expression) => format!("table.unpack({})", self.generate_expression(expression)),
@@ -680,6 +680,7 @@ impl<'g> Generator<'g> {
       let right_str = match right.node {
         ExpressionNode::Struct(..)                          => "{}".to_string(),
         ExpressionNode::Extern(_, ref lua) if lua.is_none() => return String::new(),
+        ExpressionNode::Trait(..)                           => return String::new(),
 
         _ => self.generate_expression(right)
       };

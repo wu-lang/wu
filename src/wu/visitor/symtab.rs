@@ -40,6 +40,7 @@ impl Frame {
   }
 
   pub fn debug(&self) {
+    println!("======= frame @ {}", self.depth);
     for (name, t) in self.table.borrow().iter() {
       println!("{} = {}", name, t)
     }
@@ -54,6 +55,8 @@ pub struct SymTab {
   pub stack:  Vec<Frame>, // active frames
   pub record: Vec<Frame>, // popped frames
 
+  pub depth: usize,
+
   pub implementations: HashMap<String, HashMap<String, Type>>,
 }
 
@@ -62,6 +65,9 @@ impl SymTab {
     SymTab {
       stack:  vec!(Frame::new(0)),
       record: Vec::new(),
+
+      depth: 0,
+
       implementations: HashMap::new(),
     }
   }
@@ -70,6 +76,9 @@ impl SymTab {
     SymTab {
       stack:  vec!(Frame::from(table, 0)),
       record: Vec::new(),
+
+      depth: 0,
+
       implementations: HashMap::new(),
     }
   }
@@ -90,12 +99,6 @@ impl SymTab {
     let mut offset = self.stack.len() - 1;
 
     loop {
-      let len = self.stack.len();
-
-      if offset < 0 {
-        return None
-      }
-
       if let Some(t) = self.stack[offset].get(name) {
         return Some(t)
       } else {
@@ -137,13 +140,23 @@ impl SymTab {
 
 
   pub fn push(&mut self) {
-    self.stack.push(Frame::new(self.stack.len()))
+    self.stack.push(Frame::new(self.depth))
   }
 
   pub fn pop(&mut self) {
     let popped = self.stack.pop().unwrap();
 
     self.record.push(popped)
+  }
+
+  pub fn enter(&mut self) {
+    self.depth += 1
+  }
+
+  pub fn exit(&mut self) {
+    if self.depth > 0 {
+      self.depth -= 1
+    }
   }
 
 

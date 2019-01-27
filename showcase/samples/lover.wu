@@ -1,0 +1,34 @@
+love: module {
+	graphics: module {
+		setColor: extern fun(float, float, float)
+
+		set_color: fun(r: float, g: float, b: float) {
+			setColor(r / 255.0, g / 255.0, b / 255.0)
+		}
+	
+		rectangle: extern fun(str, float, float, float)
+		circle:    extern fun(str, float, float, float)
+		line:      extern fun(float, float, float, float)
+
+		push:      extern fun(self)
+		pop:       extern fun(self)
+		translate: extern fun(self, float, float)
+		rotate:    extern fun(self, float)
+	}
+
+	keyboard: module {
+		isDown: extern fun(str) -> bool
+
+		keypressed:  extern fun(str, bool)
+		keyreleased: extern fun(str, bool)
+	}
+
+	load: fun			   {}
+	update: fun(dt: float) {}
+	draw: fun 			   {}
+}
+
+BigFoo: struct {
+  x: int
+  y: int	
+}
