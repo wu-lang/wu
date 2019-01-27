@@ -1436,17 +1436,7 @@ impl<'v> Visitor<'v> {
         if let TypeNode::Id(ref ident) = kind.node.clone() {
           let ident_type = self.type_expression(&ident)?;
 
-          if let TypeNode::Struct(..) = ident_type.node {
-            kind = Type::from(ident_type.node)
-          } else {
-            return Err(
-              response!(
-                Wrong(format!("can't use `{}` as type", ident_type)),
-                self.source.file,
-                ident.pos
-              )
-            )
-          }
+          kind = Type::from(ident_type.node)
         }
 
         Type::from(kind.node.clone())
@@ -1841,6 +1831,8 @@ impl<'v> Visitor<'v> {
         self.symtab.revert_frame();
 
         let names = &self.symtab.current_frame().table;
+
+        println!("{:#?}", names);
 
         for symbol in names.borrow().iter() {
           content_type.insert(symbol.0.clone(), self.fetch(symbol.0, &expression.pos)?.clone());
