@@ -71,6 +71,7 @@ print_fibs: fun(numbers: ...int) {
 
 - [x] Minimum viable product
 - [x] Trait system
+- [ ] Fix modules
 - [ ] For-loops and ranges
 - [ ] Lexical macros
 - [ ] A custom, super fast virtual machine
