@@ -70,7 +70,7 @@ print_fibs: fun(numbers: ...int) {
 ## Roadmap
 
 - [x] Minimum viable product
-- [ ] Trait system
+- [x] Trait system
 - [ ] For-loops and ranges
 - [ ] Lexical macros
 - [ ] A custom, super fast virtual machine
