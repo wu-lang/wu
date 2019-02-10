@@ -72,7 +72,10 @@ print_fibs: fun(numbers: ...int) {
 - [x] Minimum viable product
 - [x] Trait system
 - [x] Fix modules
+- [ ] `Extern module` for easier wrapping
+- [ ] Lua STD wrapper
 - [ ] For-loops and ranges
+- [ ] Iterator library
 - [ ] Lexical macros
 - [ ] A custom, super fast virtual machine
 
