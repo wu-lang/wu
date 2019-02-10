@@ -337,12 +337,13 @@ pub struct Visitor<'v> {
   pub flag:   Option<FlagContext>,
   pub inside: Vec<Inside>,
 
-  pub method_calls: HashMap<Pos, bool>,
+  pub method_calls:   HashMap<Pos, bool>,
+  pub module_content: HashMap<String, Type>,
 }
 
 impl<'v> Visitor<'v> {
   pub fn visit(&mut self) -> Result<(), ()> {
-    self.visit_block(self.ast, false)?;
+    self.visit_block(self.ast, false, true)?;
 
     Ok(())
   }
@@ -359,7 +360,8 @@ impl<'v> Visitor<'v> {
       flag:   None,
       inside: Vec::new(),
 
-      method_calls: HashMap::new(),
+      method_calls:   HashMap::new(),
+      module_content: HashMap::new(),
     }
   }
 
@@ -470,13 +472,7 @@ impl<'v> Visitor<'v> {
 
             visitor.visit()?;
 
-            let mut content_type = HashMap::new();
-
-            for names in visitor.symtab.stack.iter() {
-              if names.depth == 0 {
-                content_type.extend(names.table.borrow().clone());
-              }
-            }
+            let content_type = visitor.module_content.clone();
 
             for name in specifics {
               if let Some(kind) = content_type.get(name) {
@@ -832,7 +828,7 @@ impl<'v> Visitor<'v> {
         self.symtab.enter(); // depth + 1
         self.push_scope();
 
-        self.visit_block(statements, true)?;
+        self.visit_block(statements, true, false)?;
 
         self.pop_scope();
         self.symtab.exit(); // - 1
@@ -1823,26 +1819,33 @@ impl<'v> Visitor<'v> {
       },
 
       Module(ref content) => {
-        self.visit_expression(content)?;
+        // self.visit_expression(content)?;
 
-        let mut content_type = HashMap::new();
+        // let mut content_type = HashMap::new();
 
-        self.symtab.enter();
-        self.symtab.revert_frame();
+        // self.symtab.revert_frame();
 
-        let names = &self.symtab.current_frame().table;
+        // let names = &self.symtab.current_frame().table;
 
-        println!("{:#?}", names);
+        // for symbol in names.borrow().iter() {
+        //   content_type.insert(symbol.0.clone(), self.fetch(symbol.0, &expression.pos)?.clone());
+        // }
 
-        for symbol in names.borrow().iter() {
-          content_type.insert(symbol.0.clone(), self.fetch(symbol.0, &expression.pos)?.clone());
+        // self.pop_scope();
+        // self.symtab.exit();
+        // self.symtab.exit();
+
+        if let ExpressionNode::Block(ref ast) = content.node {
+          let mut visitor = Visitor::new(ast, self.source);
+
+          visitor.visit()?;
+
+          let content_type = visitor.module_content.clone();
+
+          Type::from(TypeNode::Module(content_type))
+        } else {
+          unreachable!()
         }
-
-        self.pop_scope();
-        self.symtab.exit();
-        self.symtab.exit();
-
-        Type::from(TypeNode::Module(content_type))
       },
 
       Unwrap(ref expr) => {
@@ -1871,14 +1874,14 @@ impl<'v> Visitor<'v> {
 
 
   // `ensure_implicit` gets mad at wannabe implicit returns
-  fn visit_block(&mut self, content: &Vec<Statement>, ensure_implicits: bool) -> Result<(), ()> {
+  fn visit_block(&mut self, content: &Vec<Statement>, ensure_implicits: bool, module_content: bool) -> Result<(), ()> {
     for (i, statement) in content.iter().enumerate() {
       // ommiting functions, for that extra user-feel
       if let StatementNode::Variable(_, ref name, ref value) = statement.node {
         if let Some(ref right) = *value {
           if let ExpressionNode::Function(ref params, ref retty, .., is_method) = right.node {
 
-            let mut types = params.iter().map(|x| x.1.clone()).collect::<Vec<Type>>();
+            let types = params.iter().map(|x| x.1.clone()).collect::<Vec<Type>>();
 
             let t = Type::from(
               TypeNode::Func(types, Rc::new(retty.clone()), Some(Rc::new(right.node.clone())), is_method)
@@ -1887,6 +1890,12 @@ impl<'v> Visitor<'v> {
             self.assign(name.to_owned(), t);
 
             continue
+          } else {
+            self.visit_statement(&statement)?;
+
+            let t = self.type_expression(right)?;
+
+            self.module_content.insert(name.clone(), t);
           }
         }
       }
@@ -1899,14 +1908,19 @@ impl<'v> Visitor<'v> {
         }
       }
 
+      // at this point it's not a variable ...
       self.visit_statement(&statement)?
     }
 
     for statement in content.iter() {
-      if let StatementNode::Variable(.., ref right) = statement.node {
+      if let StatementNode::Variable(ref t, ref name, ref right) = statement.node {
         if let Some(ref right) = *right {
           if let ExpressionNode::Function(..) = right.node {
-            self.visit_statement(statement)?
+            self.visit_statement(statement)?;
+
+            let t = self.type_expression(right)?;
+
+            self.module_content.insert(name.to_owned(), t.clone());
           }
         }
       }

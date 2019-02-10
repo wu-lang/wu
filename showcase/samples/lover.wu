@@ -32,3 +32,9 @@ BigFoo: struct {
   x: int
   y: int	
 }
+
+love load = fun {
+  print: extern fun(...)
+
+  print("hey")
+}
