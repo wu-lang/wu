@@ -1,2 +1,5 @@
 import traits { foo    }
-import lover  { BigFoo }
+import lover  {
+  BigFoo
+  love
+}

@@ -5,10 +5,12 @@ return (function()
   
   local lover = require('showcase/samples/lover')
   BigFoo = lover['BigFoo']
+  love = lover['love']
   
   
   return {
     foo = foo,
     BigFoo = BigFoo,
+    love = love,
   }
 end)()
