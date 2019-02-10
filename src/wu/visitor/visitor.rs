@@ -1032,6 +1032,18 @@ impl<'v> Visitor<'v> {
 
           for (i, param_type) in params.iter().enumerate() {
             let param_type = self.deid(param_type.clone())?;
+
+            if args.len() <= i {
+              let last_arg_pos = args.last().unwrap().pos.clone();
+              return Err(
+                response!(
+                  Wrong(format!("mismatched argument count, expected type `{}` got nothing", param_type.node)),
+                  self.source.file,
+                  Pos(last_arg_pos.0, ((last_arg_pos.1).1 + 1, (last_arg_pos.1).1 + 1))
+                )
+              )
+            }
+
             let arg_type   = self.type_expression(&args[i])?;
 
             if !param_type.node.check_expression(&Parser::fold_expression(&args[i])?.node) && arg_type.node != param_type.node {
