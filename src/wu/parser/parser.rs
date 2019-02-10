@@ -543,7 +543,7 @@ impl<'p> Parser<'p> {
             self.next()?;
             self.next_newline()?;
 
-            if self.current_lexeme() == ")" {
+            if self.current_lexeme() == ")" && self.current_type() == TokenType::Symbol {
               self.next()?;
 
               Expression::new(
@@ -945,7 +945,7 @@ impl<'p> Parser<'p> {
 
           self.next_newline()?;
 
-          let splatted = if self.current_lexeme() == ")" || self.remaining() == 0 {
+          let splatted = if (self.current_lexeme() == ")" && self.current_type() == TokenType::Symbol) || self.remaining() == 0 {
             Type::from(TypeNode::Any)
 
           } else {
@@ -1136,9 +1136,9 @@ impl<'p> Parser<'p> {
     let mut nest_count   = 1;
 
     while nest_count > 0 {
-      if self.current_lexeme() == delimeters.1 {
+      if self.current_lexeme() == delimeters.1 && self.current_type() == TokenType::Symbol {
         nest_count -= 1
-      } else if self.current_lexeme() == delimeters.0 {
+      } else if self.current_lexeme() == delimeters.0 && self.current_type() == TokenType::Symbol {
         nest_count += 1
       }
 
