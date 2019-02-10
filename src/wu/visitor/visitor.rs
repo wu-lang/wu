@@ -416,11 +416,11 @@ impl<'v> Visitor<'v> {
 
       Import(ref path, ref specifics) => {
         let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
-        let file_path  = format!("{}/{}.wu", my_folder.to_str().unwrap(), path);
+        let file_path  = format!("./{}/{}.wu", my_folder.to_str().unwrap(), path);
 
         let module = Path::new(&file_path);
 
-        let init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
+        let init_path = format!("./{}/{}/init.wu", my_folder.to_str().unwrap(), path);
 
         let module = if !module.exists() {
           let module = Path::new(&init_path);
