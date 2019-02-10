@@ -1194,10 +1194,24 @@ impl<'p> Parser<'p> {
     if self.remaining() == 0 {
       Ok(None)
     } else {
+      if self.remaining() > 0 && self.current_lexeme() == "\n" {
+        self.next()?
+      }
+
       let t = self.eat_type(&TokenType::Identifier)?;
 
       if self.remaining() > 0 {
-        self.eat_lexeme(",")?;
+        if ![",", "\n"].contains(&self.current_lexeme().as_str()) {
+          return Err(
+            response!(
+              Wrong(format!("expected `,` or newline, found `{}`", self.current_lexeme())),
+              self.source.file,
+              self.current_position()
+            )
+          )
+        } else {
+          self.next()?;
+        }
 
         if self.remaining() > 0 && self.current_lexeme() == "\n" {
           self.next()?
