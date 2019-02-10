@@ -466,9 +466,9 @@ impl<'v> Visitor<'v> {
               }
             }
 
-            let parsed = Parser::new(tokens, self.source).parse()?;
+            let parsed = Parser::new(tokens, &source).parse()?;
 
-            let mut visitor = Visitor::new(&parsed, self.source);
+            let mut visitor = Visitor::new(&parsed, &source);
 
             visitor.visit()?;
 
@@ -490,7 +490,7 @@ impl<'v> Visitor<'v> {
 
             let module_type = Type::from(TypeNode::Module(content_type));
 
-            self.assign(path.clone(), module_type.clone())
+            self.module_content.insert(path.clone(), module_type.clone());
           }
         }
 
