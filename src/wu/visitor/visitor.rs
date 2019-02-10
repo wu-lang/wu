@@ -1034,12 +1034,21 @@ impl<'v> Visitor<'v> {
             let param_type = self.deid(param_type.clone())?;
 
             if args.len() <= i {
-              let last_arg_pos = args.last().unwrap().pos.clone();
+              let last_arg_pos = match args.last() {
+              	 Some(arg) => {
+              	   let arg_pos = args.last().unwrap().pos.clone();
+                  Pos(arg_pos.0, ((arg_pos.1).1 + 1, (arg_pos.1).1 + 1))
+                }
+              	 None => {
+              	   let arg_pos = expression.pos.clone();
+              	   Pos(arg_pos.0, ((arg_pos.1).1, (arg_pos.1).1))
+              	 }
+              };
               return Err(
                 response!(
-                  Wrong(format!("mismatched argument count, expected type `{}` got nothing", param_type.node)),
+                  Wrong(format!("mismatched argument count, expected type `{}` got nothing", param_type)),
                   self.source.file,
-                  Pos(last_arg_pos.0, ((last_arg_pos.1).1 + 1, (last_arg_pos.1).1 + 1))
+                  last_arg_pos
                 )
               )
             }
