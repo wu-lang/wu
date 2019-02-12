@@ -72,6 +72,8 @@ print_fibs: fun(numbers: ...int) {
 - [x] Minimum viable product
 - [x] Trait system
 - [x] Fix modules
+- [ ] Nilable/Optional types for better Lua interop
+- [ ] Multiple returns for better Lua interop
 - [ ] `Extern module` for easier wrapping
 - [ ] Lua STD wrapper
 - [ ] For-loops and ranges
