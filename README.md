@@ -85,7 +85,7 @@ print_fibs: fun(numbers: ...int) {
 
 ## Disclaimer
 
-Wu is built by a minimal team of people, all of which are basically kids working on the compiler when bored in class. The whole thing is currently in very early stages. That said, it's probably fine, so go use it in production.
+Wu is built by a minimal team of people, all members of which are basically kids working on the compiler when bored in class. The whole thing is currently in very early stages. That said, it's probably fine, so go use it in production.
 
 ## Contributers
 
