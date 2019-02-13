@@ -26,7 +26,7 @@ pub enum TypeNode {
   Id(Rc<Expression>),
   Array(Rc<Type>, Option<usize>),
   Func(Vec<Type>, Rc<Type>, Option<Rc<ExpressionNode>>, bool),
-  Module(HashMap<String, Type>),
+  Module(HashMap<String, Type>, bool), // is_foreign
   Struct(String, HashMap<String, Type>, String),
   Trait(String, HashMap<String, Type>),
   Optional(Rc<TypeNode>),
@@ -98,6 +98,8 @@ impl PartialEq for TypeNode {
     match (self, other) {
       (&Any, _) => true,
       (_, &Any) => true,
+      (&Optional(ref a), _) if **a == Any => true,
+      (_, &Optional(ref b)) if **b == Any => true,
 
       (&Int,                                 &Int)                                 => true,
       (&Str,                                 &Str)                                 => true,
@@ -193,7 +195,7 @@ impl Display for TypeNode {
 
       Id(ref n) => write!(f, "deid({})", n.pos.get_lexeme()),
 
-      Module(_)            => write!(f, "module"),
+      Module(..)           => write!(f, "module"),
       Struct(ref name, ..) => write!(f, "{}", name),
 
       Func(ref params, ref return_type, ..) => {
@@ -318,6 +320,7 @@ pub enum Inside {
   Calling(Pos),
   Splat(Option<usize>),
   Implement(Type),
+  ForeignModule(HashMap<String, Type>),
   Function,
   Nothing,
 }
@@ -498,7 +501,7 @@ impl<'v> Visitor<'v> {
               }
             }
 
-            let module_type = Type::from(TypeNode::Module(content_type));
+            let module_type = Type::from(TypeNode::Module(content_type, true));
 
             self.module_content.insert(path.clone(), module_type.clone());
             self.assign(path.clone(), module_type.clone())
@@ -608,7 +611,7 @@ impl<'v> Visitor<'v> {
               let array_type = self.type_expression(array)?;
 
               match array_type.node {
-                TypeNode::Module(ref module_content) => {
+                TypeNode::Module(ref module_content, ref is_foreign) => {
                   if let Identifier(ref name) = indexing.node {
                     if let Some(ref kind) = module_content.get(name) {
 
@@ -1205,7 +1208,7 @@ impl<'v> Visitor<'v> {
           let mut found = false;
 
           for inside in self.inside.iter().rev() { // ffs
-            if let Inside::Implement(ref t) = inside {
+            if let Inside::Implement(_) = inside {
               found = true;
             }
           }
@@ -1294,8 +1297,12 @@ impl<'v> Visitor<'v> {
             }
           },
 
-          TypeNode::Module(ref content) => {
+          TypeNode::Module(ref content, is_foreign) => {
             self.inside.push(Inside::Nothing);
+
+            if is_foreign {
+              self.inside.push(Inside::ForeignModule(content.clone()))
+            }
 
             if let Identifier(ref name) = index.node {
               if !content.contains_key(name) {
@@ -1534,7 +1541,7 @@ impl<'v> Visitor<'v> {
           TypeNode::Array(ref t, _) => (**t).clone(),
           TypeNode::Any             => Type::new(TypeNode::Any, kind.mode),
 
-          TypeNode::Module(ref content) => {
+          TypeNode::Module(ref content, _) => {
             if let Identifier(ref name) = index.node {
               if let Some(kind) = content.get(name) {
                 kind.clone()
@@ -1879,7 +1886,7 @@ impl<'v> Visitor<'v> {
 
           let content_type = visitor.module_content.clone();
 
-          Type::from(TypeNode::Module(content_type))
+          Type::from(TypeNode::Module(content_type, false))
         } else {
           unreachable!()
         }
@@ -2129,6 +2136,7 @@ impl<'v> Visitor<'v> {
     if let Some(t) = self.symtab.fetch(name) {
       Ok(t)
     } else {
+      panic!();
       Err(
         response!(
           Wrong(format!("can't seem to find `{}`", name)),
@@ -2143,6 +2151,7 @@ impl<'v> Visitor<'v> {
     if let Some(t) = self.symtab.fetch_str(name) {
       Ok(t)
     } else {
+      panic!();
       Err(
         response!(
           Wrong(format!("can't seem to find `{}`", name)),
@@ -2176,8 +2185,24 @@ impl<'v> Visitor<'v> {
 
   pub fn deid(&mut self, t: Type) -> Result<Type, ()> {
     if let TypeNode::Id(ref expr) = t.node {
-      let mut new_t = self.type_expression(expr)?;
 
+      let mut new_t;
+
+      for inside in self.inside.iter() {
+        if let Inside::ForeignModule(ref content) = inside {
+          let empty_ast   = Vec::new();
+          let mut visitor = Visitor::new(&empty_ast, &self.source); // TODO: fix source to refer to proper file
+        
+          visitor.symtab = SymTab::from(content.clone());
+
+          new_t = visitor.type_expression(expr)?;
+          new_t.mode = t.mode.clone();
+
+          return Ok(new_t)
+        }
+      }
+
+      new_t = self.type_expression(expr)?;
       new_t.mode = t.mode.clone();
 
       Ok(new_t)
