@@ -73,9 +73,10 @@ print_fibs: fun(numbers: ...int) {
 - [x] Trait system
 - [x] Fix modules
 - [ ] Nilable/Optional types for better Lua interop
+- [ ] Compound operations
 - [ ] Binding if-let for safe Optional unwrapping
 - [ ] Multiple returns for better Lua interop
-- [ ] `Extern module` for easier wrapping
+- [ ] `extern module` for easier wrapping
 - [ ] Lua STD wrapper
 - [ ] For-loops and ranges
 - [ ] Iterator library
