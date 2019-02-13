@@ -58,6 +58,7 @@ pub struct SymTab {
   pub depth: usize,
 
   pub implementations: HashMap<String, HashMap<String, Type>>,
+  pub foreign_imports: HashMap<String, HashMap<String, Type>>,
 }
 
 impl SymTab {
@@ -69,6 +70,7 @@ impl SymTab {
       depth: 0,
 
       implementations: HashMap::new(),
+      foreign_imports: HashMap::new(),
     }
   }
 
@@ -80,6 +82,7 @@ impl SymTab {
       depth: 0,
 
       implementations: HashMap::new(),
+      foreign_imports: HashMap::new(),
     }
   }
 
@@ -181,5 +184,14 @@ impl SymTab {
     hash.insert(method_name, method_type);
 
     self.implementations.insert(id.to_owned(), hash);
+  }
+
+
+  pub fn get_foreign_module(&self, id: &String) -> Option<&HashMap<String, Type>>  {
+    self.foreign_imports.get(id)
+  }
+
+  pub fn import(&mut self, id: String, origin: HashMap<String, Type>) {
+    self.foreign_imports.insert(id, origin);
   }
 }

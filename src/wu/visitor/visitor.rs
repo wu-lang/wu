@@ -489,6 +489,7 @@ impl<'v> Visitor<'v> {
 
             for name in specifics {
               if let Some(kind) = content_type.get(name) {
+                self.symtab.import(name.clone(), content_type.clone());
                 self.assign(name.clone(), kind.clone())
               } else {
                 return Err(
@@ -727,6 +728,10 @@ impl<'v> Visitor<'v> {
 
     match expression.node {
       Identifier(ref name) => {
+        if let Some(content) = self.symtab.get_foreign_module(name) {
+          self.inside.push(Inside::ForeignModule(content.clone()))
+        }
+
         self.fetch(name, &expression.pos)?;
 
         Ok(())
@@ -2186,7 +2191,7 @@ impl<'v> Visitor<'v> {
 
       let mut new_t;
 
-      for inside in self.inside.iter() {
+      for inside in self.inside.iter().rev() {
         if let Inside::ForeignModule(ref content) = inside {
           let empty_ast   = Vec::new();
           let mut visitor = Visitor::new(&empty_ast, &self.source); // TODO: fix source to refer to proper file
