@@ -5,7 +5,7 @@
 [![Foo](https://user-images.githubusercontent.com/7288322/34429152-141689f8-ecb9-11e7-8003-b5a10a5fcb29.png)](https://discord.gg/qm92sPP)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/wu-lang/wu/blob/master/LICENSE)
 
-An expression oriented, gradually typed, sweet, and mission-critical programming language.
+An expression oriented, gradually typed and mission-critical programming language.
 
 ## Syntax
 
@@ -66,6 +66,20 @@ print_fibs: fun(numbers: ...int) {
   print(*numbers)
 }
 ```
+
+## Roadmap
+
+- [x] Minimum viable product
+- [x] Trait system
+- [x] Fix modules
+- [ ] Nilable/Optional types for better Lua interop
+- [ ] Multiple returns for better Lua interop
+- [ ] `Extern module` for easier wrapping
+- [ ] Lua STD wrapper
+- [ ] For-loops and ranges
+- [ ] Iterator library
+- [ ] Lexical macros
+- [ ] A custom, super fast virtual machine
 
 ## Disclaimer
 
