@@ -1,0 +1,22 @@
+print:            extern fun(...)
+
+rawget:           extern fun(any, any)          -> any
+rawset:           extern fun(any, any, any)     -> any
+
+
+Table: struct {}
+
+implement Table {
+   set: fun(self, key:any, value:any) {
+      rawset(self, key, value)
+   }
+
+   get: fun(self, key:any)      -> any {
+      rawget(self, key)
+   }
+}
+
+a: Table = new Table {}
+
+a set(1, 1)
+print(a get(1))

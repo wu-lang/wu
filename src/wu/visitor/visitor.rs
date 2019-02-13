@@ -416,11 +416,11 @@ impl<'v> Visitor<'v> {
 
       Import(ref path, ref specifics) => {
         let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
-        let file_path  = format!("./{}/{}.wu", my_folder.to_str().unwrap(), path);
+        let file_path  = format!("{}/{}.wu", my_folder.to_str().unwrap(), path);
 
         let module = Path::new(&file_path);
 
-        let init_path = format!("./{}/{}/init.wu", my_folder.to_str().unwrap(), path);
+        let init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
 
         let module = if !module.exists() {
           let module = Path::new(&init_path);
@@ -466,9 +466,9 @@ impl<'v> Visitor<'v> {
               }
             }
 
-            let parsed = Parser::new(tokens, &source).parse()?;
+            let parsed = Parser::new(tokens, self.source).parse()?;
 
-            let mut visitor = Visitor::new(&parsed, &source);
+            let mut visitor = Visitor::new(&parsed, self.source);
 
             visitor.visit()?;
 
@@ -490,7 +490,7 @@ impl<'v> Visitor<'v> {
 
             let module_type = Type::from(TypeNode::Module(content_type));
 
-            self.module_content.insert(path.clone(), module_type.clone());
+            self.assign(path.clone(), module_type.clone())
           }
         }
 
@@ -1024,7 +1024,7 @@ impl<'v> Visitor<'v> {
           }
 
           if is_method {
-            self.method_calls.insert(expression.pos.clone(), true);
+            self.method_calls.insert(expr.pos.clone(), true);
           }
 
           let mut actual_arg_len            = args.len();
@@ -1032,27 +1032,8 @@ impl<'v> Visitor<'v> {
 
           for (i, param_type) in params.iter().enumerate() {
             let param_type = self.deid(param_type.clone())?;
-
-            if args.len() <= i {
-              let last_arg_pos = match args.last() {
-              	 Some(arg) => {
-              	   let arg_pos = args.last().unwrap().pos.clone();
-                  Pos(arg_pos.0, ((arg_pos.1).1 + 1, (arg_pos.1).1 + 1))
-                }
-              	 None => {
-              	   let arg_pos = expression.pos.clone();
-              	   Pos(arg_pos.0, ((arg_pos.1).1, (arg_pos.1).1))
-              	 }
-              };
-              return Err(
-                response!(
-                  Wrong(format!("mismatched argument count, expected type `{}` got nothing", param_type)),
-                  self.source.file,
-                  last_arg_pos
-                )
-              )
-            }
-
+            
+            self.visit_expression(&args[i])?;
             let arg_type   = self.type_expression(&args[i])?;
 
             if !param_type.node.check_expression(&Parser::fold_expression(&args[i])?.node) && arg_type.node != param_type.node {
@@ -1066,6 +1047,7 @@ impl<'v> Visitor<'v> {
             }
 
             let arg_type = if i < args.len() {
+              self.visit_expression(&args[i])?;
               self.type_expression(&args[i])?
             } else {
               type_buffer.as_ref().unwrap().clone()
@@ -1085,6 +1067,7 @@ impl<'v> Visitor<'v> {
 
             if let TypeMode::Splat(_) = last.mode {
               for splat in &args[params.len()..] {
+                self.visit_expression(&splat)?;
                 let splat_type = self.type_expression(&splat)?;
 
                 if !last.node.check_expression(&splat.node) && last.node != splat_type.node {

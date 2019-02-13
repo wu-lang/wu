@@ -206,7 +206,7 @@ impl<'g> Generator<'g> {
         let mut caller = self.generate_expression(called);
         let mut result = format!("{}(", caller);
 
-        let prefix = self.method_calls.get(&expression.pos).is_some();
+        let prefix = self.method_calls.get(&called.pos).is_some();
 
         if let Index(ref left, _) = called.node {
           caller = self.generate_expression(left)
