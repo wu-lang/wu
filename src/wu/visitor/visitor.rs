@@ -45,7 +45,6 @@ impl TypeNode {
 
       ExpressionNode::Array(ref content) => {
         let array_content = if let &Array(ref array_content, ref len) = self {
-          
           if let Some(len) = len {
             if *len != content.len() {
               return false
@@ -344,7 +343,7 @@ pub struct Visitor<'v> {
 
   pub source: &'v Source,
   pub ast:    &'v Vec<Statement>,
-  
+
   pub flag:   Option<FlagContext>,
   pub inside: Vec<Inside>,
 
@@ -427,11 +426,11 @@ impl<'v> Visitor<'v> {
 
       Import(ref path, ref specifics) => {
         let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
-        let file_path  = format!("{}/{}.wu", my_folder.to_str().unwrap(), path);
+        let file_path  = format!("./{}/{}.wu", my_folder.to_str().unwrap(), path);
 
         let module = Path::new(&file_path);
 
-        let init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
+        let init_path = format!("./{}/{}/init.wu", my_folder.to_str().unwrap(), path);
 
         let module = if !module.exists() {
           let module = Path::new(&init_path);
@@ -477,9 +476,9 @@ impl<'v> Visitor<'v> {
               }
             }
 
-            let parsed = Parser::new(tokens, self.source).parse()?;
+            let parsed = Parser::new(tokens, &source).parse()?;
 
-            let mut visitor = Visitor::new(&parsed, self.source);
+            let mut visitor = Visitor::new(&parsed, &source);
 
             visitor.visit()?;
 
@@ -501,6 +500,7 @@ impl<'v> Visitor<'v> {
 
             let module_type = Type::from(TypeNode::Module(content_type));
 
+            self.module_content.insert(path.clone(), module_type.clone());
             self.assign(path.clone(), module_type.clone())
           }
         }
@@ -529,7 +529,7 @@ impl<'v> Visitor<'v> {
             self.inside.push(Inside::Implement(kind.clone()));
 
             if let TypeNode::Struct(struct_name, content, id) = kind.node.clone() {
-              if kind.mode.strong_cmp(&TypeMode::Undeclared) {                
+              if kind.mode.strong_cmp(&TypeMode::Undeclared) {
                 let new_content = content;
 
                 if let ExpressionNode::Block(ref ast) = body.node {
@@ -625,7 +625,7 @@ impl<'v> Visitor<'v> {
                               &kind,
                               Some(module_content),
                               true,
-                            )?;                            
+                            )?;
                           }
 
                           self.inside.pop();
@@ -702,7 +702,7 @@ impl<'v> Visitor<'v> {
           ),
         }
       },
-    
+
       Assignment(ref left, ref right) => {
         self.visit_expression(left)?;
         self.visit_expression(right)?;
@@ -734,7 +734,7 @@ impl<'v> Visitor<'v> {
 
         match expr_type.node {
           TypeNode::Float | TypeNode::Int => Ok(()),
-          
+
           _ => Err(
             response!(
               Wrong(format!("can't negate type `{}`", expr_type)),
@@ -802,7 +802,7 @@ impl<'v> Visitor<'v> {
 
         if let TypeNode::Struct(ref name, ref content, _) = struct_type.node {
           if struct_type.mode.strong_cmp(&TypeMode::Undeclared) {
-          
+
             for arg in args.iter() {
               self.visit_expression(&arg.1)?;
 
@@ -947,7 +947,7 @@ impl<'v> Visitor<'v> {
             } else {
               unreachable!()
             };
-            
+
             return Err(
               response!(
                 Wrong("mismatched types, expected `()`"),
@@ -1061,8 +1061,29 @@ impl<'v> Visitor<'v> {
 
           for (i, param_type) in params.iter().enumerate() {
             let param_type = self.deid(param_type.clone())?;
-            
+
+            if args.len() <= i {
+              let last_arg_pos = match args.last() {
+                Some(arg) => {
+                  let arg_pos = args.last().unwrap().pos.clone();
+                  Pos(arg_pos.0, ((arg_pos.1).1 + 1, (arg_pos.1).1 + 1))
+                }
+                None => {
+                  let arg_pos = expression.pos.clone();
+                  Pos(arg_pos.0, ((arg_pos.1).1, (arg_pos.1).1))
+                }
+              };
+              return Err(
+                response!(
+                  Wrong(format!("mismatched argument count, expected type `{}` got nothing", param_type)),
+                  self.source.file,
+                  last_arg_pos
+                )
+              )
+            }
+
             self.visit_expression(&args[i])?;
+
             let arg_type   = self.type_expression(&args[i])?;
 
             if !param_type.node.check_expression(&Parser::fold_expression(&args[i])?.node) && arg_type.node != param_type.node {
@@ -1511,7 +1532,7 @@ impl<'v> Visitor<'v> {
 
         match kind.node {
           TypeNode::Array(ref t, _) => (**t).clone(),
-          TypeNode::Any             => Type::new(TypeNode::Any, kind.mode), 
+          TypeNode::Any             => Type::new(TypeNode::Any, kind.mode),
 
           TypeNode::Module(ref content) => {
             if let Identifier(ref name) = index.node {
@@ -1555,7 +1576,6 @@ impl<'v> Visitor<'v> {
 
                 if let Some(kind2) = content.get(name) {
                   if kind.mode.strong_cmp(&TypeMode::Undeclared) {
-
                     if kind2.is_method() {
                       return Err(
                         response!(
@@ -1575,7 +1595,7 @@ impl<'v> Visitor<'v> {
                     }
 
                   }
-                  
+
                   kind2.clone()
                 } else {
                   return Err(
@@ -2133,7 +2153,7 @@ impl<'v> Visitor<'v> {
     }
   }
 
-  
+
   fn assign_str(&mut self, name: &str, t: Type) {
     self.symtab.assign_str(name, t)
   }
