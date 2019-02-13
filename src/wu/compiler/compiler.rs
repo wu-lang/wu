@@ -156,13 +156,21 @@ impl<'g> Generator<'g> {
 
         for element in content {
           if let Variable(_, ref name, ref right) = element.node {
-            let assign = format!("{}['{}']", assign, Self::make_valid(name));
+            if let ExpressionNode::Extern(_, ref lua) = right.clone().unwrap().node {
+              if let Some(ref lua) = lua {
+                let assign = format!("{}['{}']", assign, Self::make_valid(name));
 
-            self.flag = Some(FlagImplicit::Assign(assign.clone()));
+                result.push_str(&format!("{} = {}\n\n", assign, lua))
+              }
+            } else {
+              let assign = format!("{}['{}']", assign, Self::make_valid(name));
 
-            let right = self.generate_expression(&right.clone().unwrap());
+              self.flag = Some(FlagImplicit::Assign(assign.clone()));
 
-            result.push_str(&format!("{} = {}\n\n", assign, right))
+              let right = self.generate_expression(&right.clone().unwrap());
+
+              result.push_str(&format!("{} = {}\n\n", assign, right))
+            }
           }
         }
 
