@@ -1024,7 +1024,7 @@ impl<'v> Visitor<'v> {
           }
 
           if is_method {
-            self.method_calls.insert(expression.pos.clone(), true);
+            self.method_calls.insert(expr.pos.clone(), true);
           }
 
           let mut actual_arg_len            = args.len();
@@ -1032,6 +1032,8 @@ impl<'v> Visitor<'v> {
 
           for (i, param_type) in params.iter().enumerate() {
             let param_type = self.deid(param_type.clone())?;
+            
+            self.visit_expression(&args[i])?;
             let arg_type   = self.type_expression(&args[i])?;
 
             if !param_type.node.check_expression(&Parser::fold_expression(&args[i])?.node) && arg_type.node != param_type.node {
@@ -1045,6 +1047,7 @@ impl<'v> Visitor<'v> {
             }
 
             let arg_type = if i < args.len() {
+              self.visit_expression(&args[i])?;
               self.type_expression(&args[i])?
             } else {
               type_buffer.as_ref().unwrap().clone()
@@ -1064,6 +1067,7 @@ impl<'v> Visitor<'v> {
 
             if let TypeMode::Splat(_) = last.mode {
               for splat in &args[params.len()..] {
+                self.visit_expression(&splat)?;
                 let splat_type = self.type_expression(&splat)?;
 
                 if !last.node.check_expression(&splat.node) && last.node != splat_type.node {
