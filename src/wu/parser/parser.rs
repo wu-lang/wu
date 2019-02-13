@@ -966,7 +966,9 @@ impl<'p> Parser<'p> {
         "..." => {
           self.next()?;
 
-          let splatted = if ([")", "=", "?", "\n"].contains(&self.current_lexeme().as_str()) && self.current_type() == TokenType::Symbol) || self.remaining() == 0 {
+          let splatted = if ([")", "=", "?"].contains(&self.current_lexeme().as_str()) && self.current_type() == TokenType::Symbol)
+              || self.remaining() == 0 || self.current_lexeme() == "\n" {
+
             Type::from(TypeNode::Any)
           } else {
             self.parse_type()?

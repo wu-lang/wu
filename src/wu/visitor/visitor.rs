@@ -475,7 +475,7 @@ impl<'v> Visitor<'v> {
               if let Ok(token) = token_result {
                 tokens.push(token)
               } else {
-                panic!()
+                panic!("weird unexpected lexer error")
               }
             }
 
@@ -2136,7 +2136,6 @@ impl<'v> Visitor<'v> {
     if let Some(t) = self.symtab.fetch(name) {
       Ok(t)
     } else {
-      panic!();
       Err(
         response!(
           Wrong(format!("can't seem to find `{}`", name)),
@@ -2151,7 +2150,6 @@ impl<'v> Visitor<'v> {
     if let Some(t) = self.symtab.fetch_str(name) {
       Ok(t)
     } else {
-      panic!();
       Err(
         response!(
           Wrong(format!("can't seem to find `{}`", name)),
