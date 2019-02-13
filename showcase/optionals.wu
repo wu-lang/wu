@@ -1,0 +1,7 @@
+print: extern fun(...?)
+
+bee:  int? = 100
+buzz: int  = bee!
+foo:  int? = bee
+
+print(bee, buzz, foo, nil)

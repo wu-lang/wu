@@ -5,7 +5,6 @@ love: extern love_wrapper LoveType
 print: extern fun(...)
 
 love load = fun {
-
   x := if true {
     "hey"
   } else {

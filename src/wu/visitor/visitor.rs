@@ -29,6 +29,7 @@ pub enum TypeNode {
   Module(HashMap<String, Type>),
   Struct(String, HashMap<String, Type>, String),
   Trait(String, HashMap<String, Type>),
+  Optional(Rc<TypeNode>),
   This,
 }
 
@@ -80,6 +81,8 @@ impl TypeNode {
       (&Any, &Any)     => true,
       (&Char, &Char)   => true,
       (&This, &This)   => true,
+      (&Nil, &Nil)     => true,
+      (&Optional(ref a), &Optional(ref b)) => a == b,
       (&Id(ref a), &Id(ref b)) => a == b,
       (&Array(ref a, ref la), &Array(ref b, ref lb))                                     => a == b && (la == &None || la == lb),
       (&Func(ref a_params, ref a_retty, .., a), &Func(ref b_params, ref b_retty, .., b)) => a_params == b_params && a_retty == b_retty && a == b,
@@ -94,6 +97,9 @@ impl PartialEq for TypeNode {
     use self::TypeNode::*;
 
     match (self, other) {
+      (&Any, _) => true,
+      (_, &Any) => true,
+
       (&Int,                                 &Int)                                 => true,
       (&Str,                                 &Str)                                 => true,
       (&Float,                               &Float)                               => true,
@@ -121,10 +127,13 @@ impl PartialEq for TypeNode {
         true
       },
 
-      (&Struct(..), &Trait(..)) => other == self,
+      (&Optional(_), &Nil)                 => true,
+      (&Nil, &Optional(_))                 => true,
+      (&Optional(ref a), &Optional(ref b)) => a == b,
+      (&Optional(ref a), ref b)            => **a == **b,
+      (_, Optional(_))                     => false,
 
-      (&Any, _) => true,
-      (_, &Any) => true,
+      (&Struct(..), &Trait(..)) => other == self,
 
       _ => false,
     }
@@ -201,6 +210,8 @@ impl Display for TypeNode {
 
         write!(f, ") -> {}", return_type)
       },
+
+      Optional(ref inner) => write!(f, "{}?", inner),
     }
   }
 }
@@ -236,7 +247,7 @@ impl Display for TypeMode {
       Regular     => Ok(()),
       Immutable   => write!(f, "constant "),
       Undeclared  => write!(f, "undeclared "),
-      Optional    => write!(f, "optional "),
+      Optional    => write!(f, "optional? "),
       Implemented => Ok(()),
       Splat(_)    => write!(f, "..."),
       Unwrap(_)   => write!(f, "*"),
@@ -752,7 +763,7 @@ impl<'v> Visitor<'v> {
 
       Module(ref content) => self.visit_expression(content),
 
-      Unwrap(ref expression) => {
+      UnwrapSplat(ref expression) => {
         self.visit_expression(&**expression)?;
 
         if let TypeMode::Splat(_) = self.type_expression(&**expression)?.mode {
@@ -760,7 +771,25 @@ impl<'v> Visitor<'v> {
         } else {
           Err(
             response!(
-              Wrong("can't unwrap a non-splat value"),
+              Wrong("can't unpack a non-splat value"),
+              self.source.file,
+              expression.pos
+            )
+          )
+        }
+      },
+
+      Unwrap(ref expression) => {
+        self.visit_expression(&**expression)?;
+
+        let kind = self.type_expression(&**expression)?;
+
+        if let TypeNode::Optional(_) = kind.node {
+          Ok(())
+        } else {
+          Err(
+            response!(
+              Wrong(format!("can't unwrap a non-optional value `{}`", kind)),
               self.source.file,
               expression.pos
             )
@@ -1370,11 +1399,11 @@ impl<'v> Visitor<'v> {
 
         let right_type = self.type_expression(&right)?;
 
-        if variable_type.node != TypeNode::Nil {
+        if !variable_type.node.strong_cmp(&TypeNode::Nil) {
           if !variable_type.node.check_expression(&Parser::fold_expression(right)?.node) && variable_type.node != right_type.node {
             return Err(
               response!(
-                Wrong(format!("mismatched types, expe cted type `{}` got `{}`", variable_type.node, right_type.node)),
+                Wrong(format!("mismatched types, expected type `{}` got `{}`", variable_type.node, right_type.node)),
                 self.source.file,
                 right.pos
               )
@@ -1823,22 +1852,6 @@ impl<'v> Visitor<'v> {
       },
 
       Module(ref content) => {
-        // self.visit_expression(content)?;
-
-        // let mut content_type = HashMap::new();
-
-        // self.symtab.revert_frame();
-
-        // let names = &self.symtab.current_frame().table;
-
-        // for symbol in names.borrow().iter() {
-        //   content_type.insert(symbol.0.clone(), self.fetch(symbol.0, &expression.pos)?.clone());
-        // }
-
-        // self.pop_scope();
-        // self.symtab.exit();
-        // self.symtab.exit();
-
         if let ExpressionNode::Block(ref ast) = content.node {
           let mut visitor = Visitor::new(ast, self.source);
 
@@ -1852,7 +1865,7 @@ impl<'v> Visitor<'v> {
         }
       },
 
-      Unwrap(ref expr) => {
+      UnwrapSplat(ref expr) => {
         let t = self.type_expression(&**expr)?;
 
         if let TypeMode::Splat(_) = t.mode {
@@ -1861,6 +1874,16 @@ impl<'v> Visitor<'v> {
           } else {
             Type::from(TypeNode::Any)
           }
+        } else {
+          unreachable!()
+        }
+      },
+
+      Unwrap(ref expression) => {
+        let kind = self.type_expression(expression)?;
+
+        if let TypeNode::Optional(ref inner) = kind.node {
+          Type::new((**inner).clone(), kind.mode.clone())
         } else {
           unreachable!()
         }

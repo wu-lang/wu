@@ -5,7 +5,7 @@ love: module {
 		set_color: fun(r: float, g: float, b: float) {
 			setColor(r / 255.0, g / 255.0, b / 255.0)
 		}
-	
+
 		rectangle: extern fun(str, float, float, float)
 		circle:    extern fun(str, float, float, float)
 		line:      extern fun(float, float, float, float)
