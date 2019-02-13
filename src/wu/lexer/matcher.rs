@@ -271,11 +271,13 @@ pub struct IdentifierMatcher;
 
 impl<'t> Matcher<'t> for IdentifierMatcher {
   fn try_match(&self, tokenizer: &mut Tokenizer<'t>) -> Result<Option<Token>, ()> {
-    if !tokenizer.peek().unwrap().is_alphabetic() {
+    let peeked = tokenizer.peek().unwrap();
+
+    if !peeked.is_alphabetic() && peeked != '_' {
       return Ok(None)
     }
 
-    let accum = tokenizer.collect_while(|c| c.is_alphanumeric() || "_-!?".contains(c));
+    let accum = tokenizer.collect_while(|c| c.is_alphanumeric() || "_-".contains(c));
 
     if accum.is_empty() {
       Ok(None)

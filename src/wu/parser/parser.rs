@@ -487,7 +487,7 @@ impl<'p> Parser<'p> {
             self.next()?;
 
             Expression::new(
-              ExpressionNode::Unwrap(
+              ExpressionNode::UnwrapSplat(
                 Rc::new(self.parse_expression()?)
               ),
 
@@ -570,6 +570,14 @@ impl<'p> Parser<'p> {
 
         Keyword => match self.current_lexeme().as_str() {
           "fun" => self.parse_function()?,
+          "nil" => {
+            self.next()?;
+
+            Expression::new(
+              ExpressionNode::Empty,
+              self.span_from(position)
+            )
+          },
 
           "if" => {
             self.next()?;
@@ -730,6 +738,21 @@ impl<'p> Parser<'p> {
           self.parse_postfix(index)
         },
 
+        "!" => {
+          self.next()?;
+
+          let position = expression.pos.clone();
+
+          let question = Expression::new(
+            ExpressionNode::Unwrap(
+              Rc::new(expression)
+            ),
+            self.span_from(position)
+          );
+
+          self.parse_postfix(question)
+        }
+
         _ => Ok(expression)
       },
 
@@ -848,7 +871,7 @@ impl<'p> Parser<'p> {
   fn parse_type(&mut self) -> Result<Type, ()> {
     use self::TokenType::*;
 
-    let t = match self.current_type() {
+    let mut t = match self.current_type() {
       Identifier => match self.eat()?.as_str() {
         "str"   => Type::from(TypeNode::Str),
         "char"  => Type::from(TypeNode::Char),
@@ -942,12 +965,10 @@ impl<'p> Parser<'p> {
 
         "..." => {
           self.next()?;
-
           self.next_newline()?;
 
-          let splatted = if (self.current_lexeme() == ")" && self.current_type() == TokenType::Symbol) || self.remaining() == 0 {
+          let splatted = if ([")", "?"].contains(&self.current_lexeme().as_str()) && self.current_type() == TokenType::Symbol) || self.remaining() == 0 {
             Type::from(TypeNode::Any)
-
           } else {
             self.parse_type()?
           };
@@ -972,6 +993,14 @@ impl<'p> Parser<'p> {
         )
       )
     };
+
+    if self.current_lexeme() == "?" {
+      self.next()?;
+
+      let inner = t.node.clone();
+
+      t.node = TypeNode::Optional(Rc::new(inner));
+    }
 
     Ok(t)
   }
@@ -1258,8 +1287,9 @@ impl<'p> Parser<'p> {
       return Ok(None)
     }
 
-    let mut splat = false;
-    let position  = self.current_position();
+    let mut splat    = false;
+    let mut optional = false;
+    let position     = self.current_position();
 
     if self.current_lexeme() == "..." {
       splat = true;
@@ -1268,9 +1298,16 @@ impl<'p> Parser<'p> {
       self.next_newline()?;
     }
 
+    if self.current_lexeme() == "?" {
+      optional = true;
+
+      self.next()?;
+      self.next_newline()?;
+    }
+
     let name = self.eat_type(&TokenType::Identifier)?;
 
-    let kind = if name == "self" {
+    let mut kind = if name == "self" {
       if splat {
         return Err(
           response!(
@@ -1300,6 +1337,12 @@ impl<'p> Parser<'p> {
 
       kind
     };
+
+    if optional {
+      let inner = kind.node.clone();
+
+      kind.node = TypeNode::Optional(Rc::new(inner));
+    }
 
     let param = Some((name, kind));
 

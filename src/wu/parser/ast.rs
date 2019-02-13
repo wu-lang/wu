@@ -39,6 +39,7 @@ pub enum ExpressionNode {
   Str(String),
   Char(char),
   Bool(bool),
+  UnwrapSplat(Rc<Expression>),
   Unwrap(Rc<Expression>),
 
   Neg(Rc<Expression>),

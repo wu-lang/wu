@@ -53,6 +53,7 @@ impl<'l> Lexer<'l> {
           "import",
           "interface",
           "trait",
+          "nil",
         ])
       )
     );
@@ -82,7 +83,7 @@ impl<'l> Lexer<'l> {
 
     lexer.matchers.push(
       Rc::new(
-        ConstantCharMatcher::new(Symbol, &['(', ')', '[', ']', '{', '}', ',', ':', ';', '=', '.', '|'])
+        ConstantCharMatcher::new(Symbol, &['?', '!', '(', ')', '[', ']', '{', '}', ',', ':', ';', '=', '.', '|'])
       )
     );
 
