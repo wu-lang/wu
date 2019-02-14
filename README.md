@@ -32,7 +32,7 @@ implement Point {
     (self x^2 + self y^2)^.5
   }
 
-  normalize!: fun(self) {
+  normalize: fun(self) {
     len := self length()
 
     self x = self x / len
@@ -45,7 +45,7 @@ pos := new Point {
   y: 100
 }
 
-pos normalize!()
+pos normalize()
 ```
 
 #### Splats
