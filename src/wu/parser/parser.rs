@@ -112,25 +112,38 @@ impl<'p> Parser<'p> {
             )
           },
 
-          _ => {
-            self.index = backup_index;
+          c => {
+            let expression = Expression::new(
+              ExpressionNode::Identifier(name),
+              position.clone()
+            );
 
-            let expression = self.parse_expression()?;
-
-            let position = expression.pos.clone();
-
-            if self.current_lexeme() == "=" {
-              self.next()?;
-
-              Statement::new(
-                StatementNode::Assignment(expression, self.parse_expression()?),
-                position
-              )
+            if let Some(result) = self.try_parse_compound(&expression)? {
+              result
             } else {
-              Statement::new(
-                StatementNode::Expression(expression),
-                position,
-              )
+              self.index = backup_index;
+
+              let expression = self.parse_expression()?;
+              let position   = expression.pos.clone();
+
+              if let Some(result) = self.try_parse_compound(&expression)? {
+                result
+              } else {
+
+                if self.current_lexeme() == "=" {
+                  self.next()?;
+
+                  Statement::new(
+                    StatementNode::Assignment(expression, self.parse_expression()?),
+                    position
+                  )
+                } else {
+                  Statement::new(
+                    StatementNode::Expression(expression),
+                    position,
+                  )
+                }
+              }
             }
           },
         }
@@ -249,18 +262,22 @@ impl<'p> Parser<'p> {
         let expression = self.parse_expression()?;
         let position   = expression.pos.clone();
 
-        if self.current_lexeme() == "=" {
-          self.next()?;
-
-          Statement::new(
-            StatementNode::Assignment(expression, self.parse_expression()?),
-            position
-          )
+        if let Some(result) = self.try_parse_compound(&expression)? {
+          result
         } else {
-          Statement::new(
-            StatementNode::Expression(expression),
-            position,
-          )
+          if self.current_lexeme() == "=" {
+            self.next()?;
+
+            Statement::new(
+              StatementNode::Assignment(expression, self.parse_expression()?),
+              position
+            )
+          } else {
+            Statement::new(
+              StatementNode::Expression(expression),
+              position,
+            )
+          }
         }
       },
     };
@@ -268,6 +285,56 @@ impl<'p> Parser<'p> {
     self.new_line()?;
 
     Ok(statement)
+  }
+
+
+
+  fn try_parse_compound(&mut self, left: &Expression) -> Result<Option<Statement>, ()> {
+    if self.current_type() != TokenType::Operator {
+      return Ok(None)
+    }
+
+    let backup_index = self.index;
+
+    let c = self.eat_type(&TokenType::Operator)?;
+
+    let mut result = None;
+    
+    if self::Operator::is_compoundable(&c) {
+
+      let op = self::Operator::from_str(&c).unwrap().0;
+
+      let position = self.current_position();
+
+      if self.current_lexeme() == "=" {
+        self.next()?;
+
+        let right = self.parse_expression()?;
+        let ass   = Statement::new(
+          StatementNode::Assignment(
+            left.clone(),
+
+            Expression::new(
+              ExpressionNode::Binary(
+                Rc::new(left.clone()),
+                op,
+                Rc::new(right)
+              ),
+
+              self.span_from(position.clone())
+            )
+          ),
+
+          self.span_from(position)
+        );   
+
+        result = Some(ass)           
+      } else {
+        self.index = backup_index
+      }
+    }
+
+    Ok(result)
   }
 
 
@@ -559,13 +626,13 @@ impl<'p> Parser<'p> {
             }
           },
 
-          ref symbol => return Err(
+          ref symbol => panic!(), /*return Err(
             response!(
               Wrong(format!("unexpected symbol `{}`", symbol)),
               self.source.file,
               self.current_position()
             )
-          )
+          )*/
         },
 
         Keyword => match self.current_lexeme().as_str() {
@@ -1136,7 +1203,8 @@ impl<'p> Parser<'p> {
       Err(
         response!(
           Wrong(format!("expected `{}`, found `{}`", token_type, self.current_type())),
-          self.source.file
+          self.source.file,
+          self.current_position()
         )
       )
     }
@@ -1149,7 +1217,8 @@ impl<'p> Parser<'p> {
       Err(
         response!(
           Wrong(format!("expected `{}`, found `{}`", lexeme, self.current_lexeme())),
-          self.source.file
+          self.source.file,
+          self.current_position()
         )
       )
     }

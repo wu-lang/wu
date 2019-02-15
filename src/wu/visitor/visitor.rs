@@ -1949,7 +1949,7 @@ impl<'v> Visitor<'v> {
   fn visit_block(&mut self, content: &Vec<Statement>, ensure_implicits: bool, module_content: bool) -> Result<(), ()> {
     for (i, statement) in content.iter().enumerate() {
       // ommiting functions, for that extra user-feel
-      if let StatementNode::Variable(_, ref name, ref value) = statement.node {
+      if let StatementNode::Variable(ref kind, ref name, ref value) = statement.node {
         if let Some(ref right) = *value {
           if let ExpressionNode::Function(ref params, ref retty, .., is_method) = right.node {
 
@@ -1969,6 +1969,8 @@ impl<'v> Visitor<'v> {
 
             self.module_content.insert(name.clone(), t);
           }
+        } else {
+          self.module_content.insert(name.clone(), kind.clone());
         }
       }
 
