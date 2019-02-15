@@ -43,6 +43,8 @@ fn compile_path(path: &str) {
   if meta.is_file() {
     let split: Vec<&str> = path.split('.').collect();
 
+    println!("{} {}", "compiling".green().bold(), path.to_string().replace("./", ""));
+
     if *split.last().unwrap() == "wu" {      
       if let Some(n) = file_content(path) {
         write(path, &n);
@@ -84,8 +86,6 @@ fn file_content(path: &str) -> Option<String> {
 
 fn write(path: &str, data: &str) {
   let path = Path::new(path);
-
-  println!("{} {}", "compiled".green().bold(), path.display().to_string().replace("./", ""));
 
   let split_name = path.file_name().unwrap().to_str().unwrap().split('.');
   let split: Vec<&str> = split_name.collect();
@@ -166,8 +166,10 @@ fn clean_path(path: &str) {
             let path = format!("{}.lua", split[0 .. split.len() - 1].to_vec().join("."));
 
             if Path::new(&path).is_file() {
+              println!("{} {}", "removing".red().bold(), path.replace("./", ""));
+
               match fs::remove_file(&path) {
-                Ok(_) => println!("{} {}", "removed".red().bold(), path.replace("./", "")),
+                Ok(_)    => (),
                 Err(why) => panic!("{}", why)
               }
             }

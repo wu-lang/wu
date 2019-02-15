@@ -2,10 +2,10 @@ love: module {
   set_color: extern fun(float, float, float)             = "love.graphics.setColor"
   rectangle: extern fun(str, float, float, float, float) = "love.graphics.rectangle"
 
-  draw: fun(float, float) -> float
+  draw: fun {}
 }
 
 love draw = fun {
-  something set_color(1, 1, 0)
-  something rectangle("fill", 100, 100, 200, 150)
+  love set_color(1, 1, 0)
+  love rectangle("fill", 100, 100, 200, 150)
 }
