@@ -1,0 +1,24 @@
+Player: struct {
+  x: float
+  y: float
+
+  name: str?
+}
+
+Moving: trait {
+  move: fun(self, float, float)
+}
+
+implement Player: Moving {
+  move: fun(self, dx: float, dy: float) {
+    self x += dx
+    self y += dy
+  }
+}
+
+player := new Player {
+  x: 100
+  y: 100
+}
+
+player name = "niels"
