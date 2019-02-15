@@ -326,20 +326,6 @@ pub enum Inside {
 }
 
 
-#[derive(Clone)]
-pub struct ImplementationFrame {
-  pub implementations: HashMap<String, HashMap<String, Type>>,
-}
-
-impl ImplementationFrame {
-  pub fn new() -> Self {
-    Self {
-      implementations: HashMap::new()
-    }
-  }
-}
-
-
 
 pub struct Visitor<'v> {
   pub symtab: SymTab,
@@ -808,13 +794,17 @@ impl<'v> Visitor<'v> {
       Initialization(ref left, ref args) => {
         let struct_type = self.type_expression(&*left)?;
 
-        if let TypeNode::Struct(ref name, ref content, _) = struct_type.node {
+        if let TypeNode::Struct(ref name, ref content, ref struct_id) = struct_type.node {
           if struct_type.mode.strong_cmp(&TypeMode::Undeclared) {
+
+            let mut validation_map = HashMap::new();
 
             for arg in args.iter() {
               self.visit_expression(&arg.1)?;
 
               let arg_type = self.type_expression(&arg.1)?;
+
+              validation_map.insert(arg.0.clone(), arg_type.clone());
 
               if let Some(ref content_type) = content.get(&arg.0) {
                 if !content_type.node.check_expression(&Parser::fold_expression(&arg.1)?.node) && arg_type != **content_type {
@@ -836,6 +826,29 @@ impl<'v> Visitor<'v> {
                     arg.1.pos
                   )
                 )
+              }
+            }
+
+            for (key, kind) in content.iter() {
+              match kind.node {
+                TypeNode::Optional(_) => (),
+                _ => {
+                  if !validation_map.contains_key(key) {
+                    if let Some(ref implementations) = self.symtab.get_implementations(struct_id) {
+                      if implementations.contains_key(key) {
+                        continue
+                      }
+                    }
+
+                    return Err(
+                      response!(
+                        Wrong(format!("missing assignment of struct member `{}: {}`", key, kind)),
+                        self.source.file,
+                        expression.pos
+                      )
+                    )
+                  }
+                }
               }
             }
 
@@ -1936,7 +1949,7 @@ impl<'v> Visitor<'v> {
   fn visit_block(&mut self, content: &Vec<Statement>, ensure_implicits: bool, module_content: bool) -> Result<(), ()> {
     for (i, statement) in content.iter().enumerate() {
       // ommiting functions, for that extra user-feel
-      if let StatementNode::Variable(_, ref name, ref value) = statement.node {
+      if let StatementNode::Variable(ref kind, ref name, ref value) = statement.node {
         if let Some(ref right) = *value {
           if let ExpressionNode::Function(ref params, ref retty, .., is_method) = right.node {
 
@@ -1956,6 +1969,8 @@ impl<'v> Visitor<'v> {
 
             self.module_content.insert(name.clone(), t);
           }
+        } else {
+          self.module_content.insert(name.clone(), kind.clone());
         }
       }
 

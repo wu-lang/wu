@@ -138,6 +138,10 @@ impl Operator {
       And    => "and",
     }
   }
+
+  pub fn is_compoundable(operator: &str) -> bool {
+    ["+", "-", "*", "/", "++", "%", "^", "not", "or", "and"].contains(&operator)
+  }
 }
 
 impl fmt::Display for Operator {
