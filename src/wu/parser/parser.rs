@@ -123,12 +123,16 @@ impl<'p> Parser<'p> {
             } else {
               self.index = backup_index;
 
-              let expression = self.parse_expression()?;
+              let expression = self.parse_atom()?;
               let position   = expression.pos.clone();
 
               if let Some(result) = self.try_parse_compound(&expression)? {
                 result
               } else {
+                self.index = backup_index;
+
+                let expression = self.parse_expression()?;
+                let position   = expression.pos.clone();
 
                 if self.current_lexeme() == "=" {
                   self.next()?;
@@ -798,7 +802,7 @@ impl<'p> Parser<'p> {
           let position = expression.pos.clone();
 
           let index = Expression::new(
-            ExpressionNode::Index(Rc::new(expression), Rc::new(expr)),
+            ExpressionNode::Index(Rc::new(expression), Rc::new(expr), true),
             self.span_from(position)
           );
 
@@ -856,7 +860,8 @@ impl<'p> Parser<'p> {
         let index = Expression::new(
           ExpressionNode::Index(
             Rc::new(expression),
-            Rc::new(id)
+            Rc::new(id),
+            false
           ),
           self.span_from(position)
         );
@@ -1041,7 +1046,13 @@ impl<'p> Parser<'p> {
             self.parse_type()?
           };
 
-          Type::new(splatted.node, TypeMode::Splat(None))
+          let result = Type::new(splatted.node, TypeMode::Splat(None));
+
+          if self.remaining() == 0 {
+            return Ok(result)
+          } else {
+            result
+          }
         },
 
         _ => return Err(
@@ -1369,7 +1380,7 @@ impl<'p> Parser<'p> {
     }
 
     if self.current_lexeme() == "?" {
-      optional = true;
+      optional = false;
 
       self.next()?;
       self.next_newline()?;

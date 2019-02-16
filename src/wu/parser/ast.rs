@@ -50,7 +50,7 @@ pub enum ExpressionNode {
   Array(Vec<Expression>),
 
   Call(Rc<Expression>, Vec<Expression>),
-  Index(Rc<Expression>, Rc<Expression>),
+  Index(Rc<Expression>, Rc<Expression>, bool), // whether_index_is_an_array_index: bool
 
   Cast(Rc<Expression>, Type),
   Block(Vec<Statement>),

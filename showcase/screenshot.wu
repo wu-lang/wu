@@ -1,11 +1,24 @@
-love: module {
-  set_color: extern fun(float, float, float)             = "love.graphics.setColor"
-  rectangle: extern fun(str, float, float, float, float) = "love.graphics.rectangle"
-
-  draw: fun {}
+Player: struct {
+  x: float
+  y: float
+  
+  name: str?
 }
 
-love draw = fun {
-  love set_color(1, 1, 0)
-  love rectangle("fill", 100, 100, 200, 150)
+Moving: trait {
+  move: fun(self, float, float)
 }
+
+implement Player: Moving {
+  move: fun(self, dx: float, dy: float) {
+    self x += dx
+    self y += dy
+  }
+}
+
+niels := new Player {
+  x: 100
+  y: 200
+}
+
+niels name = "boss man"

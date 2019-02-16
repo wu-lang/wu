@@ -216,7 +216,7 @@ impl<'g> Generator<'g> {
 
         let prefix = self.method_calls.get(&called.pos).is_some();
 
-        if let Index(ref left, _) = called.node {
+        if let Index(ref left, ..) = called.node {
           caller = self.generate_expression(left)
         }
 
@@ -417,11 +417,15 @@ impl<'g> Generator<'g> {
         result
       },
 
-      Index(ref source, ref index) => {
+      Index(ref source, ref index, is_braces) => {
         let source = self.generate_expression(source);
 
         let index = if let Identifier(ref name) = index.node {
-          format!("'{}'", Self::make_valid(name))
+          if is_braces {
+            format!("{}", Self::make_valid(name))
+          } else {
+            format!("'{}'", Self::make_valid(name))
+          }
         } else {
           self.generate_expression(index)
         };
@@ -498,8 +502,8 @@ impl<'g> Generator<'g> {
                         _ => match &self.flag.clone().unwrap() {
                           &FlagImplicit::Return => {
                             let line = match body.node {
-                              Block(..) | If(..) | While(..) => self.generate_expression(body),
-                              _                              => format!("return {}", self.generate_expression(body)),
+                              Block(..) | If(..) | While(..) => self.generate_expression(&branch.1),
+                              _                              => format!("return {}", self.generate_expression(&branch.1)),
                             };
 
                             result.push_str(&self.make_line(&line));
@@ -552,6 +556,10 @@ impl<'g> Generator<'g> {
         } else {
           ""
         }.to_string();
+
+        if self.flag == Some(FlagImplicit::Return) {
+          self.flag = None
+        }
 
         let condition = self.generate_expression(condition);
 
@@ -636,9 +644,10 @@ impl<'g> Generator<'g> {
         format!("{}{}){}", result, self.generate_expression(a), if t.node == Int { ")" } else { "" })
       }
 
-      Unwrap(ref expression) => format!("table.unpack({})", self.generate_expression(expression)),
-      Neg(ref n)             => format!("-{}", self.generate_expression(n)),
-      Not(ref n)             => format!("not {}", self.generate_expression(n)),
+      UnwrapSplat(ref expression) => format!("table.unpack({})", self.generate_expression(expression)),
+      Unwrap(ref expression)      => self.generate_expression(expression),
+      Neg(ref n)                  => format!("-{}", self.generate_expression(n)),
+      Not(ref n)                  => format!("not {}", self.generate_expression(n)),
 
       Empty => String::from("nil"),
       _     => String::new()

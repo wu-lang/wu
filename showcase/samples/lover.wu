@@ -23,9 +23,9 @@ love: module {
 		keyreleased: extern fun(str, bool)
 	}
 
-	load: fun			   {}
+	load:   fun			   {}
 	update: fun(dt: float) {}
-	draw: fun 			   {}
+	draw:   fun 		   {}
 }
 
 BigFoo: struct {

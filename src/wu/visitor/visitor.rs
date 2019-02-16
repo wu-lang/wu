@@ -592,7 +592,7 @@ impl<'v> Visitor<'v> {
           },
 
 
-          Index(ref array, ref indexing) => {
+          Index(ref array, ref indexing, _) => {
             if let Identifier(ref name) = array.node {
               self.fetch(name, &position)?;
               let array_type = self.type_expression(array)?;
@@ -971,7 +971,7 @@ impl<'v> Visitor<'v> {
 
             return Err(
               response!(
-                Wrong("mismatched types, expected `()`"),
+                Wrong(format!("mismatched types, expected `nil` found `{}`", body_type)),
                 self.source.file,
                 body_pos
               )
@@ -1219,7 +1219,7 @@ impl<'v> Visitor<'v> {
             found_splat = true
           }
 
-          frame_hash.insert(param.0.clone(), param.1.clone());
+          frame_hash.insert(param.0.clone(), self.deid(param.1.clone())?);
         }
 
         if *is_method {
@@ -1273,11 +1273,11 @@ impl<'v> Visitor<'v> {
         }
       },
 
-      Index(ref left, ref index) => {
+      Index(ref left, ref index, _) => {
         let mut left_type = self.type_expression(left)?;
 
         if let TypeMode::Splat(_) = left_type.mode {
-          left_type = Type::from(TypeNode::Array(Rc::new(left_type.clone()), None))
+          left_type = Type::from(TypeNode::Array(Rc::new(Type::from(left_type.node.clone())), None))
         }
 
         match left_type.node {
@@ -1307,7 +1307,7 @@ impl<'v> Visitor<'v> {
 
               _ => return Err(
                 response!(
-                  Wrong(format!("can't index with `{}`, must be unsigned integer", index_type)),
+                  Wrong(format!("can't index with `{}`, must be `int`", index_type)),
                   self.source.file,
                   left.pos
                 )
@@ -1548,11 +1548,11 @@ impl<'v> Visitor<'v> {
         Type::from(TypeNode::Trait(name.to_owned(), param_hash))
       },
 
-      Index(ref array, ref index) => {
+      Index(ref array, ref index, _) => {
         let mut kind = self.type_expression(array)?;
 
         if let TypeMode::Splat(_) = kind.mode {
-          kind = Type::from(TypeNode::Array(Rc::new(kind.clone()), None))
+          kind = Type::from(TypeNode::Array(Rc::new(Type::from(kind.node.clone())), None))
         }
 
         match kind.node {
@@ -1953,7 +1953,11 @@ impl<'v> Visitor<'v> {
         if let Some(ref right) = *value {
           if let ExpressionNode::Function(ref params, ref retty, .., is_method) = right.node {
 
-            let types = params.iter().map(|x| x.1.clone()).collect::<Vec<Type>>();
+            let mut types = Vec::new();
+
+            for param in params.iter() {
+              types.push(self.deid(param.1.clone())?)
+            }
 
             let t = Type::from(
               TypeNode::Func(types, Rc::new(retty.clone()), Some(Rc::new(right.node.clone())), is_method)
@@ -2020,7 +2024,11 @@ impl<'v> Visitor<'v> {
         if let Some(ref right) = *right {
           if let ExpressionNode::Function(ref params, ref retty, .., is_method) = right.node {
 
-            let mut types = params.iter().map(|x| x.1.clone()).collect::<Vec<Type>>();
+            let mut types = Vec::new();
+
+            for param in params.iter() {
+              types.push(self.deid(param.1.clone())?)
+            }
 
             let t = Type::from(
               TypeNode::Func(types, Rc::new(retty.clone()), Some(Rc::new(right.node.clone())), is_method)
@@ -2202,8 +2210,16 @@ impl<'v> Visitor<'v> {
 
 
   pub fn deid(&mut self, t: Type) -> Result<Type, ()> {
-    if let TypeNode::Id(ref expr) = t.node {
+    if let TypeNode::Optional(ref content) = t.node {
+      return Ok(
+        Type::new(
+          TypeNode::Optional(Rc::new(self.deid(Type::from((**content).clone()))?.node)),
+          t.mode
+        )
+      )
+    }
 
+    if let TypeNode::Id(ref expr) = t.node {
       let mut new_t;
 
       for inside in self.inside.iter().rev() {
