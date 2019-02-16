@@ -19,13 +19,7 @@ The language is meant and designed to be a solid alternative to MoonScript, whil
 
 ### Teaser
 
-#### Structs
-
 <img src="https://i.ibb.co/p3N0xC3/code.png" alt="code" border="0">
-
-#### Splats
-
-<img src="https://i.ibb.co/3W4N2yf/code3.png" alt="code3" border="0">
 
 ## Roadmap
 
