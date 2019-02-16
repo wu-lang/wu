@@ -21,51 +21,11 @@ The language is meant and designed to be a solid alternative to MoonScript, whil
 
 #### Structs
 
-```
-Point: struct {
-  x: float
-  y: float
-}
-
-implement Point {
-  length: fun(self) -> float {
-    (self x^2 + self y^2)^.5
-  }
-
-  normalize!: fun(self) {
-    len := self length()
-
-    self x = self x / len
-    self y = self y / len
-  }
-}
-
-pos := new Point {
-  x: 100
-  y: 100
-}
-
-pos normalize!()
-```
+<img src="https://i.ibb.co/p3N0xC3/code.png" alt="code" border="0">
 
 #### Splats
 
-```
-fib: fun(a: int) -> int {
-  if a < 3 {
-    return a
-  }
-  
-  fib(a - 1) + fib(a - 2)
-}
-
-# binding lua functions is easy
-print: extern fun(...)
-
-print_fibs: fun(numbers: ...int) {
-  print(*numbers)
-}
-```
+<img src="https://i.ibb.co/3W4N2yf/code3.png" alt="code3" border="0">
 
 ## Roadmap
 
