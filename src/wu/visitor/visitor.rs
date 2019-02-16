@@ -755,6 +755,11 @@ impl<'v> Visitor<'v> {
         }
       },
 
+      Binary(ref left, ref op, ref right) => {
+        self.visit_expression(left)?;
+        self.visit_expression(right)
+      },
+
       Module(ref content) => self.visit_expression(content),
 
       UnwrapSplat(ref expression) => {
@@ -1654,7 +1659,7 @@ impl<'v> Visitor<'v> {
         if let TypeNode::Func(_, ref return_type, ..) = self.type_expression(expression)?.node {
           (**return_type).clone()
         } else {
-          panic!("BAM! (please submit an issue): called {:#?}", self.type_expression(expression)?.node)
+          panic!("BAM! (please submit an issue): called {:#?}", expression)
         }
       },
 

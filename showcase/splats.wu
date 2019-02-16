@@ -6,13 +6,15 @@ Vector: struct {
 
 implement Vector {
   length: fun(self) -> float {
-    (self x + self y + self z)^0.5
+    (self x^2 + self y^2 + self z^2)^0.5
   }
 
   normalize: fun(self) {
-    self x /= self length()
-    self y /= self length()
-    self z /= self length()
+    length := self length()
+
+    self x /= length
+    self y /= length
+    self z /= length
   }
 }
 
@@ -21,15 +23,15 @@ len:     extern fun([any]) -> int = r"function(a) return #a end"
 println: extern fun(...)          = "print"
 
 normalize_all: fun(bulk: ...Vector?) {
-  i := 0
+  i := 1
   while i < len(bulk) {
     vector := bulk[i]!
 
-    println("before: " ++ vector length())
+    println(vector length())
 
     vector normalize()
 
-    println("after: " ++ vector length())
+    println(vector length())
 
     i += 1
   }
