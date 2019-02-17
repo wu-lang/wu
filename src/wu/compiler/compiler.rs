@@ -587,7 +587,7 @@ impl<'g> Generator<'g> {
         }
 
         // body_string.push_str(&format!("::__while_{}::\n", self.loop_depth));
-        body_string.push_str("until false\n");
+        body_string.push_str("until true\n");
 
         self.push_line(&mut whole, &body_string);
 
