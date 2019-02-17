@@ -145,7 +145,7 @@ impl<'g> Generator<'g> {
       },
 
       Break => String::from("break"),
-      Skip  => format!("goto __while_{}", self.loop_depth),
+      Skip  => String::from("do break end"),
 
       Implement(ref name, ref body, _) => if let ExpressionNode::Block(ref content) = body.node {
         let assign = self.generate_expression(name);
@@ -565,7 +565,7 @@ impl<'g> Generator<'g> {
 
         let mut whole = format!("while {} do\n", condition);
 
-        let mut body_string = String::new(); // doing this to remove redundant 'do' and 'end'
+        let mut body_string = "repeat\n".to_string(); // doing this to remove redundant 'do' and 'end'
 
         if let Block(ref content) = body.node {
           for (i, element) in content.iter().enumerate() {
@@ -586,7 +586,8 @@ impl<'g> Generator<'g> {
           }
         }
 
-        body_string.push_str(&format!("::__while_{}::\n", self.loop_depth));
+        // body_string.push_str(&format!("::__while_{}::\n", self.loop_depth));
+        body_string.push_str("until true\n");
 
         self.push_line(&mut whole, &body_string);
 
