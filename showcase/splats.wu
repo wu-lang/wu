@@ -10,11 +10,11 @@ implement Vector {
   }
 
   normalize: fun(self) {
-    length := self length()
+    len := self length()
 
-    self x /= length
-    self y /= length
-    self z /= length
+    self x /= len
+    self y /= len
+    self z /= len
   }
 }
 

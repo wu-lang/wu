@@ -9,21 +9,18 @@ use super::visitor::*;
 #[derive(Debug, Clone)]
 pub struct Frame {
   pub table: RefCell<HashMap<String, Type>>,
-  pub depth: usize,
 }
 
 impl Frame {
-  pub fn new(depth: usize) -> Self {
+  pub fn new() -> Self {
     Frame {
       table: RefCell::new(HashMap::new()),
-      depth,
     }
   }
 
-  pub fn from(table: HashMap<String, Type>, depth: usize) -> Self {
+  pub fn from(table: HashMap<String, Type>) -> Self {
     Frame {
       table: RefCell::new(table),
-      depth,
     }
   }
 
@@ -40,7 +37,7 @@ impl Frame {
   }
 
   pub fn debug(&self) {
-    println!("======= frame @ {}", self.depth);
+    println!("======= frame");
     for (name, t) in self.table.borrow().iter() {
       println!("{} = {}", name, t)
     }
@@ -52,10 +49,8 @@ impl Frame {
 
 #[derive(Debug, Clone)]
 pub struct SymTab {
-  pub stack:  Vec<Frame>, // active frames
-  pub record: Vec<Frame>, // popped frames
-
-  pub depth: usize,
+  pub stack: Vec<Frame>, // active frames
+  pub last:  Frame,      // last frame
 
   pub implementations: HashMap<String, HashMap<String, Type>>,
   pub foreign_imports: HashMap<String, HashMap<String, Type>>,
@@ -64,10 +59,8 @@ pub struct SymTab {
 impl SymTab {
   pub fn new() -> Self {
     SymTab {
-      stack:  vec!(Frame::new(0)),
-      record: Vec::new(),
-
-      depth: 0,
+      stack: vec!(Frame::new()),
+      last:  Frame::new(),
 
       implementations: HashMap::new(),
       foreign_imports: HashMap::new(),
@@ -76,10 +69,8 @@ impl SymTab {
 
   pub fn from(table: HashMap<String, Type>) -> Self {
     SymTab {
-      stack:  vec!(Frame::from(table, 0)),
-      record: Vec::new(),
-
-      depth: 0,
+      stack:  vec!(Frame::from(table)),
+      last:  Frame::new(),
 
       implementations: HashMap::new(),
       foreign_imports: HashMap::new(),
@@ -120,12 +111,6 @@ impl SymTab {
 
 
 
-  pub fn revert_frame(&mut self) {
-    self.stack.push(self.record.pop().unwrap().clone());
-  }
-
-
-
   pub fn current_frame(&self) -> &Frame {
     self.stack.last().unwrap()
   }
@@ -143,23 +128,11 @@ impl SymTab {
 
 
   pub fn push(&mut self) {
-    self.stack.push(Frame::new(self.depth))
+    self.stack.push(Frame::new())
   }
 
   pub fn pop(&mut self) {
-    let popped = self.stack.pop().unwrap();
-
-    self.record.push(popped)
-  }
-
-  pub fn enter(&mut self) {
-    self.depth += 1
-  }
-
-  pub fn exit(&mut self) {
-    if self.depth > 0 {
-      self.depth -= 1
-    }
+    self.last = self.stack.pop().unwrap()
   }
 
 

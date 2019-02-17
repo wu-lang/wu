@@ -501,7 +501,6 @@ impl<'v> Visitor<'v> {
       Implement(ref struct_name, ref body, ref parent) => {
         use self::ExpressionNode::*;
 
-        self.symtab.enter();
         self.push_scope();
 
         self.visit_expression(struct_name)?;
@@ -536,8 +535,11 @@ impl<'v> Visitor<'v> {
 
                 self.inside.pop();
 
+                let new_struct_type = self.fetch(&struct_name, &statement.pos)?.clone();
+
                 self.pop_scope();
-                self.symtab.exit();
+
+                self.assign(struct_name.clone(), new_struct_type); // here we go, out and into the world
 
                 if let Some(ref expr) = parent {
                   let trait_ty = self.type_expression(expr)?;
@@ -572,9 +574,6 @@ impl<'v> Visitor<'v> {
 
                   }
                 }
-
-                self.pop_scope();
-                self.symtab.revert_frame();
 
                 return Ok(())
               }
@@ -621,7 +620,6 @@ impl<'v> Visitor<'v> {
                           self.inside.pop();
 
                           self.pop_scope();
-                          self.symtab.exit();
 
                           if let Some(ref expr) = parent {
                             let trait_ty = self.type_expression(expr)?;
@@ -656,10 +654,6 @@ impl<'v> Visitor<'v> {
 
                             }
                           }
-
-                          self.pop_scope();
-
-                          self.symtab.revert_frame();
 
                           return Ok(())
                         }
@@ -880,13 +874,11 @@ impl<'v> Visitor<'v> {
       },
 
       Block(ref statements) => {
-        self.symtab.enter(); // depth + 1
         self.push_scope();
 
         self.visit_block(statements, true, false)?;
 
         self.pop_scope();
-        self.symtab.exit(); // - 1
 
         Ok(())
       },
@@ -898,12 +890,8 @@ impl<'v> Visitor<'v> {
 
         if condition_type == TypeNode::Bool {
 
-          self.push_scope();
-
           self.visit_expression(body)?;
           let body_type = self.type_expression(body)?;
-
-          self.pop_scope();
 
           if let &Some(ref elses) = elses {
             for &(ref maybe_condition, ref body, _) in elses {
@@ -921,12 +909,8 @@ impl<'v> Visitor<'v> {
                 }
               }
 
-              self.push_scope();
-
               self.visit_expression(body)?;
               let else_body_type = self.type_expression(body)?;
-
-              self.pop_scope();
 
               if body_type != else_body_type {
                 return Err(
@@ -961,8 +945,6 @@ impl<'v> Visitor<'v> {
         if condition_type == TypeNode::Bool {
           self.inside.push(Inside::Loop);
 
-          self.push_scope();
-
           self.visit_expression(body)?;
 
           let body_type = self.type_expression(body)?;
@@ -982,8 +964,6 @@ impl<'v> Visitor<'v> {
               )
             )
           }
-
-          self.pop_scope();
 
           self.inside.pop();
 
@@ -1068,15 +1048,15 @@ impl<'v> Visitor<'v> {
         let expression_type = self.type_expression(expr)?;
 
         if let TypeNode::Func(ref params, _, ref func, .., is_method) = expression_type.node {
-          // this is where we visit the func, no diggity
-          if let Some(func) = func {
-            self.visit_expression(
-              &Expression::new(
-                (**func).clone(),
-                expression.pos.clone()
-              )
-            )?;
-          }
+          // // this is where we visit the func, nvm
+          // if let Some(func) = func {
+          //   self.visit_expression(
+          //     &Expression::new(
+          //       (**func).clone(),
+          //       expression.pos.clone()
+          //     )
+          //   )?;
+          // }
 
           if is_method {
             self.method_calls.insert(expr.pos.clone(), true);
@@ -1247,19 +1227,13 @@ impl<'v> Visitor<'v> {
           }
         }
 
-        self.symtab.put_frame(Frame::from(frame_hash, self.symtab.depth));
+        self.symtab.put_frame(Frame::from(frame_hash));
 
         self.inside.push(Inside::Function);
 
         self.visit_expression(body)?;
 
-        self.symtab.enter();
-        self.symtab.revert_frame(); // we'll need those
-
         let body_type = self.type_expression(body)?;
-
-        self.pop_scope(); // we don't need those anymore
-        self.symtab.exit();
 
         self.inside.pop();
 
@@ -1727,16 +1701,12 @@ impl<'v> Visitor<'v> {
             }
           }
 
-          self.visit_expression(&expression)?;
-
-          self.symtab.enter();
-          self.symtab.revert_frame();
+          self.symtab.put_frame(self.symtab.last.clone());
 
           let last          = statements.last().unwrap();
-          let implicit_type = self.type_statement(last)?;
+          let implicit_type = self.type_statement(&last)?;
 
-          self.pop_scope(); // for reverted frame
-          self.symtab.exit();
+          self.pop_scope();
 
           if let Some(flag) = self.flag.clone() {
             if let FlagContext::Block(ref consistent) = flag {
@@ -1761,6 +1731,8 @@ impl<'v> Visitor<'v> {
         } else {
           Type::from(TypeNode::Nil)
         };
+
+        self.pop_scope();
 
         self.flag = flag_backup;
 
@@ -2012,6 +1984,7 @@ impl<'v> Visitor<'v> {
     Ok(())
   }
 
+  #[allow(dead_code)]
   pub fn visit_implement_block(&mut self, ast: &Vec<Statement>,
     struct_name: &String,
     new_content: &HashMap<String, Type>,

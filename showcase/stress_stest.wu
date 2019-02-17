@@ -1,23 +1,4 @@
-Foo: struct {
-  x: float
-  y: float
+babs: fun(x: float) -> float {
+  x += 1.0
+  x
 }
-
-Bar: struct {
-  a: Foo
-}
-
-bob := new Bar {
-  a: new Foo {
-  	x: 100
-  	y: 200
-  }
-}
-
-system: module {
-  print: extern fun(...)
-}
-
-system print(bob a x, bob a y)
-
-cover: any = Bar
