@@ -694,15 +694,20 @@ impl<'g> Generator<'g> {
     };
 
     if let &Some(ref right) = right {
-      let right_str = match right.node {
-        ExpressionNode::Struct(..)                          => "{}".to_string(),
-        ExpressionNode::Extern(_, ref lua) if lua.is_none() => return String::new(),
-        ExpressionNode::Trait(..)                           => return String::new(),
+      if let ExpressionNode::Function(..) = right.node {
+        result = self.generate_expression(right);
+        result = result.replace("function", &format!("function {}", name));
+      } else {
+        let right_str = match right.node {
+          ExpressionNode::Struct(..)                          => "{}".to_string(),
+          ExpressionNode::Extern(_, ref lua) if lua.is_none() => return String::new(),
+          ExpressionNode::Trait(..)                           => return String::new(),
 
-        _ => self.generate_expression(right)
-      };
+          _ => self.generate_expression(right)
+        };
 
-      result.push_str(&format!(" = {}\n", right_str))
+        result.push_str(&format!(" = {}\n", right_str))
+      }
     }
 
     self.flag = flag_backup;
