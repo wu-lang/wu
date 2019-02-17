@@ -27,7 +27,7 @@ The language is meant and designed to be a solid alternative to MoonScript, whil
 - [x] Trait system
 - [x] Fix modules
 - [x] Nilable/Optional types for better Lua interop
-- [ ] Compound operations
+- [x] Compound operations
 - [ ] Binding if-let for safe Optional unwrapping
 - [ ] Multiple returns for better Lua interop
 - [ ] `extern module` for easier wrapping
