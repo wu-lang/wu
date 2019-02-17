@@ -19,13 +19,7 @@ The language is meant and designed to be a solid alternative to MoonScript, whil
 
 ### Teaser
 
-#### Structs
-
 <img src="https://i.ibb.co/p3N0xC3/code.png" alt="code" border="0">
-
-#### Splats
-
-<img src="https://i.ibb.co/3W4N2yf/code3.png" alt="code3" border="0">
 
 ## Roadmap
 
@@ -33,7 +27,7 @@ The language is meant and designed to be a solid alternative to MoonScript, whil
 - [x] Trait system
 - [x] Fix modules
 - [x] Nilable/Optional types for better Lua interop
-- [ ] Compound operations
+- [x] Compound operations
 - [ ] Binding if-let for safe Optional unwrapping
 - [ ] Multiple returns for better Lua interop
 - [ ] `extern module` for easier wrapping
