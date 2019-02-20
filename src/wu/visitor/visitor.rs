@@ -984,6 +984,10 @@ impl<'v> Visitor<'v> {
       },
 
       Array(ref content) => {
+        if content.len() == 0 {
+          return Ok(())
+        }
+
         let t = self.type_expression(content.first().unwrap())?;
 
         for element in content {
@@ -1505,7 +1509,15 @@ impl<'v> Visitor<'v> {
       Int(_)   => Type::from(TypeNode::Int),
       Float(_) => Type::from(TypeNode::Float),
 
-      Array(ref content)          => Type::array(self.type_expression(content.first().unwrap())?, Some(content.len())),
+      Array(ref content) => {
+        let mut kind = Type::from(TypeNode::Any);
+
+        if content.len() > 0 {
+          kind = self.type_expression(content.first().unwrap())?
+        }
+
+        Type::array(kind, Some(content.len()))
+      }
       Initialization(ref name, _) => Type::from(self.type_expression(name)?.node),
 
       If(_, ref body, ..) => self.type_expression(body)?,

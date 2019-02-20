@@ -337,10 +337,10 @@ impl<'g> Generator<'g> {
 
             FlagImplicit::Return => (),
 
-            _ => result.push_str("end"),
+            _ => result.push_str("end\n"),
           }
         } else {
-          result.push_str("end")
+          result.push_str("end\n")
         }
 
         result
@@ -590,7 +590,7 @@ impl<'g> Generator<'g> {
 
         self.push_line(&mut whole, &body_string);
 
-        whole.push_str("end");
+        whole.push_str("end\n");
 
         if let Some(FlagImplicit::Assign(_)) = flag_backup {
           self.push_line(&mut result, &whole)

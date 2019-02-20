@@ -1343,6 +1343,12 @@ impl<'p> Parser<'p> {
   fn parse_block_of<B>(&mut self, delimeters: (&str, &str), parse_with: &Fn(&mut Self) -> Result<Option<B>, ()>) -> Result<Vec<B>, ()> {
     self.eat_lexeme(delimeters.0)?;
 
+    if self.current_lexeme() == delimeters.1 {
+      self.next()?;
+
+      return Ok(Vec::new())
+    }
+
     let mut block_tokens = Vec::new();
     let mut nest_count   = 1;
 
