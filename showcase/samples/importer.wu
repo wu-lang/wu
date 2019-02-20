@@ -1,5 +1,12 @@
-import traits { foo    }
+import traits { foo  , Player  }
 import lover  {
   BigFoo
   love
 }
+
+a := new Player {
+  x: 100.0
+  y: 100.0
+}
+
+a move(10, 10)

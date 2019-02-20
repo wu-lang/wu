@@ -490,6 +490,9 @@ impl<'v> Visitor<'v> {
 
             let module_type = Type::from(TypeNode::Module(content_type, true));
 
+            // nice
+            self.symtab.implementations.extend(visitor.symtab.implementations);
+
             self.module_content.insert(path.clone(), module_type.clone());
             self.assign(path.clone(), module_type.clone())
           }
@@ -1923,7 +1926,7 @@ impl<'v> Visitor<'v> {
 
 
   // `ensure_implicit` gets mad at wannabe implicit returns
-  fn visit_block(&mut self, content: &Vec<Statement>, ensure_implicits: bool, module_content: bool) -> Result<(), ()> {
+  fn visit_block(&mut self, content: &Vec<Statement>, ensure_implicits: bool, module_level: bool) -> Result<(), ()> {
     for (i, statement) in content.iter().enumerate() {
       // ommiting functions, for that extra user-feel
       if let StatementNode::Variable(ref kind, ref name, ref value) = statement.node {
@@ -1948,10 +1951,14 @@ impl<'v> Visitor<'v> {
 
             let t = self.type_expression(right)?;
 
-            self.module_content.insert(name.clone(), t);
+            if module_level {
+              self.module_content.insert(name.clone(), t);
+            }
           }
         } else {
-          self.module_content.insert(name.clone(), kind.clone());
+          if module_level {  
+            self.module_content.insert(name.clone(), kind.clone());
+          }
         }
       }
 
@@ -1975,7 +1982,9 @@ impl<'v> Visitor<'v> {
 
             let t = self.type_expression(right)?;
 
-            self.module_content.insert(name.to_owned(), t.clone());
+            if module_level {
+              self.module_content.insert(name.to_owned(), t.clone());
+            }
           }
         }
       }
@@ -1994,6 +2003,8 @@ impl<'v> Visitor<'v> {
     is_index: bool,
   ) -> Result<(), ()> {
     let mut new_content = new_content.clone();
+
+    let original_kind = kind.clone();
 
     for (i, statement) in ast.iter().enumerate() {
 
@@ -2032,10 +2043,22 @@ impl<'v> Visitor<'v> {
               new_module_content.insert(name.to_string(), kind.clone());
 
               self.assign(struct_name.to_owned(), kind.clone());
+
+              if let Some(root) = self.symtab.stack[0].get(struct_name) {
+                if root == original_kind {
+                  self.module_content.insert(struct_name.to_owned(), kind.clone());
+                }
+              }
             } else {
               self.symtab.implement(id, name.clone(), Type::new(t.node.clone(), TypeMode::Implemented));
 
               self.assign(struct_name.to_owned(), kind.clone());
+
+              if let Some(root) = self.symtab.stack[0].get(struct_name) {
+                if root == original_kind {
+                  self.module_content.insert(struct_name.to_owned(), kind.clone());
+                }
+              }
             }
 
             self.assign(name.to_owned(), t);
