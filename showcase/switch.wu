@@ -2,7 +2,7 @@ a := 10
 
 print: extern fun(...?)
 
-switch a {
+b: str? = switch a {
   | 0  -> {
       a := 10
       print("hey")
