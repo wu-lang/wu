@@ -112,7 +112,7 @@ impl<'p> Parser<'p> {
             )
           },
 
-          c => {
+          _ => {
             let expression = Expression::new(
               ExpressionNode::Identifier(name),
               position.clone()
@@ -124,7 +124,6 @@ impl<'p> Parser<'p> {
               self.index = backup_index;
 
               let expression = self.parse_atom()?;
-              let position   = expression.pos.clone();
 
               if let Some(result) = self.try_parse_compound(&expression)? {
                 result
@@ -630,23 +629,121 @@ impl<'p> Parser<'p> {
             }
           },
 
-          ref symbol => panic!(), /*return Err(
+          ref symbol => return Err(
             response!(
               Wrong(format!("unexpected symbol `{}`", symbol)),
               self.source.file,
               self.current_position()
             )
-          )*/
+          )
         },
 
         Keyword => match self.current_lexeme().as_str() {
           "fun" => self.parse_function()?,
           "nil" => {
+            let a = Expression::new(
+              ExpressionNode::Empty,
+              self.current_position(),
+            );
+
             self.next()?;
 
+            a
+          },
+
+          "switch" => {
+            self.next()?;
+
+            let right_hand = self.parse_expression()?;
+            let position   = right_hand.pos.clone();
+
+            let mut block_scope = Vec::new(); // switch is actually a block with a declaration + if statement :)) #funfacts
+
+            let name = format!("__switch_tmp_{}", self.remaining());
+
+            let decl = Statement::new(
+              StatementNode::Variable(
+                Type::from(TypeNode::Nil),
+                name.clone(),
+                Some(right_hand)
+              ),
+              position.clone(),
+            );
+
+            let right_template = Expression::new(
+              ExpressionNode::Identifier(name),
+              position.clone()
+            );
+
+            self.next_newline()?;
+
+            self.eat_lexeme("{")?;
+
+            self.next_newline()?;
+
+            let mut branches = Vec::new();
+
+            loop {
+              let mut branch_position = self.current_position();
+
+              self.eat_lexeme("|")?;
+
+              let left = self.parse_expression()?;
+
+              let condition = Expression::new(
+                ExpressionNode::Binary(
+                  Rc::new(left),
+                  super::Operator::Eq,
+                  Rc::new(right_template.clone())
+                ),
+                branch_position.clone()
+              );
+
+              self.eat_lexeme("->")?;
+
+              self.next_newline()?;
+
+              branch_position = self.span_from(branch_position);
+
+              let body = self.parse_expression()?;
+
+              branches.push((Some(condition), body, branch_position));
+
+              self.next_newline()?;
+
+              if self.current_lexeme() == "}" || self.remaining() == 0 {
+                break
+              }
+            }
+
+            self.eat_lexeme("}")?;
+
+            let primary = branches.remove(0);
+
+            let if_pattern = Expression::new(
+              ExpressionNode::If(
+                Rc::new(primary.0.unwrap()),
+                Rc::new(primary.1),
+                Some(branches)
+              ),
+              primary.2.clone()
+            );
+
+            let if_pattern_stmt = Statement::new(
+              StatementNode::Expression(
+                if_pattern
+              ),
+              primary.2
+            );
+
+            block_scope.push(decl);
+            block_scope.push(if_pattern_stmt);
+
             Expression::new(
-              ExpressionNode::Empty,
-              self.span_from(position)
+              ExpressionNode::Block(
+                block_scope
+              ),
+              position
             )
           },
 
@@ -960,6 +1057,10 @@ impl<'p> Parser<'p> {
       },
 
       Keyword => match self.current_lexeme().as_str() {
+        "nil" => {
+          self.next()?;
+          Type::from(TypeNode::Nil)
+        },
         "fun" => {
           self.next()?;
 

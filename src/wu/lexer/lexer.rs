@@ -54,6 +54,7 @@ impl<'l> Lexer<'l> {
           "interface",
           "trait",
           "nil",
+          "switch",
         ])
       )
     );

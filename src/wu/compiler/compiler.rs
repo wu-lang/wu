@@ -446,40 +446,40 @@ impl<'g> Generator<'g> {
 
         result.push_str(&format!("if {} then\n", self.generate_expression(condition)));
 
-        let mut body_string = String::new(); // doing this to remove redundant 'do' and 'end'
+        let mut body_string = self.generate_expression(&body); // doing this to remove redundant 'do' and 'end'
 
-        if let Block(ref content) = body.node {
-          for (i, element) in content.iter().enumerate() {          
-            if i == content.len() - 1 {
-              if self.flag.is_some() {
-                if let StatementNode::Expression(ref expression) = element.node {
-                  match expression.node {
-                    Block(_) | If(..) | While(..) => (),
-                    _ => match &self.flag.clone().unwrap() {
-                      &FlagImplicit::Return => {
-                        let line = match body.node {
-                          Block(..) | If(..) | While(..) => self.generate_expression(body),
-                          _                              => format!("return {}", self.generate_expression(body)),
-                        };
+        // if let Block(ref content) = body.node {
+        //   for (i, element) in content.iter().enumerate() {          
+        //     if i == content.len() - 1 {
+        //       if self.flag.is_some() {
+        //         if let StatementNode::Expression(ref expression) = element.node {
+        //           match expression.node {
+        //             Block(_) | If(..) | While(..) => (),
+        //             _ => match &self.flag.clone().unwrap() {
+        //               &FlagImplicit::Return => {
+        //                 let line = match body.node {
+        //                   Block(..) | If(..) | While(..) => self.generate_expression(body),
+        //                   _                              => format!("return {}", self.generate_expression(body)),
+        //                 };
 
-                        result.push_str(&self.make_line(&line));
+        //                 result.push_str(&self.make_line(&line));
 
-                        break
-                      },
+        //                 break
+        //               },
 
-                      _ => ()
-                    },
-                  }
-                }
-              }
-            }
+        //               _ => ()
+        //             },
+        //           }
+        //         }
+        //       }
+        //     }
 
-            let line = self.generate_statement(&element);
-            result.push_str(&self.make_line(&line));
-          }
-        }
+        //     let line = self.generate_statement(&element);
+        //     result.push_str(&self.make_line(&line));
+        //   }
+        // }
 
-        result.push_str(&self.make_line(&body_string));
+        result.push_str(&body_string);
 
         if let &Some(ref elses) = elses {
           for branch in elses {
@@ -490,9 +490,9 @@ impl<'g> Generator<'g> {
               result.push_str("else\n")
             }
 
-            body_string = String::new();
+            body_string = self.generate_expression(&branch.1);
 
-            if let Block(ref content) = branch.1.node {
+            /*if let Block(ref content) = branch.1.node {
               for (i, element) in content.iter().enumerate() {          
                 if i == content.len() - 1 {
                   if self.flag.is_some() {
@@ -508,7 +508,7 @@ impl<'g> Generator<'g> {
 
                             result.push_str(&self.make_line(&line));
 
-                            break
+                            continue
                           },
 
                           _ => ()
@@ -517,11 +517,10 @@ impl<'g> Generator<'g> {
                     }
                   }
                 }
-
                 let line = self.generate_statement(&element);
                 result.push_str(&self.make_line(&line));
               }
-            }
+            }*/
 
             result.push_str(&self.make_line(&body_string));
           }
