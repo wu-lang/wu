@@ -3,6 +3,9 @@ extern crate colored;
 use self::colored::Colorize;
 
 mod wu;
+mod eval;
+
+use eval::Evaluator;
 
 use self::wu::compiler::*;
 use self::wu::lexer::*;
@@ -24,13 +27,29 @@ The Wu Compiler
 - made by Niels
 
 Usage:
-  wu                # Show this message
-  wu <file>         # Compile .wu file to corresponding .lua file
-  wu <folder>       # Compile all .wu files in given folder
-  wu clean <folder> # Removes all compiled .lua files in given folder
+  wu                    # Show this message
+
+  -- Compilation
+  wu compile <file>     # Compile .wu file to corresponding .lua file
+  wu compile <folder>   # Compile all .wu files in given folder
+  wu clean <folder>     # Removes all compiled .lua files in given folder
+
+  -- Evaluation
+  wu eval <file>        # Evaluate .wu file
 ";
 
-fn compile_path(path: &str) {
+// TODO: maybe make some sort of struct such that
+// all of these functions are methods on that struct,
+// and then the Action is stored as a field in that struct,
+// so that it doesn't have to get passed all the way down
+// the function calls when only `run` actually needs to use it.
+#[derive(Copy, Clone)]
+pub enum Action {
+    Compile,
+    Interpret,
+}
+
+fn process_path(path: &str, action: Action) {
     let meta = match metadata(path) {
         Ok(m) => m,
         Err(why) => panic!("{}", why),
@@ -46,7 +65,7 @@ fn compile_path(path: &str) {
         );
 
         if *split.last().unwrap() == "wu" {
-            if let Some(n) = file_content(path) {
+            if let Some(n) = file_content(path, action) {
                 write(path, &n);
             }
         }
@@ -58,13 +77,13 @@ fn compile_path(path: &str) {
             let split: Vec<&str> = folder_path.split('.').collect();
 
             if Path::new(&folder_path).is_dir() || *split.last().unwrap() == "wu" {
-                compile_path(&folder_path)
+                process_path(&folder_path, action)
             }
         }
     }
 }
 
-fn file_content(path: &str) -> Option<String> {
+fn file_content(path: &str, action: Action) -> Option<String> {
     let display = Path::new(path).display();
 
     let mut file = match File::open(&path) {
@@ -76,7 +95,7 @@ fn file_content(path: &str) -> Option<String> {
 
     match file.read_to_string(&mut s) {
         Err(why) => panic!("failed to read {}: {}", display, why),
-        Ok(_) => run(&s, path),
+        Ok(_) => run(&s, path, action),
     }
 }
 
@@ -105,7 +124,7 @@ fn write(path: &str, data: &str) {
     }
 }
 
-pub fn run(content: &str, file: &str) -> Option<String> {
+pub fn run(content: &str, file: &str, action: Action) -> Option<String> {
     let source = Source::from(
         file,
         content.lines().map(|x| x.into()).collect::<Vec<String>>(),
@@ -133,9 +152,17 @@ pub fn run(content: &str, file: &str) -> Option<String> {
                 _ => return None,
             }
 
-            let mut generator = Generator::new(&source, &visitor.method_calls);
-
-            Some(generator.generate(&ast))
+            match action {
+                Action::Compile => {
+                    let mut generator = Generator::new(&source, &visitor.method_calls);
+                    Some(generator.generate(&ast))
+                },
+                Action::Interpret => {
+                    let mut evaluator = Evaluator::new(&source, &visitor.method_calls);
+                    evaluator.eval(&ast);
+                    None
+                }
+            }
         }
 
         _ => None,
@@ -202,7 +229,12 @@ fn main() {
                 }
             }
 
-            file => compile_path(&file),
+            action => process_path(&args[2], match action {
+                "compile" | "comp" | "c" => Action::Compile,
+                "interpret" | "eval" | "evaluate" | "interp" | "i" | "e" => Action::Interpret,
+                other => panic!("unknown action: {}", other)
+            }),
+           
         }
     } else {
         println!("{}", HELP)
