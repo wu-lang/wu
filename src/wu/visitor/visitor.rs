@@ -1,2270 +1,2303 @@
-use std::fmt::{ self, Display, Write, Formatter };
-use std::rc::Rc;
 use std::collections::HashMap;
+use std::fmt::{self, Display, Formatter, Write};
+use std::rc::Rc;
 
 use super::super::error::Response::*;
 
 use super::*;
 
-
-
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
-
-
 #[derive(Debug, Clone)]
 pub enum TypeNode {
-  Int,
-  Float,
-  Bool,
-  Str,
-  Any,
-  Char,
-  Nil,
-  Id(Rc<Expression>),
-  Array(Rc<Type>, Option<usize>),
-  Func(Vec<Type>, Rc<Type>, Option<Rc<ExpressionNode>>, bool),
-  Module(HashMap<String, Type>, bool), // is_foreign
-  Struct(String, HashMap<String, Type>, String),
-  Trait(String, HashMap<String, Type>),
-  Optional(Rc<TypeNode>),
-  This,
+    Int,
+    Float,
+    Bool,
+    Str,
+    Any,
+    Char,
+    Nil,
+    Id(Rc<Expression>),
+    Array(Rc<Type>, Option<usize>),
+    Func(Vec<Type>, Rc<Type>, Option<Rc<ExpressionNode>>, bool),
+    Module(HashMap<String, Type>, bool), // is_foreign
+    Struct(String, HashMap<String, Type>, String),
+    Trait(String, HashMap<String, Type>),
+    Optional(Rc<TypeNode>),
+    This,
 }
 
 impl TypeNode {
-  pub fn check_expression(&self, other: &ExpressionNode) -> bool {
-    use self::TypeNode::*;
+    pub fn check_expression(&self, other: &ExpressionNode) -> bool {
+        use self::TypeNode::*;
 
-    match *other {
-      ExpressionNode::Int(_) => match *self {
-        Int | Float => true,
-        _           => false,
-      },
+        match *other {
+            ExpressionNode::Int(_) => match *self {
+                Int | Float => true,
+                _ => false,
+            },
 
-      ExpressionNode::Array(ref content) => {
-        let array_content = if let &Array(ref array_content, ref len) = self {
-          if let Some(len) = len {
-            if *len != content.len() {
-              return false
+            ExpressionNode::Array(ref content) => {
+                let array_content = if let &Array(ref array_content, ref len) = self {
+                    if let Some(len) = len {
+                        if *len != content.len() {
+                            return false;
+                        }
+                    }
+
+                    array_content
+                } else {
+                    return false;
+                };
+
+                for element in content {
+                    if !array_content.node.check_expression(&element.node) {
+                        return false;
+                    }
+                }
+
+                true
             }
-          }
 
-          array_content
-        } else {
-          return false
-        };
-
-        for element in content {
-          if !array_content.node.check_expression(&element.node) {
-            return false
-          }
+            _ => false,
         }
-
-        true
-      },
-
-      _ => false
     }
-  }
 
-  pub fn strong_cmp(&self, other: &TypeNode) -> bool {
-    use self::TypeNode::*;
+    pub fn strong_cmp(&self, other: &TypeNode) -> bool {
+        use self::TypeNode::*;
 
-    match (self, other) {
-      (&Int, &Int)     => true,
-      (&Float, &Float) => true,
-      (&Bool, &Bool)   => true,
-      (&Str, &Str)     => true,
-      (&Any, &Any)     => true,
-      (&Char, &Char)   => true,
-      (&This, &This)   => true,
-      (&Nil, &Nil)     => true,
-      (&Optional(ref a), &Optional(ref b)) => a == b,
-      (&Id(ref a), &Id(ref b)) => a == b,
-      (&Array(ref a, ref la), &Array(ref b, ref lb))                                     => a == b && (la == &None || la == lb),
-      (&Func(ref a_params, ref a_retty, .., a), &Func(ref b_params, ref b_retty, .., b)) => a_params == b_params && a_retty == b_retty && a == b,
-      (&Struct(ref name, _, ref content), &Struct(ref name_b, _, ref content_b))         => name == name_b && content == content_b,
-      _ => false,
+        match (self, other) {
+            (&Int, &Int) => true,
+            (&Float, &Float) => true,
+            (&Bool, &Bool) => true,
+            (&Str, &Str) => true,
+            (&Any, &Any) => true,
+            (&Char, &Char) => true,
+            (&This, &This) => true,
+            (&Nil, &Nil) => true,
+            (&Optional(ref a), &Optional(ref b)) => a == b,
+            (&Id(ref a), &Id(ref b)) => a == b,
+            (&Array(ref a, ref la), &Array(ref b, ref lb)) => a == b && (la == &None || la == lb),
+            (&Func(ref a_params, ref a_retty, .., a), &Func(ref b_params, ref b_retty, .., b)) => {
+                a_params == b_params && a_retty == b_retty && a == b
+            }
+            (&Struct(ref name, _, ref content), &Struct(ref name_b, _, ref content_b)) => {
+                name == name_b && content == content_b
+            }
+            _ => false,
+        }
     }
-  }
 }
 
 impl PartialEq for TypeNode {
-  fn eq(&self, other: &Self) -> bool {
-    use self::TypeNode::*;
+    fn eq(&self, other: &Self) -> bool {
+        use self::TypeNode::*;
 
-    match (self, other) {
-      (&Any, _) => true,
-      (_, &Any) => true,
-      (&Optional(ref a), _) if **a == Any => true,
-      (_, &Optional(ref b)) if **b == Any => true,
+        match (self, other) {
+            (&Any, _) => true,
+            (_, &Any) => true,
+            (&Optional(ref a), _) if **a == Any => true,
+            (_, &Optional(ref b)) if **b == Any => true,
 
-      (&Int,                                 &Int)                                 => true,
-      (&Str,                                 &Str)                                 => true,
-      (&Float,                               &Float)                               => true,
-      (&Char,                                &Char)                                => true,
-      (&Bool,                                &Bool)                                => true,
-      (&Nil,                                 &Nil)                                 => true,
-      (&This,                                &This)                                => true,
-      (&Array(ref a, ref la),                &Array(ref b, ref lb))                => a == b && (la == &None || la == lb),
-      (&Id(ref a),                           &Id(ref b))                           => a == b,
-      (&Func(ref a_params, ref a_retty, .., a), &Func(ref b_params, ref b_retty, .., b)) => a_params == b_params && a_retty == b_retty && a == b,
-
-      (&Struct(ref name, _, ref content), &Struct(ref name_b, _, ref content_b)) => name == name_b && content == content_b,
-      (&Trait(_, ref content), &Trait(_, ref content_b)) => content == content_b,
-      (&Trait(_, ref content), &Struct(_, ref content_b, _)) => {
-        for (name, ty) in content.iter() {
-          if let Some(ty_b) = content_b.get(name) {
-            if ty.node != ty_b.node {
-              return false
+            (&Int, &Int) => true,
+            (&Str, &Str) => true,
+            (&Float, &Float) => true,
+            (&Char, &Char) => true,
+            (&Bool, &Bool) => true,
+            (&Nil, &Nil) => true,
+            (&This, &This) => true,
+            (&Array(ref a, ref la), &Array(ref b, ref lb)) => a == b && (la == &None || la == lb),
+            (&Id(ref a), &Id(ref b)) => a == b,
+            (&Func(ref a_params, ref a_retty, .., a), &Func(ref b_params, ref b_retty, .., b)) => {
+                a_params == b_params && a_retty == b_retty && a == b
             }
-          } else {
-            return false
-          }
+
+            (&Struct(ref name, _, ref content), &Struct(ref name_b, _, ref content_b)) => {
+                name == name_b && content == content_b
+            }
+            (&Trait(_, ref content), &Trait(_, ref content_b)) => content == content_b,
+            (&Trait(_, ref content), &Struct(_, ref content_b, _)) => {
+                for (name, ty) in content.iter() {
+                    if let Some(ty_b) = content_b.get(name) {
+                        if ty.node != ty_b.node {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+
+                true
+            }
+
+            (&Optional(_), &Nil) => true,
+            (&Nil, &Optional(_)) => true,
+            (&Optional(ref a), &Optional(ref b)) => a == b,
+            (&Optional(ref a), ref b) => **a == **b,
+            (_, Optional(_)) => false,
+
+            (&Struct(..), &Trait(..)) => other == self,
+
+            _ => false,
         }
-
-        true
-      },
-
-      (&Optional(_), &Nil)                 => true,
-      (&Nil, &Optional(_))                 => true,
-      (&Optional(ref a), &Optional(ref b)) => a == b,
-      (&Optional(ref a), ref b)            => **a == **b,
-      (_, Optional(_))                     => false,
-
-      (&Struct(..), &Trait(..)) => other == self,
-
-      _ => false,
     }
-  }
 }
-
-
 
 #[derive(Debug, Clone)]
 pub enum TypeMode {
-  Undeclared,
-  Immutable,
-  Optional,
-  Implemented,
-  Regular,
-  Splat(Option<usize>),
-  Unwrap(usize),
+    Undeclared,
+    Immutable,
+    Optional,
+    Implemented,
+    Regular,
+    Splat(Option<usize>),
+    Unwrap(usize),
 }
 
 impl TypeMode {
-  pub fn strong_cmp(&self, other: &TypeMode) -> bool {
-    use self::TypeMode::*;
+    pub fn strong_cmp(&self, other: &TypeMode) -> bool {
+        use self::TypeMode::*;
 
-    match (self, other) {
-      (&Regular,     &Regular)     => true,
-      (&Immutable,   &Immutable)   => true,
-      (&Optional,    &Optional)    => true,
-      (&Implemented, &Implemented) => true,
-      (&Undeclared,  &Undeclared)  => true,
-      (&Splat(a),    &Splat(b))    => &a == &b,
-      (&Unwrap(_),   &Unwrap(_))   => true,
-      _                            => false,
+        match (self, other) {
+            (&Regular, &Regular) => true,
+            (&Immutable, &Immutable) => true,
+            (&Optional, &Optional) => true,
+            (&Implemented, &Implemented) => true,
+            (&Undeclared, &Undeclared) => true,
+            (&Splat(a), &Splat(b)) => &a == &b,
+            (&Unwrap(_), &Unwrap(_)) => true,
+            _ => false,
+        }
     }
-  }
 }
 
 impl Display for TypeNode {
-  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-    use self::TypeNode::*;
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use self::TypeNode::*;
 
-    match *self {
-      Int   => write!(f, "int"),
-      Float => write!(f, "float"),
-      Bool  => write!(f, "bool"),
-      Str   => write!(f, "str"),
-      Char  => write!(f, "char"),
-      Nil   => write!(f, "nil"),
-      This  => write!(f, "self"),
-      Any   => write!(f, "any"),
+        match *self {
+            Int => write!(f, "int"),
+            Float => write!(f, "float"),
+            Bool => write!(f, "bool"),
+            Str => write!(f, "str"),
+            Char => write!(f, "char"),
+            Nil => write!(f, "nil"),
+            This => write!(f, "self"),
+            Any => write!(f, "any"),
 
-      Trait(ref name, _) => write!(f, "{}", name),
+            Trait(ref name, _) => write!(f, "{}", name),
 
-      Array(ref n, l) => if let Some(len) = l {
-        write!(f, "[{}; {}]", n, len)
-      } else {
-        write!(f, "[{}]", n)
-      },
+            Array(ref n, l) => {
+                if let Some(len) = l {
+                    write!(f, "[{}; {}]", n, len)
+                } else {
+                    write!(f, "[{}]", n)
+                }
+            }
 
-      Id(ref n) => write!(f, "deid({})", n.pos.get_lexeme()),
+            Id(ref n) => write!(f, "deid({})", n.pos.get_lexeme()),
 
-      Module(..)           => write!(f, "module"),
-      Struct(ref name, ..) => write!(f, "{}", name),
+            Module(..) => write!(f, "module"),
+            Struct(ref name, ..) => write!(f, "{}", name),
 
-      Func(ref params, ref return_type, ..) => {
-        write!(f, "fun(")?;
+            Func(ref params, ref return_type, ..) => {
+                write!(f, "fun(")?;
 
-        for (index, element) in params.iter().enumerate() {
-          if index < params.len() - 1 {
-            write!(f, "{}, ", element)?
-          } else {
-            write!(f, "{}", element)?
-          }
+                for (index, element) in params.iter().enumerate() {
+                    if index < params.len() - 1 {
+                        write!(f, "{}, ", element)?
+                    } else {
+                        write!(f, "{}", element)?
+                    }
+                }
+
+                write!(f, ") -> {}", return_type)
+            }
+
+            Optional(ref inner) => write!(f, "{}?", inner),
         }
-
-        write!(f, ") -> {}", return_type)
-      },
-
-      Optional(ref inner) => write!(f, "{}?", inner),
     }
-  }
 }
 
-
-
 impl PartialEq for TypeMode {
-  fn eq(&self, other: &TypeMode) -> bool {
-    use self::TypeMode::*;
+    fn eq(&self, other: &TypeMode) -> bool {
+        use self::TypeMode::*;
 
-    match (self, other) {
-      (&Regular,    &Regular)     => true,
-      (&Regular,    &Immutable)   => true,
-      (&Immutable,  &Immutable)   => true,
-      (&Immutable,  &Regular)     => true,
-      (_,           &Optional)    => true,
-      (&Optional,   _)            => true,
-      (&Undeclared, _)            => false,
-      (_,           &Undeclared)  => false,
-      (&Splat(a),      &Splat(b)) => &a == &b,
-      (&Unwrap(_),  _)            => true,
-      (_,           &Unwrap(_))   => true,
-      _                           => false,
+        match (self, other) {
+            (&Regular, &Regular) => true,
+            (&Regular, &Immutable) => true,
+            (&Immutable, &Immutable) => true,
+            (&Immutable, &Regular) => true,
+            (_, &Optional) => true,
+            (&Optional, _) => true,
+            (&Undeclared, _) => false,
+            (_, &Undeclared) => false,
+            (&Splat(a), &Splat(b)) => &a == &b,
+            (&Unwrap(_), _) => true,
+            (_, &Unwrap(_)) => true,
+            _ => false,
+        }
     }
-  }
 }
 
 impl Display for TypeMode {
-  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-    use self::TypeMode::*;
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use self::TypeMode::*;
 
-    match *self {
-      Regular     => Ok(()),
-      Immutable   => write!(f, "constant "),
-      Undeclared  => write!(f, "undeclared "),
-      Optional    => write!(f, "optional? "),
-      Implemented => Ok(()),
-      Splat(_)    => write!(f, "..."),
-      Unwrap(_)   => write!(f, "*"),
+        match *self {
+            Regular => Ok(()),
+            Immutable => write!(f, "constant "),
+            Undeclared => write!(f, "undeclared "),
+            Optional => write!(f, "optional? "),
+            Implemented => Ok(()),
+            Splat(_) => write!(f, "..."),
+            Unwrap(_) => write!(f, "*"),
+        }
     }
-  }
 }
-
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Type {
-  pub node: TypeNode,
-  pub mode: TypeMode,
+    pub node: TypeNode,
+    pub mode: TypeMode,
 }
 
 impl Type {
-  pub fn new(node: TypeNode, mode: TypeMode) -> Self {
-    Self {
-      node, mode,
-    }
-  }
-
-
-
-  pub fn is_method(&self) -> bool {
-    if let TypeNode::Func(.., is_method) = self.node {
-      return is_method
+    pub fn new(node: TypeNode, mode: TypeMode) -> Self {
+        Self { node, mode }
     }
 
-    false
-  }
+    pub fn is_method(&self) -> bool {
+        if let TypeNode::Func(.., is_method) = self.node {
+            return is_method;
+        }
 
+        false
+    }
 
+    pub fn id(id: Rc<Expression>) -> Self {
+        Type::new(TypeNode::Id(id), TypeMode::Regular)
+    }
 
-  pub fn id(id: Rc<Expression>) -> Self {
-    Type::new(TypeNode::Id(id), TypeMode::Regular)
-  }
+    pub fn from(node: TypeNode) -> Type {
+        Type::new(node, TypeMode::Regular)
+    }
 
-  pub fn from(node: TypeNode) -> Type {
-    Type::new(node, TypeMode::Regular)
-  }
+    pub fn array(t: Type, len: Option<usize>) -> Type {
+        Type::new(TypeNode::Array(Rc::new(t), len), TypeMode::Regular)
+    }
 
-  pub fn array(t: Type, len: Option<usize>) -> Type {
-    Type::new(TypeNode::Array(Rc::new(t), len), TypeMode::Regular)
-  }
-
-  pub fn function(params: Vec<Type>, return_type: Type, is_method: bool) -> Self {
-    Type::new(TypeNode::Func(params, Rc::new(return_type), None, is_method), TypeMode::Regular)
-  }
+    pub fn function(params: Vec<Type>, return_type: Type, is_method: bool) -> Self {
+        Type::new(
+            TypeNode::Func(params, Rc::new(return_type), None, is_method),
+            TypeMode::Regular,
+        )
+    }
 }
 
 impl Display for Type {
-  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-    write!(f, "{}{}", self.mode, self.node)
-  }
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}{}", self.mode, self.node)
+    }
 }
-
-
 
 #[derive(Debug, Clone)]
 pub enum FlagContext {
-  Block(Option<Type>),
-  Nothing,
+    Block(Option<Type>),
+    Nothing,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Inside {
-  Loop,
-  Calling(Pos),
-  Splat(Option<usize>),
-  Implement(Type),
-  ForeignModule(HashMap<String, Type>),
-  Function,
-  Nothing,
+    Loop,
+    Calling(Pos),
+    Splat(Option<usize>),
+    Implement(Type),
+    ForeignModule(HashMap<String, Type>),
+    Function,
+    Nothing,
 }
 
-
-
 pub struct Visitor<'v> {
-  pub symtab: SymTab,
+    pub symtab: SymTab,
 
-  pub source: &'v Source,
-  pub ast:    &'v Vec<Statement>,
+    pub source: &'v Source,
+    pub ast: &'v Vec<Statement>,
 
-  pub flag:   Option<FlagContext>,
-  pub inside: Vec<Inside>,
+    pub flag: Option<FlagContext>,
+    pub inside: Vec<Inside>,
 
-  pub method_calls:   HashMap<Pos, bool>,
-  pub module_content: HashMap<String, Type>,
+    pub method_calls: HashMap<Pos, bool>,
+    pub module_content: HashMap<String, Type>,
 }
 
 impl<'v> Visitor<'v> {
-  pub fn visit(&mut self) -> Result<(), ()> {
-    self.visit_block(self.ast, false, true)?;
+    pub fn visit(&mut self) -> Result<(), ()> {
+        self.visit_block(self.ast, false, true)?;
 
-    Ok(())
-  }
-
-
-
-  pub fn new(ast: &'v Vec<Statement>, source: &'v Source) -> Self {
-    Visitor {
-      symtab: SymTab::new(),
-
-      source,
-      ast,
-
-      flag:   None,
-      inside: Vec::new(),
-
-      method_calls:   HashMap::new(),
-      module_content: HashMap::new(),
+        Ok(())
     }
-  }
 
+    pub fn new(ast: &'v Vec<Statement>, source: &'v Source) -> Self {
+        Visitor {
+            symtab: SymTab::new(),
 
+            source,
+            ast,
 
-  fn visit_statement(&mut self, statement: &Statement) -> Result<(), ()> {
-    use self::StatementNode::*;
+            flag: None,
+            inside: Vec::new(),
 
-    match statement.node {
-      Expression(ref expr) => self.visit_expression(expr),
-      Variable(..)         => self.visit_variable(&statement.node, &statement.pos),
-
-      Return(ref value)    => if self.inside.contains(&Inside::Function) {
-        if let Some(ref expression) = *value {
-          self.visit_expression(expression)
-        } else {
-          Ok(())
+            method_calls: HashMap::new(),
+            module_content: HashMap::new(),
         }
-      } else {
-        return Err(
-          response!(
-            Wrong("can't return outside of function"),
-            self.source.file,
-            statement.pos
-          )
-        )
-      },
+    }
 
-      Break => if self.inside.contains(&Inside::Loop) {
-        Ok(())
-      } else {
-        return Err(
-          response!(
-            Wrong("can't break outside loop"),
-            self.source.file,
-            statement.pos
-          )
-        )
-      },
+    fn visit_statement(&mut self, statement: &Statement) -> Result<(), ()> {
+        use self::StatementNode::*;
 
-      Skip => if self.inside.contains(&Inside::Loop) {
-        Ok(())
-      } else {
-        return Err(
-          response!(
-            Wrong("can't skip outside loop"),
-            self.source.file,
-            statement.pos
-          )
-        )
-      },
+        match statement.node {
+            Expression(ref expr) => self.visit_expression(expr),
+            Variable(..) => self.visit_variable(&statement.node, &statement.pos),
 
-      Import(ref path, ref specifics) => {
-        let my_folder  = Path::new(&self.source.file.0).parent().unwrap();
-        let file_path  = format!("./{}/{}.wu", my_folder.to_str().unwrap(), path);
-
-        let module = Path::new(&file_path);
-
-        let init_path = format!("./{}/{}/init.wu", my_folder.to_str().unwrap(), path);
-
-        let module = if !module.exists() {
-          let module = Path::new(&init_path);
-
-          if !module.exists() {
-            return Err(
-              response!(
-                Wrong(format!("no such module `{0}`, needed either `{0}.wu` or `{0}/init.wu`", path)),
-                self.source.file,
-                statement.pos
-              )
-            )
-          }
-
-          module
-        } else {
-          module
-        };
-
-
-        let display = module.display();
-
-        let mut file = match File::open(&module) {
-          Err(why) => panic!("failed to open {}: {}", display, why),
-          Ok(file) => file,
-        };
-
-        let mut content = String::new();
-
-        match file.read_to_string(&mut content) {
-          Err(why) => panic!("failed to read {}: {}", display, why),
-          Ok(_)    => {
-            let source = Source::new(module.to_str().unwrap().to_string());
-            let lexer = Lexer::default(content.chars().collect(), &source);
-
-            let mut tokens = Vec::new();
-
-            for token_result in lexer {
-              if let Ok(token) = token_result {
-                tokens.push(token)
-              } else {
-                panic!("weird unexpected lexer error")
-              }
+            Return(ref value) => {
+                if self.inside.contains(&Inside::Function) {
+                    if let Some(ref expression) = *value {
+                        self.visit_expression(expression)
+                    } else {
+                        Ok(())
+                    }
+                } else {
+                    return Err(response!(
+                        Wrong("can't return outside of function"),
+                        self.source.file,
+                        statement.pos
+                    ));
+                }
             }
 
-            let parsed = Parser::new(tokens, &source).parse()?;
-
-            let mut visitor = Visitor::new(&parsed, &source);
-
-            visitor.visit()?;
-
-            let content_type = visitor.module_content.clone();
-
-            for name in specifics {
-              if let Some(kind) = content_type.get(name) {
-                self.symtab.import(name.clone(), content_type.clone());
-                self.assign(name.clone(), kind.clone())
-              } else {
-                return Err(
-                  response!(
-                    Wrong(format!("no such member `{}`", name)),
-                    self.source.file,
-                    statement.pos
-                  )
-                )
-              }
+            Break => {
+                if self.inside.contains(&Inside::Loop) {
+                    Ok(())
+                } else {
+                    return Err(response!(
+                        Wrong("can't break outside loop"),
+                        self.source.file,
+                        statement.pos
+                    ));
+                }
             }
 
-            let module_type = Type::from(TypeNode::Module(content_type, true));
+            Skip => {
+                if self.inside.contains(&Inside::Loop) {
+                    Ok(())
+                } else {
+                    return Err(response!(
+                        Wrong("can't skip outside loop"),
+                        self.source.file,
+                        statement.pos
+                    ));
+                }
+            }
 
-            // nice
-            self.symtab.implementations.extend(visitor.symtab.implementations);
+            Import(ref path, ref specifics) => {
+                let my_folder = Path::new(&self.source.file.0).parent().unwrap();
+                let file_path = format!("./{}/{}.wu", my_folder.to_str().unwrap(), path);
 
-            self.module_content.insert(path.clone(), module_type.clone());
-            self.assign(path.clone(), module_type.clone())
-          }
-        }
+                let module = Path::new(&file_path);
 
-        Ok(())
-      },
+                let init_path = format!("./{}/{}/init.wu", my_folder.to_str().unwrap(), path);
 
-      Implement(ref struct_name, ref body, ref parent) => {
-        use self::ExpressionNode::*;
+                let module = if !module.exists() {
+                    let module = Path::new(&init_path);
 
-        self.push_scope();
+                    if !module.exists() {
+                        return Err(response!(
+                            Wrong(format!(
+                                "no such module `{0}`, needed either `{0}.wu` or `{0}/init.wu`",
+                                path
+                            )),
+                            self.source.file,
+                            statement.pos
+                        ));
+                    }
 
-        self.visit_expression(struct_name)?;
+                    module
+                } else {
+                    module
+                };
 
-        let t = self.type_expression(struct_name)?;
+                let display = module.display();
 
-        self.assign_str("Self", t.clone());
+                let mut file = match File::open(&module) {
+                    Err(why) => panic!("failed to open {}: {}", display, why),
+                    Ok(file) => file,
+                };
 
-        let position = struct_name.pos.clone();
+                let mut content = String::new();
 
-        match struct_name.node {
-          Identifier(ref name) => {
-            let kind = self.fetch(name, &position)?;
+                match file.read_to_string(&mut content) {
+                    Err(why) => panic!("failed to read {}: {}", display, why),
+                    Ok(_) => {
+                        let source = Source::new(module.to_str().unwrap().to_string());
+                        let lexer = Lexer::default(content.chars().collect(), &source);
 
-            self.inside.push(Inside::Implement(kind.clone()));
+                        let mut tokens = Vec::new();
 
-            if let TypeNode::Struct(struct_name, content, id) = kind.node.clone() {
-              if kind.mode.strong_cmp(&TypeMode::Undeclared) {
-                let new_content = content;
+                        for token_result in lexer {
+                            if let Ok(token) = token_result {
+                                tokens.push(token)
+                            } else {
+                                panic!("weird unexpected lexer error")
+                            }
+                        }
 
-                if let ExpressionNode::Block(ref ast) = body.node {
-                  self.visit_implement_block(
-                    ast,
-                    &struct_name,
-                    &new_content,
-                    &id,
-                    &kind,
-                    None,
-                    false,
-                  )?;
+                        let parsed = Parser::new(tokens, &source).parse()?;
+
+                        let mut visitor = Visitor::new(&parsed, &source);
+
+                        visitor.visit()?;
+
+                        let content_type = visitor.module_content.clone();
+
+                        for name in specifics {
+                            if let Some(kind) = content_type.get(name) {
+                                self.symtab.import(name.clone(), content_type.clone());
+                                self.assign(name.clone(), kind.clone())
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!("no such member `{}`", name)),
+                                    self.source.file,
+                                    statement.pos
+                                ));
+                            }
+                        }
+
+                        let module_type = Type::from(TypeNode::Module(content_type, true));
+
+                        // nice
+                        self.symtab
+                            .implementations
+                            .extend(visitor.symtab.implementations);
+
+                        self.module_content
+                            .insert(path.clone(), module_type.clone());
+                        self.assign(path.clone(), module_type.clone())
+                    }
                 }
 
-                self.inside.pop();
+                Ok(())
+            }
 
-                let new_struct_type = self.fetch(&struct_name, &statement.pos)?.clone();
+            Implement(ref struct_name, ref body, ref parent) => {
+                use self::ExpressionNode::*;
 
-                self.pop_scope();
+                self.push_scope();
 
-                self.assign(struct_name.clone(), new_struct_type); // here we go, out and into the world
+                self.visit_expression(struct_name)?;
 
-                if let Some(ref expr) = parent {
-                  let trait_ty = self.type_expression(expr)?;
+                let t = self.type_expression(struct_name)?;
 
-                  if let TypeNode::Struct(_, ref content, _) = self.fetch(&struct_name, &position)?.node {
+                self.assign_str("Self", t.clone());
 
-                    if let TypeNode::Trait(_, ref content_b) = trait_ty.node {
-                      for (name, ty) in content_b.iter() {
-                        if let Some(ty_b) = content.get(name) {
+                let position = struct_name.pos.clone();
 
-                          if ty.node != ty_b.node {
-                            return Err(
-                              response!(
+                match struct_name.node {
+                    Identifier(ref name) => {
+                        let kind = self.fetch(name, &position)?;
+
+                        self.inside.push(Inside::Implement(kind.clone()));
+
+                        if let TypeNode::Struct(struct_name, content, id) = kind.node.clone() {
+                            if kind.mode.strong_cmp(&TypeMode::Undeclared) {
+                                let new_content = content;
+
+                                if let ExpressionNode::Block(ref ast) = body.node {
+                                    self.visit_implement_block(
+                                        ast,
+                                        &struct_name,
+                                        &new_content,
+                                        &id,
+                                        &kind,
+                                        None,
+                                        false,
+                                    )?;
+                                }
+
+                                self.inside.pop();
+
+                                let new_struct_type =
+                                    self.fetch(&struct_name, &statement.pos)?.clone();
+
+                                self.pop_scope();
+
+                                self.assign(struct_name.clone(), new_struct_type); // here we go, out and into the world
+
+                                if let Some(ref expr) = parent {
+                                    let trait_ty = self.type_expression(expr)?;
+
+                                    if let TypeNode::Struct(_, ref content, _) =
+                                        self.fetch(&struct_name, &position)?.node
+                                    {
+                                        if let TypeNode::Trait(_, ref content_b) = trait_ty.node {
+                                            for (name, ty) in content_b.iter() {
+                                                if let Some(ty_b) = content.get(name) {
+                                                    if ty.node != ty_b.node {
+                                                        return Err(response!(
                                 Wrong(format!("expected implemented type `{}` for `{}`", ty, name)),
                                 self.source.file,
                                 position
-                              )
-                            )
-                          }
-
-                        } else {
-                          return Err(
-                            response!(
+                              ));
+                                                    }
+                                                } else {
+                                                    return Err(response!(
                               Wrong(format!("missing implementation of method `{}: {}`", name, ty)),
                               self.source.file,
                               position
-                            )
-                          )
+                            ));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                return Ok(());
+                            }
+
+                            Err(response!(
+                                Wrong(format!("can't implement type `{}`", kind)),
+                                self.source.file,
+                                position
+                            ))
+                        } else {
+                            unreachable!()
                         }
-                      }
                     }
 
-                  }
-                }
+                    Index(ref array, ref indexing, _) => {
+                        if let Identifier(ref name) = array.node {
+                            self.fetch(name, &position)?;
+                            let array_type = self.type_expression(array)?;
 
-                return Ok(())
-              }
+                            match array_type.node {
+                                TypeNode::Module(ref module_content, ref is_foreign) => {
+                                    if let Identifier(ref name) = indexing.node {
+                                        if let Some(ref kind) = module_content.get(name) {
+                                            if let TypeNode::Struct(name, content, id) =
+                                                kind.node.clone()
+                                            {
+                                                if kind.mode.strong_cmp(&TypeMode::Undeclared) {
+                                                    let new_content = content;
 
-              Err(
-                response!(
-                  Wrong(format!("can't implement type `{}`", kind)),
-                  self.source.file,
-                  position
-                )
-              )
-            } else {
-              unreachable!()
-            }
-          },
+                                                    if let ExpressionNode::Block(ref ast) =
+                                                        body.node
+                                                    {
+                                                        self.visit_implement_block(
+                                                            ast,
+                                                            &name,
+                                                            &new_content,
+                                                            &id,
+                                                            &kind,
+                                                            Some(module_content),
+                                                            true,
+                                                        )?;
+                                                    }
 
+                                                    self.inside.pop();
 
-          Index(ref array, ref indexing, _) => {
-            if let Identifier(ref name) = array.node {
-              self.fetch(name, &position)?;
-              let array_type = self.type_expression(array)?;
+                                                    self.pop_scope();
 
-              match array_type.node {
-                TypeNode::Module(ref module_content, ref is_foreign) => {
-                  if let Identifier(ref name) = indexing.node {
-                    if let Some(ref kind) = module_content.get(name) {
+                                                    if let Some(ref expr) = parent {
+                                                        let trait_ty =
+                                                            self.type_expression(expr)?;
 
-                      if let TypeNode::Struct(name, content, id) = kind.node.clone() {
-                        if kind.mode.strong_cmp(&TypeMode::Undeclared) {
-                          let new_content = content;
-
-                          if let ExpressionNode::Block(ref ast) = body.node {
-                            self.visit_implement_block(
-                              ast,
-                              &name,
-                              &new_content,
-                              &id,
-                              &kind,
-                              Some(module_content),
-                              true,
-                            )?;
-                          }
-
-                          self.inside.pop();
-
-                          self.pop_scope();
-
-                          if let Some(ref expr) = parent {
-                            let trait_ty = self.type_expression(expr)?;
-
-                            if let TypeNode::Struct(_, ref content, _) = self.type_expression(&struct_name)?.node {
-
-                              if let TypeNode::Trait(_, ref content_b) = trait_ty.node {
-                                for (name, ty) in content_b.iter() {
-                                  if let Some(ty_b) = content.get(name) {
-
-                                    if ty.node != ty_b.node {
-                                      return Err(
+                                                        if let TypeNode::Struct(_, ref content, _) =
+                                                            self.type_expression(&struct_name)?.node
+                                                        {
+                                                            if let TypeNode::Trait(
+                                                                _,
+                                                                ref content_b,
+                                                            ) = trait_ty.node
+                                                            {
+                                                                for (name, ty) in content_b.iter() {
+                                                                    if let Some(ty_b) =
+                                                                        content.get(name)
+                                                                    {
+                                                                        if ty.node != ty_b.node {
+                                                                            return Err(
                                         response!(
                                           Wrong(format!("expected implemented type `{}` for `{}`", ty, name)),
                                           self.source.file,
                                           position
                                         )
-                                      )
-                                    }
-
-                                  } else {
-                                    return Err(
+                                      );
+                                                                        }
+                                                                    } else {
+                                                                        return Err(
                                       response!(
                                         Wrong(format!("missing implementation of method `{}: {}`", name, ty)),
                                         self.source.file,
                                         position
                                       )
-                                    )
-                                  }
+                                    );
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    return Ok(());
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                              }
 
+                                ref kind => {
+                                    return Err(response!(
+                                        Wrong(format!("can't implement type `{}`", kind)),
+                                        self.source.file,
+                                        position
+                                    ))
+                                }
                             }
-                          }
-
-                          return Ok(())
                         }
-                      }
 
+                        Ok(())
                     }
-                  }
-                },
 
-                ref kind => return Err(
-                  response!(
-                    Wrong(format!("can't implement type `{}`", kind)),
-                    self.source.file,
-                    position
-                  )
-                )
-              }
+                    _ => {
+                        return Err(response!(
+                            Wrong("can't implement anything but structs"),
+                            self.source.file,
+                            position
+                        ))
+                    }
+                }
+            }
+
+            Assignment(ref left, ref right) => {
+                self.visit_expression(left)?;
+                self.visit_expression(right)?;
+
+                let a = self.type_expression(left)?;
+                let b = self.type_expression(right)?;
+
+                self.assert_types(a, b, &left.pos)?;
+
+                Ok(())
+            }
+
+            _ => Ok(()),
+        }
+    }
+
+    fn visit_expression(&mut self, expression: &Expression) -> Result<(), ()> {
+        use self::ExpressionNode::*;
+
+        match expression.node {
+            Identifier(ref name) => {
+                if let Some(content) = self.symtab.get_foreign_module(name) {
+                    self.inside.push(Inside::ForeignModule(content.clone()))
+                }
+
+                self.fetch(name, &expression.pos)?;
+
+                Ok(())
+            }
+
+            Neg(ref expr) => {
+                let expr_type = self.type_expression(expr)?;
+
+                match expr_type.node {
+                    TypeNode::Float | TypeNode::Int => Ok(()),
+
+                    _ => Err(response!(
+                        Wrong(format!("can't negate type `{}`", expr_type)),
+                        self.source.file,
+                        expression.pos
+                    )),
+                }
+            }
+
+            Not(ref expr) => {
+                let expr_type = self.type_expression(expr)?;
+
+                if expr_type.node.strong_cmp(&TypeNode::Bool) {
+                    Ok(())
+                } else {
+                    Err(response!(
+                        Wrong(format!("can't negate type `{}`", expr_type)),
+                        self.source.file,
+                        expression.pos
+                    ))
+                }
+            }
+
+            Binary(ref left, ref op, ref right) => {
+                self.visit_expression(left)?;
+                self.visit_expression(right)
+            }
+
+            Module(ref content) => self.visit_expression(content),
+
+            UnwrapSplat(ref expression) => {
+                self.visit_expression(&**expression)?;
+
+                if let TypeMode::Splat(_) = self.type_expression(&**expression)?.mode {
+                    Ok(())
+                } else {
+                    Err(response!(
+                        Wrong("can't unpack a non-splat value"),
+                        self.source.file,
+                        expression.pos
+                    ))
+                }
+            }
+
+            Unwrap(ref expression) => {
+                self.visit_expression(&**expression)?;
+
+                let kind = self.type_expression(&**expression)?;
+
+                if let TypeNode::Optional(_) = kind.node {
+                    Ok(())
+                } else {
+                    Err(response!(
+                        Wrong(format!("can't unwrap a non-optional value `{}`", kind)),
+                        self.source.file,
+                        expression.pos
+                    ))
+                }
+            }
+
+            Initialization(ref left, ref args) => {
+                let struct_type = self.type_expression(&*left)?;
+
+                if let TypeNode::Struct(ref name, ref content, ref struct_id) = struct_type.node {
+                    if struct_type.mode.strong_cmp(&TypeMode::Undeclared) {
+                        let mut validation_map = HashMap::new();
+
+                        for arg in args.iter() {
+                            self.visit_expression(&arg.1)?;
+
+                            let arg_type = self.type_expression(&arg.1)?;
+
+                            validation_map.insert(arg.0.clone(), arg_type.clone());
+
+                            if let Some(ref content_type) = content.get(&arg.0) {
+                                if !content_type
+                                    .node
+                                    .check_expression(&Parser::fold_expression(&arg.1)?.node)
+                                    && arg_type != **content_type
+                                {
+                                    return Err(response!(
+                                        Wrong(format!(
+                                            "mismatched types, expected `{}` got `{}`",
+                                            content_type, arg_type
+                                        )),
+                                        self.source.file,
+                                        expression.pos
+                                    ));
+                                }
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!(
+                                        "no such member `{}` in struct `{}`",
+                                        arg.0, name
+                                    )),
+                                    self.source.file,
+                                    arg.1.pos
+                                ));
+                            }
+                        }
+
+                        for (key, kind) in content.iter() {
+                            match kind.node {
+                                TypeNode::Optional(_) => (),
+                                _ => {
+                                    if !validation_map.contains_key(key) {
+                                        if let Some(ref implementations) =
+                                            self.symtab.get_implementations(struct_id)
+                                        {
+                                            if implementations.contains_key(key) {
+                                                continue;
+                                            }
+                                        }
+
+                                        return Err(response!(
+                                            Wrong(format!(
+                                                "missing assignment of struct member `{}: {}`",
+                                                key, kind
+                                            )),
+                                            self.source.file,
+                                            expression.pos
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        return Err(response!(
+                            Wrong(format!(
+                                "can't initialize non-struct: `{}`",
+                                struct_type.node
+                            )),
+                            self.source.file,
+                            expression.pos
+                        ));
+                    }
+                } else {
+                    return Err(response!(
+                        Wrong(format!(
+                            "can't initialize non-struct: `{}`",
+                            struct_type.node
+                        )),
+                        self.source.file,
+                        expression.pos
+                    ));
+                }
+
+                Ok(())
+            }
+
+            Block(ref statements) => {
+                self.push_scope();
+
+                self.visit_block(statements, true, false)?;
+
+                self.pop_scope();
+
+                Ok(())
+            }
+
+            If(ref condition, ref body, ref elses) => {
+                self.visit_expression(&*condition)?;
+
+                let condition_type = self.type_expression(&*condition)?.node;
+
+                if condition_type == TypeNode::Bool {
+                    self.visit_expression(body)?;
+                    let body_type = self.type_expression(body)?;
+
+                    if let &Some(ref elses) = elses {
+                        for &(ref maybe_condition, ref body, _) in elses {
+                            if let Some(ref condition) = *maybe_condition {
+                                let condition_type = self.type_expression(condition)?.node;
+
+                                if condition_type != TypeNode::Bool {
+                                    return Err(response!(
+                                        Wrong(format!(
+                                            "mismatched condition, must be `bool` got `{}`",
+                                            condition_type
+                                        )),
+                                        self.source.file,
+                                        condition.pos
+                                    ));
+                                }
+                            }
+
+                            self.visit_expression(body)?;
+                            let else_body_type = self.type_expression(body)?;
+
+                            if body_type != else_body_type {
+                                return Err(response!(
+                                    Wrong(format!(
+                                        "mismatched types, expected `{}` got `{}`",
+                                        body_type, else_body_type
+                                    )),
+                                    self.source.file,
+                                    body.pos
+                                ));
+                            }
+                        }
+                    }
+
+                    Ok(())
+                } else {
+                    return Err(response!(
+                        Wrong(format!(
+                            "mismatched condition, must be `bool` got `{}`",
+                            condition_type
+                        )),
+                        self.source.file,
+                        expression.pos
+                    ));
+                }
+            }
+
+            While(ref condition, ref body) => {
+                self.visit_expression(&*condition)?;
+
+                let condition_type = self.type_expression(&*condition)?.node;
+
+                if condition_type == TypeNode::Bool {
+                    self.inside.push(Inside::Loop);
+
+                    self.visit_expression(body)?;
+
+                    let body_type = self.type_expression(body)?;
+
+                    if body_type.node != TypeNode::Nil {
+                        let body_pos = if let Block(ref content) = body.node {
+                            content.last().unwrap().pos.clone()
+                        } else {
+                            unreachable!()
+                        };
+
+                        return Err(response!(
+                            Wrong(format!(
+                                "mismatched types, expected `nil` found `{}`",
+                                body_type
+                            )),
+                            self.source.file,
+                            body_pos
+                        ));
+                    }
+
+                    self.inside.pop();
+
+                    Ok(())
+                } else {
+                    return Err(response!(
+                        Wrong(format!(
+                            "mismatched condition, must be `bool` got `{}`",
+                            condition_type
+                        )),
+                        self.source.file,
+                        expression.pos
+                    ));
+                }
+            }
+
+            Array(ref content) => {
+                if content.len() == 0 {
+                    return Ok(());
+                }
+
+                let t = self.type_expression(content.first().unwrap())?;
+
+                for element in content {
+                    let element_type = self.type_expression(element)?;
+
+                    if !t
+                        .node
+                        .check_expression(&Parser::fold_expression(element)?.node)
+                        && t.node != element_type.node
+                    {
+                        return Err(response!(
+                            Wrong(format!(
+                                "mismatched types in array, expected `{}` got `{}`",
+                                t, element_type
+                            )),
+                            self.source.file,
+                            element.pos
+                        ));
+                    }
+                }
+
+                Ok(())
+            }
+
+            Struct(_, ref params, _) => {
+                let mut name_buffer = Vec::new();
+
+                for &(ref name, _) in params.iter() {
+                    if name_buffer.contains(&name) {
+                        return Err(response!(
+                            Wrong(format!("field `{}` defined more than once", name)),
+                            self.source.file,
+                            expression.pos
+                        ));
+                    }
+
+                    name_buffer.push(&name)
+                }
+
+                Ok(())
+            }
+
+            Trait(_, ref params) => {
+                let mut name_buffer = Vec::new();
+
+                for &(ref name, _) in params.iter() {
+                    if name_buffer.contains(&name) {
+                        return Err(response!(
+                            Wrong(format!("field `{}` defined more than once", name)),
+                            self.source.file,
+                            expression.pos
+                        ));
+                    }
+
+                    name_buffer.push(&name)
+                }
+
+                Ok(())
+            }
+
+            Call(ref expr, ref args) => {
+                self.visit_expression(expr)?;
+
+                self.inside.push(Inside::Calling(expr.pos.clone()));
+
+                let expression_type = self.type_expression(expr)?;
+
+                if let TypeNode::Func(ref params, _, ref func, .., is_method) = expression_type.node
+                {
+                    // // this is where we visit the func, nvm
+                    // if let Some(func) = func {
+                    //   self.visit_expression(
+                    //     &Expression::new(
+                    //       (**func).clone(),
+                    //       expression.pos.clone()
+                    //     )
+                    //   )?;
+                    // }
+
+                    if is_method {
+                        self.method_calls.insert(expr.pos.clone(), true);
+                    }
+
+                    let mut actual_arg_len = args.len();
+                    let mut type_buffer: Option<Type> = None;
+
+                    for (i, param_type) in params.iter().enumerate() {
+                        let param_type = self.deid(param_type.clone())?;
+
+                        if args.len() <= i {
+                            let last_arg_pos = match args.last() {
+                                Some(arg) => {
+                                    let arg_pos = args.last().unwrap().pos.clone();
+                                    Pos(arg_pos.0, ((arg_pos.1).1 + 1, (arg_pos.1).1 + 1))
+                                }
+                                None => {
+                                    let arg_pos = expression.pos.clone();
+                                    Pos(arg_pos.0, ((arg_pos.1).1, (arg_pos.1).1))
+                                }
+                            };
+                            return Err(response!(
+                                Wrong(format!(
+                                    "mismatched argument count, expected type `{}` got nothing",
+                                    param_type
+                                )),
+                                self.source.file,
+                                last_arg_pos
+                            ));
+                        }
+
+                        self.visit_expression(&args[i])?;
+
+                        let arg_type = self.type_expression(&args[i])?;
+
+                        if !param_type
+                            .node
+                            .check_expression(&Parser::fold_expression(&args[i])?.node)
+                            && arg_type.node != param_type.node
+                        {
+                            return Err(response!(
+                                Wrong(format!(
+                                    "mismatched types, expected type `{}` got `{}`",
+                                    param_type.node, arg_type
+                                )),
+                                self.source.file,
+                                args[i].pos
+                            ));
+                        }
+
+                        let arg_type = if i < args.len() {
+                            self.visit_expression(&args[i])?;
+                            self.type_expression(&args[i])?
+                        } else {
+                            type_buffer.as_ref().unwrap().clone()
+                        };
+
+                        let mode = arg_type.mode.clone();
+
+                        if let TypeMode::Unwrap(ref len) = mode {
+                            type_buffer = Some(arg_type.clone());
+
+                            actual_arg_len += len
+                        }
+                    }
+
+                    if actual_arg_len > params.len() {
+                        let last = self.deid(params.last().unwrap().clone())?;
+
+                        if let TypeMode::Splat(_) = last.mode {
+                            for splat in &args[params.len()..] {
+                                self.visit_expression(&splat)?;
+                                let splat_type = self.type_expression(&splat)?;
+
+                                if !last.node.check_expression(&splat.node)
+                                    && last.node != splat_type.node
+                                {
+                                    return Err(response!(
+                                        Wrong(format!(
+                                            "mismatched splat argument, expected `{}` got `{}`",
+                                            last, splat_type
+                                        )),
+                                        self.source.file,
+                                        splat.pos
+                                    ));
+                                }
+                            }
+                        }
+
+                        self.inside
+                            .push(Inside::Splat(Some(actual_arg_len - params.len())))
+                    }
+
+                    self.visit_expression(expr)?;
+
+                    self.inside.pop();
+
+                    if actual_arg_len != params.len() {
+                        match params.last().unwrap().mode {
+                            TypeMode::Splat(_) => (),
+                            _ => {
+                                return Err(response!(
+                                    Wrong(format!(
+                                        "expected {} argument{} got {}",
+                                        params.len(),
+                                        if params.len() > 1 { "s" } else { "" },
+                                        actual_arg_len
+                                    )),
+                                    self.source.file,
+                                    args.last().unwrap_or(expression).pos
+                                ))
+                            }
+                        }
+                    }
+                }
+
+                Ok(())
+            }
+
+            Function(ref params, ref retty, ref body, ref is_method) => {
+                let mut frame_hash = HashMap::new();
+
+                let mut return_type = self.deid(retty.clone())?;
+
+                if let TypeNode::Id(ref ident) = retty.node {
+                    self.visit_expression(&ident)?;
+
+                    let ident_type = self.type_expression(&ident)?;
+
+                    if let TypeNode::Struct(..) = ident_type.node {
+                        return_type = Type::from(ident_type.node)
+                    } else {
+                        return Err(response!(
+                            Wrong(format!("can't use `{}` as type", ident_type)),
+                            self.source.file,
+                            ident.pos
+                        ));
+                    }
+                }
+
+                return_type = Type::from(return_type.node.clone());
+
+                let mut found_splat = false;
+
+                for param in params.iter() {
+                    if let TypeMode::Splat(_) = param.1.mode {
+                        if found_splat {
+                            return Err(response!(
+                                Wrong("can't have multiple splat parameters in function"),
+                                self.source.file,
+                                expression.pos
+                            ));
+                        }
+
+                        found_splat = true
+                    }
+
+                    frame_hash.insert(param.0.clone(), self.deid(param.1.clone())?);
+                }
+
+                if *is_method {
+                    let mut found = false;
+
+                    for inside in self.inside.iter().rev() {
+                        // ffs
+                        if let Inside::Implement(_) = inside {
+                            found = true;
+                        }
+                    }
+
+                    if !found {
+                        return Err(response!(
+                            Wrong("can't define method outside implementation"),
+                            self.source.file,
+                            expression.pos
+                        ));
+                    }
+                }
+
+                self.symtab.put_frame(Frame::from(frame_hash));
+
+                self.inside.push(Inside::Function);
+
+                self.visit_expression(body)?;
+
+                let body_type = self.type_expression(body)?;
+
+                self.inside.pop();
+
+                self.pop_scope();
+
+                if return_type.node != body_type.node {
+                    Err(response!(
+                        Wrong(format!(
+                            "mismatched return type, expected `{}` got `{}`",
+                            return_type, body_type
+                        )),
+                        self.source.file,
+                        body.pos
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+
+            Index(ref left, ref index, _) => {
+                let mut left_type = self.type_expression(left)?;
+
+                if let TypeMode::Splat(_) = left_type.mode {
+                    left_type = Type::from(TypeNode::Array(
+                        Rc::new(Type::from(left_type.node.clone())),
+                        None,
+                    ))
+                }
+
+                match left_type.node {
+                    TypeNode::Array(_, ref len) => {
+                        self.inside.push(Inside::Nothing);
+
+                        self.visit_expression(index)?;
+
+                        let index_type = self.type_expression(index)?;
+
+                        match index_type.node {
+                            TypeNode::Int => {
+                                if let Int(ref a) = Parser::fold_expression(index)?.node {
+                                    if let Some(len) = len {
+                                        if *a as usize > *len {
+                                            return Err(response!(
+                                                Wrong(format!(
+                                                    "index out of bounds, len is {} got {}",
+                                                    len, a
+                                                )),
+                                                self.source.file,
+                                                left.pos
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+
+                            _ => {
+                                return Err(response!(
+                                    Wrong(format!(
+                                        "can't index with `{}`, must be `int`",
+                                        index_type
+                                    )),
+                                    self.source.file,
+                                    left.pos
+                                ))
+                            }
+                        }
+                    }
+
+                    TypeNode::Module(ref content, is_foreign) => {
+                        self.inside.push(Inside::Nothing);
+
+                        if is_foreign {
+                            self.inside.push(Inside::ForeignModule(content.clone()))
+                        }
+
+                        if let Identifier(ref name) = index.node {
+                            if !content.contains_key(name) {
+                                return Err(response!(
+                                    Wrong(format!("no such module member `{}`", name)),
+                                    self.source.file,
+                                    index.pos
+                                ));
+                            }
+                        } else {
+                            let index_type = self.type_expression(index)?;
+
+                            return Err(response!(
+                                Wrong(format!("can't index module with `{}`", index_type)),
+                                self.source.file,
+                                index.pos
+                            ));
+                        }
+                    }
+
+                    TypeNode::Struct(_, ref content, ref id) => {
+                        self.inside.push(Inside::Implement(left_type.clone()));
+
+                        if let Identifier(ref name) = index.node {
+                            if !content.contains_key(name) && !self.is_implemented(id, name) {
+                                return Err(response!(
+                                    Wrong(format!("no such struct member `{}`", name)),
+                                    self.source.file,
+                                    index.pos
+                                ));
+                            }
+                        } else {
+                            let index_type = self.type_expression(index)?;
+
+                            return Err(response!(
+                                Wrong(format!("can't index struct with `{}`", index_type)),
+                                self.source.file,
+                                index.pos
+                            ));
+                        }
+                    }
+
+                    TypeNode::Trait(_, ref content) => {
+                        if let Identifier(ref name) = index.node {
+                            if !content.contains_key(name) {
+                                return Err(response!(
+                                    Wrong(format!("no such trait member `{}`", name)),
+                                    self.source.file,
+                                    index.pos
+                                ));
+                            }
+                        } else {
+                            let index_type = self.type_expression(index)?;
+
+                            return Err(response!(
+                                Wrong(format!("can't index trait with `{}`", index_type)),
+                                self.source.file,
+                                index.pos
+                            ));
+                        }
+                    }
+
+                    TypeNode::Any => (),
+
+                    _ => {
+                        return Err(response!(
+                            Wrong(format!("can't index type `{}`", left_type)),
+                            self.source.file,
+                            left.pos
+                        ))
+                    }
+                }
+
+                Ok(())
+            }
+
+            _ => Ok(()),
+        }
+    }
+
+    fn visit_variable(&mut self, variable: &StatementNode, pos: &Pos) -> Result<(), ()> {
+        use self::ExpressionNode::*;
+
+        if let &StatementNode::Variable(ref var_type, ref name, ref right) = variable {
+            let mut variable_type = var_type.clone();
+
+            if let TypeNode::Id(ref ident) = var_type.node {
+                let ident_type = self.type_expression(&ident)?;
+
+                if let TypeNode::Struct(..) = ident_type.node {
+                    variable_type = Type::from(ident_type.node)
+                } else {
+                    return Err(response!(
+                        Wrong(format!("can't use `{}` as type", ident_type)),
+                        self.source.file,
+                        ident.pos
+                    ));
+                }
+            }
+
+            variable_type = Type::from(variable_type.node.clone());
+
+            if let &Some(ref right) = right {
+                match right.node {
+                    Function(..) | Block(_) | If(..) | While(..) => (),
+                    _ => self.visit_expression(right)?,
+                }
+
+                let right_type = self.type_expression(&right)?;
+
+                if !variable_type.node.strong_cmp(&TypeNode::Nil) {
+                    if !variable_type
+                        .node
+                        .check_expression(&Parser::fold_expression(right)?.node)
+                        && variable_type.node != right_type.node
+                    {
+                        return Err(response!(
+                            Wrong(format!(
+                                "mismatched types, expected type `{}` got `{}`",
+                                variable_type.node, right_type.node
+                            )),
+                            self.source.file,
+                            right.pos
+                        ));
+                    } else {
+                        self.assign(name.to_owned(), variable_type.to_owned())
+                    }
+                } else {
+                    self.assign(name.to_owned(), right_type)
+                }
+
+                match right.node {
+                    Function(..) | Block(_) | If(..) | While(..) => self.visit_expression(right)?,
+                    _ => (),
+                }
+            } else {
+                self.assign(name.to_owned(), variable_type.to_owned())
             }
 
             Ok(())
-          }
-
-
-          _ => return Err(
-            response!(
-              Wrong("can't implement anything but structs"),
-              self.source.file,
-              position
-            )
-          ),
+        } else {
+            unreachable!()
         }
-      },
-
-      Assignment(ref left, ref right) => {
-        self.visit_expression(left)?;
-        self.visit_expression(right)?;
-
-        let a = self.type_expression(left)?;
-        let b = self.type_expression(right)?;
-
-        self.assert_types(a, b, &left.pos)?;
-
-        Ok(())
-      },
-
-      _ => Ok(())
     }
-  }
 
-  fn visit_expression(&mut self, expression: &Expression) -> Result<(), ()> {
-    use self::ExpressionNode::*;
+    pub fn type_statement(&mut self, statement: &Statement) -> Result<Type, ()> {
+        use self::StatementNode::*;
 
-    match expression.node {
-      Identifier(ref name) => {
-        if let Some(content) = self.symtab.get_foreign_module(name) {
-          self.inside.push(Inside::ForeignModule(content.clone()))
-        }
-
-        self.fetch(name, &expression.pos)?;
-
-        Ok(())
-      },
-
-      Neg(ref expr) => {
-        let expr_type = self.type_expression(expr)?;
-
-        match expr_type.node {
-          TypeNode::Float | TypeNode::Int => Ok(()),
-
-          _ => Err(
-            response!(
-              Wrong(format!("can't negate type `{}`", expr_type)),
-              self.source.file,
-              expression.pos
-            )
-          )
-        }
-      },
-
-      Not(ref expr) => {
-        let expr_type = self.type_expression(expr)?;
-
-        if expr_type.node.strong_cmp(&TypeNode::Bool) {
-          Ok(())
-        } else {
-          Err(
-            response!(
-              Wrong(format!("can't negate type `{}`", expr_type)),
-              self.source.file,
-              expression.pos
-            )
-          )
-        }
-      },
-
-      Binary(ref left, ref op, ref right) => {
-        self.visit_expression(left)?;
-        self.visit_expression(right)
-      },
-
-      Module(ref content) => self.visit_expression(content),
-
-      UnwrapSplat(ref expression) => {
-        self.visit_expression(&**expression)?;
-
-        if let TypeMode::Splat(_) = self.type_expression(&**expression)?.mode {
-          Ok(())
-        } else {
-          Err(
-            response!(
-              Wrong("can't unpack a non-splat value"),
-              self.source.file,
-              expression.pos
-            )
-          )
-        }
-      },
-
-      Unwrap(ref expression) => {
-        self.visit_expression(&**expression)?;
-
-        let kind = self.type_expression(&**expression)?;
-
-        if let TypeNode::Optional(_) = kind.node {
-          Ok(())
-        } else {
-          Err(
-            response!(
-              Wrong(format!("can't unwrap a non-optional value `{}`", kind)),
-              self.source.file,
-              expression.pos
-            )
-          )
-        }
-      },
-
-      Initialization(ref left, ref args) => {
-        let struct_type = self.type_expression(&*left)?;
-
-        if let TypeNode::Struct(ref name, ref content, ref struct_id) = struct_type.node {
-          if struct_type.mode.strong_cmp(&TypeMode::Undeclared) {
-
-            let mut validation_map = HashMap::new();
-
-            for arg in args.iter() {
-              self.visit_expression(&arg.1)?;
-
-              let arg_type = self.type_expression(&arg.1)?;
-
-              validation_map.insert(arg.0.clone(), arg_type.clone());
-
-              if let Some(ref content_type) = content.get(&arg.0) {
-                if !content_type.node.check_expression(&Parser::fold_expression(&arg.1)?.node) && arg_type != **content_type {
-
-                  return Err(
-                    response!(
-
-                      Wrong(format!("mismatched types, expected `{}` got `{}`", content_type, arg_type)),
-                      self.source.file,
-                      expression.pos
-                    )
-                  )
+        let t = match statement.node {
+            Expression(ref expression) => self.type_expression(expression)?,
+            Return(ref expression) => {
+                if let Some(ref expression) = *expression {
+                    self.type_expression(expression)?
+                } else {
+                    Type::from(TypeNode::Nil)
                 }
-              } else {
-                return Err(
-                  response!(
-                    Wrong(format!("no such member `{}` in struct `{}`", arg.0, name)),
-                    self.source.file,
-                    arg.1.pos
-                  )
-                )
-              }
+            }
+            _ => Type::from(TypeNode::Nil),
+        };
+
+        Ok(t)
+    }
+
+    fn type_expression(&mut self, expression: &Expression) -> Result<Type, ()> {
+        use self::ExpressionNode::*;
+
+        let t = match expression.node {
+            Identifier(ref name) => {
+                let t = self.fetch(name, &expression.pos)?;
+
+                self.deid(t)?
             }
 
-            for (key, kind) in content.iter() {
-              match kind.node {
-                TypeNode::Optional(_) => (),
-                _ => {
-                  if !validation_map.contains_key(key) {
-                    if let Some(ref implementations) = self.symtab.get_implementations(struct_id) {
-                      if implementations.contains_key(key) {
-                        continue
-                      }
+            Extern(ref kind, _) => {
+                let mut kind = kind.clone();
+
+                if let TypeNode::Id(ref ident) = kind.node.clone() {
+                    let ident_type = self.type_expression(&ident)?;
+
+                    kind = Type::from(ident_type.node)
+                }
+
+                Type::from(kind.node.clone())
+            }
+
+            Str(_) => Type::from(TypeNode::Str),
+            Char(_) => Type::from(TypeNode::Char),
+            Bool(_) => Type::from(TypeNode::Bool),
+            Int(_) => Type::from(TypeNode::Int),
+            Float(_) => Type::from(TypeNode::Float),
+
+            Array(ref content) => {
+                let mut kind = Type::from(TypeNode::Any);
+
+                if content.len() > 0 {
+                    kind = self.type_expression(content.first().unwrap())?
+                }
+
+                Type::array(kind, Some(content.len()))
+            }
+            Initialization(ref name, _) => Type::from(self.type_expression(name)?.node),
+
+            If(_, ref body, ..) => self.type_expression(body)?,
+
+            Struct(ref name, ref params, ref id) => {
+                let mut param_hash = HashMap::new();
+
+                for param in params {
+                    param_hash.insert(
+                        param.0.clone(),
+                        Type::from(self.deid(param.1.clone())?.node),
+                    );
+                }
+
+                Type::new(
+                    TypeNode::Struct(name.to_owned(), param_hash, id.to_string()),
+                    TypeMode::Undeclared,
+                )
+            }
+
+            Trait(ref name, ref params) => {
+                let mut param_hash = HashMap::new();
+
+                for param in params {
+                    param_hash.insert(
+                        param.0.clone(),
+                        Type::from(self.deid(param.1.clone())?.node),
+                    );
+                }
+
+                Type::from(TypeNode::Trait(name.to_owned(), param_hash))
+            }
+
+            Index(ref array, ref index, _) => {
+                let mut kind = self.type_expression(array)?;
+
+                if let TypeMode::Splat(_) = kind.mode {
+                    kind = Type::from(TypeNode::Array(
+                        Rc::new(Type::from(kind.node.clone())),
+                        None,
+                    ))
+                }
+
+                match kind.node {
+                    TypeNode::Array(ref t, _) => (**t).clone(),
+                    TypeNode::Any => Type::new(TypeNode::Any, kind.mode),
+
+                    TypeNode::Module(ref content, _) => {
+                        if let Identifier(ref name) = index.node {
+                            if let Some(kind) = content.get(name) {
+                                kind.clone()
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!("no such module member `{}`", name)),
+                                    self.source.file,
+                                    index.pos
+                                ));
+                            }
+                        } else {
+                            unreachable!()
+                        }
                     }
 
-                    return Err(
-                      response!(
-                        Wrong(format!("missing assignment of struct member `{}: {}`", key, kind)),
-                        self.source.file,
-                        expression.pos
-                      )
-                    )
-                  }
-                }
-              }
-            }
-
-          } else {
-            return Err(
-              response!(
-                Wrong(format!("can't initialize non-struct: `{}`", struct_type.node)),
-                self.source.file,
-                expression.pos
-              )
-            )
-          }
-        } else {
-          return Err(
-            response!(
-              Wrong(format!("can't initialize non-struct: `{}`", struct_type.node)),
-              self.source.file,
-              expression.pos
-            )
-          )
-        }
-
-        Ok(())
-      },
-
-      Block(ref statements) => {
-        self.push_scope();
-
-        self.visit_block(statements, true, false)?;
-
-        self.pop_scope();
-
-        Ok(())
-      },
-
-      If(ref condition, ref body, ref elses) => {
-        self.visit_expression(&*condition)?;
-
-        let condition_type = self.type_expression(&*condition)?.node;
-
-        if condition_type == TypeNode::Bool {
-
-          self.visit_expression(body)?;
-          let body_type = self.type_expression(body)?;
-
-          if let &Some(ref elses) = elses {
-            for &(ref maybe_condition, ref body, _) in elses {
-              if let Some(ref condition) = *maybe_condition {
-                let condition_type = self.type_expression(condition)?.node;
-
-                if condition_type != TypeNode::Bool {
-                  return Err(
-                    response!(
-                      Wrong(format!("mismatched condition, must be `bool` got `{}`", condition_type)),
-                      self.source.file,
-                      condition.pos
-                    )
-                  )
-                }
-              }
-
-              self.visit_expression(body)?;
-              let else_body_type = self.type_expression(body)?;
-
-              if body_type != else_body_type {
-                return Err(
-                  response!(
-                    Wrong(format!("mismatched types, expected `{}` got `{}`", body_type, else_body_type)),
-                    self.source.file,
-                    body.pos
-                  )
-                )
-              }
-            }
-          }
-
-          Ok(())
-
-        } else {
-          return Err(
-            response!(
-              Wrong(format!("mismatched condition, must be `bool` got `{}`", condition_type)),
-              self.source.file,
-              expression.pos
-            )
-          )
-        }
-      },
-
-      While(ref condition, ref body) => {
-        self.visit_expression(&*condition)?;
-
-        let condition_type = self.type_expression(&*condition)?.node;
-
-        if condition_type == TypeNode::Bool {
-          self.inside.push(Inside::Loop);
-
-          self.visit_expression(body)?;
-
-          let body_type = self.type_expression(body)?;
-
-          if body_type.node != TypeNode::Nil {
-            let body_pos = if let Block(ref content) = body.node {
-              content.last().unwrap().pos.clone()
-            } else {
-              unreachable!()
-            };
-
-            return Err(
-              response!(
-                Wrong(format!("mismatched types, expected `nil` found `{}`", body_type)),
-                self.source.file,
-                body_pos
-              )
-            )
-          }
-
-          self.inside.pop();
-
-          Ok(())
-
-        } else {
-          return Err(
-            response!(
-              Wrong(format!("mismatched condition, must be `bool` got `{}`", condition_type)),
-              self.source.file,
-              expression.pos
-            )
-          )
-        }
-      },
-
-      Array(ref content) => {
-        if content.len() == 0 {
-          return Ok(())
-        }
-
-        let t = self.type_expression(content.first().unwrap())?;
-
-        for element in content {
-          let element_type = self.type_expression(element)?;
-
-          if !t.node.check_expression(&Parser::fold_expression(element)?.node) && t.node != element_type.node {
-            return Err(
-              response!(
-                Wrong(format!("mismatched types in array, expected `{}` got `{}`", t, element_type)),
-                self.source.file,
-                element.pos
-              )
-            )
-          }
-        }
-
-        Ok(())
-      },
-
-      Struct(_, ref params, _) => {
-        let mut name_buffer = Vec::new();
-
-        for &(ref name, _) in params.iter() {
-          if name_buffer.contains(&name) {
-            return Err(
-              response!(
-                Wrong(format!("field `{}` defined more than once", name)),
-                self.source.file,
-                expression.pos
-              )
-            )
-          }
-
-          name_buffer.push(&name)
-        }
-
-        Ok(())
-      },
-
-      Trait(_, ref params) => {
-        let mut name_buffer = Vec::new();
-
-        for &(ref name, _) in params.iter() {
-          if name_buffer.contains(&name) {
-            return Err(
-              response!(
-                Wrong(format!("field `{}` defined more than once", name)),
-                self.source.file,
-                expression.pos
-              )
-            )
-          }
-
-          name_buffer.push(&name)
-        }
-
-        Ok(())
-      },
-
-      Call(ref expr, ref args) => {
-        self.visit_expression(expr)?;
-
-        self.inside.push(Inside::Calling(expr.pos.clone()));
-
-        let expression_type = self.type_expression(expr)?;
-
-        if let TypeNode::Func(ref params, _, ref func, .., is_method) = expression_type.node {
-          // // this is where we visit the func, nvm
-          // if let Some(func) = func {
-          //   self.visit_expression(
-          //     &Expression::new(
-          //       (**func).clone(),
-          //       expression.pos.clone()
-          //     )
-          //   )?;
-          // }
-
-          if is_method {
-            self.method_calls.insert(expr.pos.clone(), true);
-          }
-
-          let mut actual_arg_len            = args.len();
-          let mut type_buffer: Option<Type> = None;
-
-          for (i, param_type) in params.iter().enumerate() {
-            let param_type = self.deid(param_type.clone())?;
-
-            if args.len() <= i {
-              let last_arg_pos = match args.last() {
-                Some(arg) => {
-                  let arg_pos = args.last().unwrap().pos.clone();
-                  Pos(arg_pos.0, ((arg_pos.1).1 + 1, (arg_pos.1).1 + 1))
-                }
-                None => {
-                  let arg_pos = expression.pos.clone();
-                  Pos(arg_pos.0, ((arg_pos.1).1, (arg_pos.1).1))
-                }
-              };
-              return Err(
-                response!(
-                  Wrong(format!("mismatched argument count, expected type `{}` got nothing", param_type)),
-                  self.source.file,
-                  last_arg_pos
-                )
-              )
-            }
-
-            self.visit_expression(&args[i])?;
-
-            let arg_type   = self.type_expression(&args[i])?;
-
-            if !param_type.node.check_expression(&Parser::fold_expression(&args[i])?.node) && arg_type.node != param_type.node {
-              return Err(
-                response!(
-                  Wrong(format!("mismatched types, expected type `{}` got `{}`", param_type.node, arg_type)),
-                  self.source.file,
-                  args[i].pos
-                )
-              )
-            }
-
-            let arg_type = if i < args.len() {
-              self.visit_expression(&args[i])?;
-              self.type_expression(&args[i])?
-            } else {
-              type_buffer.as_ref().unwrap().clone()
-            };
-
-            let mode = arg_type.mode.clone();
-
-            if let TypeMode::Unwrap(ref len) = mode {
-              type_buffer = Some(arg_type.clone());
-
-              actual_arg_len += len
-            }
-          }
-
-          if actual_arg_len > params.len() {
-            let last = self.deid(params.last().unwrap().clone())?;
-
-            if let TypeMode::Splat(_) = last.mode {
-              for splat in &args[params.len()..] {
-                self.visit_expression(&splat)?;
-                let splat_type = self.type_expression(&splat)?;
-
-                if !last.node.check_expression(&splat.node) && last.node != splat_type.node {
-                  return Err(
-                    response!(
-                      Wrong(format!("mismatched splat argument, expected `{}` got `{}`", last, splat_type)),
-                      self.source.file,
-                      splat.pos
-                    )
-                  )
-                }
-              }
-            }
-
-            self.inside.push(Inside::Splat(Some(actual_arg_len - params.len())))
-          }
-
-          self.visit_expression(expr)?;
-
-          self.inside.pop();
-
-          if actual_arg_len != params.len() {
-            match params.last().unwrap().mode {
-              TypeMode::Splat(_) => (),
-              _                  => return Err(
-                response!(
-                  Wrong(format!("expected {} argument{} got {}", params.len(), if params.len() > 1 { "s" } else { "" }, actual_arg_len)),
-                  self.source.file,
-                  args.last().unwrap_or(expression).pos
-                )
-              )
-            }
-          }
-        }
-
-        Ok(())
-      },
-
-      Function(ref params, ref retty, ref body, ref is_method) => {
-        let mut frame_hash = HashMap::new();
-
-        let mut return_type = self.deid(retty.clone())?;
-
-        if let TypeNode::Id(ref ident) = retty.node {
-          self.visit_expression(&ident)?;
-
-          let ident_type = self.type_expression(&ident)?;
-
-          if let TypeNode::Struct(..) = ident_type.node {
-            return_type = Type::from(ident_type.node)
-          } else {
-            return Err(
-              response!(
-                Wrong(format!("can't use `{}` as type", ident_type)),
-                self.source.file,
-                ident.pos
-              )
-            )
-          }
-        }
-
-        return_type = Type::from(return_type.node.clone());
-
-        let mut found_splat = false;
-
-        for param in params.iter() {
-          if let TypeMode::Splat(_) = param.1.mode {
-            if found_splat {
-              return Err(
-                response!(
-                  Wrong("can't have multiple splat parameters in function"),
-                  self.source.file,
-                  expression.pos
-                )
-              )
-            }
-
-            found_splat = true
-          }
-
-          frame_hash.insert(param.0.clone(), self.deid(param.1.clone())?);
-        }
-
-        if *is_method {
-          let mut found = false;
-
-          for inside in self.inside.iter().rev() { // ffs
-            if let Inside::Implement(_) = inside {
-              found = true;
-            }
-          }
-
-          if !found {
-            return Err(
-              response!(
-                Wrong("can't define method outside implementation"),
-                self.source.file,
-                expression.pos
-              )
-            )
-          }
-        }
-
-        self.symtab.put_frame(Frame::from(frame_hash));
-
-        self.inside.push(Inside::Function);
-
-        self.visit_expression(body)?;
-
-        let body_type = self.type_expression(body)?;
-
-        self.inside.pop();
-
-        self.pop_scope();
-
-        if return_type.node != body_type.node {
-          Err(
-            response!(
-              Wrong(format!("mismatched return type, expected `{}` got `{}`", return_type, body_type)),
-              self.source.file,
-              body.pos
-            )
-          )
-        } else {
-          Ok(())
-        }
-      },
-
-      Index(ref left, ref index, _) => {
-        let mut left_type = self.type_expression(left)?;
-
-        if let TypeMode::Splat(_) = left_type.mode {
-          left_type = Type::from(TypeNode::Array(Rc::new(Type::from(left_type.node.clone())), None))
-        }
-
-        match left_type.node {
-          TypeNode::Array(_, ref len) => {
-            self.inside.push(Inside::Nothing);
-
-            self.visit_expression(index)?;
-
-            let index_type = self.type_expression(index)?;
-
-            match index_type.node {
-              TypeNode::Int => {
-                if let Int(ref a) = Parser::fold_expression(index)?.node {
-                  if let Some(len) = len {
-                    if *a as usize > *len {
-                      return Err(
-                        response!(
-                          Wrong(format!("index out of bounds, len is {} got {}", len, a)),
-                          self.source.file,
-                          left.pos
-                        )
-                      )
+                    TypeNode::Trait(_, ref content) => {
+                        if let Identifier(ref name) = index.node {
+                            if let Some(kind) = content.get(name) {
+                                kind.clone()
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!("no such trait member `{}`", name)),
+                                    self.source.file,
+                                    index.pos
+                                ));
+                            }
+                        } else {
+                            unreachable!()
+                        }
                     }
-                  }
-                }
-              },
 
-              _ => return Err(
-                response!(
-                  Wrong(format!("can't index with `{}`, must be `int`", index_type)),
-                  self.source.file,
-                  left.pos
-                )
-              )
-            }
-          },
-
-          TypeNode::Module(ref content, is_foreign) => {
-            self.inside.push(Inside::Nothing);
-
-            if is_foreign {
-              self.inside.push(Inside::ForeignModule(content.clone()))
-            }
-
-            if let Identifier(ref name) = index.node {
-              if !content.contains_key(name) {
-                return Err(
-                  response!(
-                    Wrong(format!("no such module member `{}`", name)),
-                    self.source.file,
-                    index.pos
-                  )
-                )
-              }
-            } else {
-              let index_type = self.type_expression(index)?;
-
-              return Err(
-                response!(
-                  Wrong(format!("can't index module with `{}`", index_type)),
-                  self.source.file,
-                  index.pos
-                )
-              )
-            }
-          },
-
-          TypeNode::Struct(_, ref content, ref id) => {
-            self.inside.push(Inside::Implement(left_type.clone()));
-
-            if let Identifier(ref name) = index.node {
-              if !content.contains_key(name) && !self.is_implemented(id, name) {
-                return Err(
-                  response!(
-                    Wrong(format!("no such struct member `{}`", name)),
-                    self.source.file,
-                    index.pos
-                  )
-                )
-              }
-            } else {
-              let index_type = self.type_expression(index)?;
-
-              return Err(
-                response!(
-                  Wrong(format!("can't index struct with `{}`", index_type)),
-                  self.source.file,
-                  index.pos
-                )
-              )
-            }
-          },
-
-          TypeNode::Trait(_, ref content) => {
-            if let Identifier(ref name) = index.node {
-              if !content.contains_key(name) {
-                return Err(
-                  response!(
-                    Wrong(format!("no such trait member `{}`", name)),
-                    self.source.file,
-                    index.pos
-                  )
-                )
-              }
-            } else {
-              let index_type = self.type_expression(index)?;
-
-              return Err(
-                response!(
-                  Wrong(format!("can't index trait with `{}`", index_type)),
-                  self.source.file,
-                  index.pos
-                )
-              )
-            }
-          },
-
-          TypeNode::Any => (),
-
-          _ => return Err(
-            response!(
-              Wrong(format!("can't index type `{}`", left_type)),
-              self.source.file,
-              left.pos
-            )
-          )
-        }
-
-        Ok(())
-      },
-
-      _ => Ok(())
-    }
-  }
-
-  fn visit_variable(&mut self, variable: &StatementNode, pos: &Pos) -> Result<(), ()> {
-    use self::ExpressionNode::*;
-
-     if let &StatementNode::Variable(ref var_type, ref name, ref right) = variable {
-      let mut variable_type = var_type.clone();
-
-      if let TypeNode::Id(ref ident) = var_type.node {
-        let ident_type = self.type_expression(&ident)?;
-
-        if let TypeNode::Struct(..) = ident_type.node {
-          variable_type = Type::from(ident_type.node)
-        } else {
-          return Err(
-            response!(
-              Wrong(format!("can't use `{}` as type", ident_type)),
-              self.source.file,
-              ident.pos
-            )
-          )
-        }
-      }
-
-      variable_type = Type::from(variable_type.node.clone());
-
-      if let &Some(ref right) = right {
-        match right.node {
-          Function(..) | Block(_) | If(..) | While(..) => (),
-          _ => self.visit_expression(right)?,
-        }
-
-        let right_type = self.type_expression(&right)?;
-
-        if !variable_type.node.strong_cmp(&TypeNode::Nil) {
-          if !variable_type.node.check_expression(&Parser::fold_expression(right)?.node) && variable_type.node != right_type.node {
-            return Err(
-              response!(
-                Wrong(format!("mismatched types, expected type `{}` got `{}`", variable_type.node, right_type.node)),
-                self.source.file,
-                right.pos
-              )
-            )
-          } else {
-            self.assign(name.to_owned(), variable_type.to_owned())
-          }
-
-        } else {
-          self.assign(name.to_owned(), right_type)
-        }
-
-        match right.node {
-          Function(..) | Block(_) | If(..) | While(..) => self.visit_expression(right)?,
-          _ => (),
-        }
-
-      } else {
-        self.assign(name.to_owned(), variable_type.to_owned())
-      }
-
-      Ok(())
-    } else {
-      unreachable!()
-    }
-  }
-
-
-
-  pub fn type_statement(&mut self, statement: &Statement) -> Result<Type, ()> {
-    use self::StatementNode::*;
-
-    let t = match statement.node {
-      Expression(ref expression) => self.type_expression(expression)?,
-      Return(ref expression)     => if let Some(ref expression) = *expression {
-        self.type_expression(expression)?
-      } else {
-        Type::from(TypeNode::Nil)
-      }
-      _ => Type::from(TypeNode::Nil)
-    };
-
-    Ok(t)
-  }
-
-  fn type_expression(&mut self, expression: &Expression) -> Result<Type, ()> {
-    use self::ExpressionNode::*;
-
-    let t = match expression.node {
-      Identifier(ref name) => {
-        let t = self.fetch(name, &expression.pos)?;
-
-        self.deid(t)?
-      },
-
-      Extern(ref kind, _) => {
-        let mut kind = kind.clone();
-
-        if let TypeNode::Id(ref ident) = kind.node.clone() {
-          let ident_type = self.type_expression(&ident)?;
-
-          kind = Type::from(ident_type.node)
-        }
-
-        Type::from(kind.node.clone())
-      },
-
-      Str(_)   => Type::from(TypeNode::Str),
-      Char(_)  => Type::from(TypeNode::Char),
-      Bool(_)  => Type::from(TypeNode::Bool),
-      Int(_)   => Type::from(TypeNode::Int),
-      Float(_) => Type::from(TypeNode::Float),
-
-      Array(ref content) => {
-        let mut kind = Type::from(TypeNode::Any);
-
-        if content.len() > 0 {
-          kind = self.type_expression(content.first().unwrap())?
-        }
-
-        Type::array(kind, Some(content.len()))
-      }
-      Initialization(ref name, _) => Type::from(self.type_expression(name)?.node),
-
-      If(_, ref body, ..) => self.type_expression(body)?,
-
-      Struct(ref name, ref params, ref id) => {
-        let mut param_hash = HashMap::new();
-
-        for param in params {
-          param_hash.insert(param.0.clone(), Type::from(self.deid(param.1.clone())?.node));
-        }
-
-        Type::new(TypeNode::Struct(name.to_owned(), param_hash, id.to_string()), TypeMode::Undeclared)
-      },
-
-      Trait(ref name, ref params) => {
-        let mut param_hash = HashMap::new();
-
-        for param in params {
-          param_hash.insert(param.0.clone(), Type::from(self.deid(param.1.clone())?.node));
-        }
-
-        Type::from(TypeNode::Trait(name.to_owned(), param_hash))
-      },
-
-      Index(ref array, ref index, _) => {
-        let mut kind = self.type_expression(array)?;
-
-        if let TypeMode::Splat(_) = kind.mode {
-          kind = Type::from(TypeNode::Array(Rc::new(Type::from(kind.node.clone())), None))
-        }
-
-        match kind.node {
-          TypeNode::Array(ref t, _) => (**t).clone(),
-          TypeNode::Any             => Type::new(TypeNode::Any, kind.mode),
-
-          TypeNode::Module(ref content, _) => {
-            if let Identifier(ref name) = index.node {
-              if let Some(kind) = content.get(name) {
-                kind.clone()
-              } else {
-                return Err(
-                  response!(
-                    Wrong(format!("no such module member `{}`", name)),
-                    self.source.file,
-                    index.pos
-                  )
-                )
-              }
-            } else {
-              unreachable!()
-            }
-          },
-
-          TypeNode::Trait(_, ref content) => {
-            if let Identifier(ref name) = index.node {
-              if let Some(kind) = content.get(name) {
-                kind.clone()
-              } else {
-                return Err(
-                  response!(
-                    Wrong(format!("no such trait member `{}`", name)),
-                    self.source.file,
-                    index.pos
-                  )
-                )
-              }
-            } else {
-              unreachable!()
-            }
-          },
-
-          TypeNode::Struct(ref struct_name, ref content, ref struct_id) => {
-            if let Identifier(ref name) = index.node {
-              if !self.is_implemented(struct_id, name) {
-
-                if let Some(kind2) = content.get(name) {
-                  if kind.mode.strong_cmp(&TypeMode::Undeclared) {
-                    if kind2.is_method() {
-                      return Err(
+                    TypeNode::Struct(ref struct_name, ref content, ref struct_id) => {
+                        if let Identifier(ref name) = index.node {
+                            if !self.is_implemented(struct_id, name) {
+                                if let Some(kind2) = content.get(name) {
+                                    if kind.mode.strong_cmp(&TypeMode::Undeclared) {
+                                        if kind2.is_method() {
+                                            return Err(
                         response!(
                           Wrong(format!("can't access non-static method `{}` on undeclared `{}`", name, struct_name)),
                           self.source.file,
                           index.pos
                         )
-                      )
-                    } else if !kind2.mode.strong_cmp(&TypeMode::Implemented) {
-                      return Err(
+                      );
+                                        } else if !kind2.mode.strong_cmp(&TypeMode::Implemented) {
+                                            return Err(
                         response!(
                           Wrong(format!("can't access uninitialized value `{}` on undeclared `{}`", name, struct_name)),
                           self.source.file,
                           index.pos
                         )
-                      )
+                      );
+                                        }
+                                    }
+
+                                    kind2.clone()
+                                } else {
+                                    return Err(response!(
+                                        Wrong(format!("no such struct member `{}`", name)),
+                                        self.source.file,
+                                        index.pos
+                                    ));
+                                }
+                            } else {
+                                self.symtab.get_implementation_force(struct_id, name)
+                            }
+                        } else {
+                            unreachable!()
+                        }
                     }
 
-                  }
+                    _ => {
+                        return Err(response!(
+                            Wrong(format!("can't index type `{}`", kind)),
+                            self.source.file,
+                            expression.pos
+                        ))
+                    }
+                }
+            }
 
-                  kind2.clone()
+            Call(ref expression, _) => {
+                if let TypeNode::Func(_, ref return_type, ..) =
+                    self.type_expression(expression)?.node
+                {
+                    (**return_type).clone()
                 } else {
-                  return Err(
-                    response!(
-                      Wrong(format!("no such struct member `{}`", name)),
-                      self.source.file,
-                      index.pos
-                    )
-                  )
+                    panic!("BAM! (please submit an issue): called {:#?}", expression)
+                }
+            }
+
+            Function(ref params, ref return_type, _, is_method) => {
+                let mut param_types = Vec::new();
+
+                for param in params {
+                    param_types.push(self.deid(param.1.clone())?)
                 }
 
-              } else {
-                self.symtab.get_implementation_force(struct_id, name)
-              }
-            } else {
-              unreachable!()
+                let return_type = self.deid(return_type.clone())?;
+
+                Type::from(TypeNode::Func(
+                    param_types,
+                    Rc::new(return_type),
+                    Some(Rc::new(expression.node.clone())),
+                    is_method,
+                ))
             }
-          },
 
-          _ => return Err(
-            response!(
-              Wrong(format!("can't index type `{}`", kind)),
-              self.source.file,
-              expression.pos
-            )
-          ),
-        }
-      },
+            Block(ref statements) => {
+                let flag_backup = self.flag.clone();
 
-      Call(ref expression, _) => {
-        if let TypeNode::Func(_, ref return_type, ..) = self.type_expression(expression)?.node {
-          (**return_type).clone()
-        } else {
-          panic!("BAM! (please submit an issue): called {:#?}", expression)
-        }
-      },
+                if self.flag.is_none() {
+                    self.flag = Some(FlagContext::Block(None))
+                }
 
-      Function(ref params, ref return_type, _, is_method) => {
-        let mut param_types = Vec::new();
+                self.push_scope();
 
-        for param in params {
-          param_types.push(self.deid(param.1.clone())?)
-        }
+                let block_type = if statements.len() > 0 {
+                    for element in statements {
+                        match element.node {
+                            StatementNode::Expression(ref expression) => match expression.node {
+                                Block(_) | If(..) | While(..) => {
+                                    self.type_expression(expression)?;
+                                }
 
-        let return_type = self.deid(return_type.clone())?;
+                                _ => (),
+                            },
 
-        Type::from(TypeNode::Func(param_types, Rc::new(return_type), Some(Rc::new(expression.node.clone())), is_method))
-      },
+                            StatementNode::Return(ref return_type) => {
+                                let flag = self.flag.clone();
 
-      Block(ref statements) => {
-        let flag_backup = self.flag.clone();
+                                if let Some(ref flag) = flag {
+                                    if let &FlagContext::Block(ref consistent) = flag {
+                                        let return_type =
+                                            if let Some(ref return_type) = *return_type {
+                                                self.type_expression(&return_type)?
+                                            } else {
+                                                Type::from(TypeNode::Nil)
+                                            };
 
-        if self.flag.is_none() {
-          self.flag = Some(FlagContext::Block(None))
-        }
-
-        self.push_scope();
-
-        let block_type = if statements.len() > 0 {
-          for element in statements {
-
-            match element.node {
-              StatementNode::Expression(ref expression) => match expression.node {
-                Block(_) | If(..) | While(..) => { self.type_expression(expression)?; },
-
-                _ => (),
-              },
-
-              StatementNode::Return(ref return_type) => {
-                let flag = self.flag.clone();
-
-                if let Some(ref flag) = flag {
-                  if let &FlagContext::Block(ref consistent) = flag {
-
-                    let return_type = if let Some(ref return_type) = *return_type {
-                      self.type_expression(&return_type)?
-                    } else {
-                      Type::from(TypeNode::Nil)
-                    };
-
-                    if let Some(ref consistent) = *consistent {
-                      if return_type != *consistent {
-                        return Err(
+                                        if let Some(ref consistent) = *consistent {
+                                            if return_type != *consistent {
+                                                return Err(
                           response!(
                             Wrong(format!("mismatched types, expected `{}` found `{}`", consistent, return_type)),
                             self.source.file,
                             expression.pos
                           )
-                        )
-                      }
-                    } else {
-                      self.flag = Some(FlagContext::Block(Some(return_type.clone())))
+                        );
+                                            }
+                                        } else {
+                                            self.flag =
+                                                Some(FlagContext::Block(Some(return_type.clone())))
+                                        }
+                                    }
+                                }
+                            }
+
+                            _ => (),
+                        }
                     }
-                  }
-                }
-              },
 
-              _ => (),
+                    self.symtab.put_frame(self.symtab.last.clone());
+
+                    let last = statements.last().unwrap();
+                    let implicit_type = self.type_statement(&last)?;
+
+                    self.pop_scope();
+
+                    if let Some(flag) = self.flag.clone() {
+                        if let FlagContext::Block(ref consistent) = flag {
+                            if let Some(ref consistent) = *consistent {
+                                if implicit_type.node != consistent.node {
+                                    return Err(response!(
+                                        Wrong(format!(
+                                            "mismatched types, expected `{}` found `{}`",
+                                            consistent, implicit_type
+                                        )),
+                                        self.source.file,
+                                        last.pos
+                                    ));
+                                }
+                            } else {
+                                self.flag = Some(FlagContext::Block(Some(implicit_type.clone())))
+                            }
+                        }
+                    }
+
+                    implicit_type
+                } else {
+                    Type::from(TypeNode::Nil)
+                };
+
+                self.pop_scope();
+
+                self.flag = flag_backup;
+
+                block_type
             }
-          }
 
-          self.symtab.put_frame(self.symtab.last.clone());
+            Cast(_, ref t) => t.to_owned(),
 
-          let last          = statements.last().unwrap();
-          let implicit_type = self.type_statement(&last)?;
+            Binary(ref left, ref op, ref right) => {
+                use self::Operator::*;
 
-          self.pop_scope();
+                match (
+                    self.type_expression(left)?.node,
+                    op,
+                    self.type_expression(right)?.node,
+                ) {
+                    (ref a, ref op, ref b) => match **op {
+                        Add | Sub | Mul | Div | Mod => {
+                            if [a, b] != [&TypeNode::Nil, &TypeNode::Nil] {
+                                // real hack here
+                                if a == b {
+                                    match a {
+                                        TypeNode::Float | TypeNode::Int => match b {
+                                            TypeNode::Float | TypeNode::Int => {
+                                                Type::from(a.clone())
+                                            }
 
-          if let Some(flag) = self.flag.clone() {
-            if let FlagContext::Block(ref consistent) = flag {
-              if let Some(ref consistent) = *consistent {
-                if implicit_type.node != consistent.node {
-                  return Err(
-                    response!(
-                      Wrong(format!("mismatched types, expected `{}` found `{}`", consistent, implicit_type)),
-                      self.source.file,
-                      last.pos
-                    )
-                  )
+                                            _ => {
+                                                return Err(response!(
+                                                    Wrong(format!(
+                                                        "can't perform operation `{} {} {}`",
+                                                        a, op, b
+                                                    )),
+                                                    self.source.file,
+                                                    expression.pos
+                                                ))
+                                            }
+                                        },
+
+                                        _ => {
+                                            return Err(response!(
+                                                Wrong(format!(
+                                                    "can't perform operation `{} {} {}`",
+                                                    a, op, b
+                                                )),
+                                                self.source.file,
+                                                expression.pos
+                                            ))
+                                        }
+                                    }
+                                } else {
+                                    return Err(response!(
+                                        Wrong(format!(
+                                            "can't perform operation `{} {} {}`",
+                                            a, op, b
+                                        )),
+                                        self.source.file,
+                                        expression.pos
+                                    ));
+                                }
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                                    self.source.file,
+                                    expression.pos
+                                ));
+                            }
+                        }
+
+                        Pow => match a {
+                            TypeNode::Float | TypeNode::Int => match b {
+                                TypeNode::Float | TypeNode::Int => Type::from(a.clone()),
+
+                                _ => {
+                                    return Err(response!(
+                                        Wrong(format!(
+                                            "can't perform operation `{} {} {}`",
+                                            a, op, b
+                                        )),
+                                        self.source.file,
+                                        expression.pos
+                                    ))
+                                }
+                            },
+
+                            _ => {
+                                return Err(response!(
+                                    Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                                    self.source.file,
+                                    expression.pos
+                                ))
+                            }
+                        },
+
+                        And | Or => {
+                            if a == b && *a == TypeNode::Bool {
+                                Type::from(TypeNode::Bool)
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                                    self.source.file,
+                                    expression.pos
+                                ));
+                            }
+                        }
+
+                        Concat => {
+                            if *a == TypeNode::Str {
+                                match *b {
+                                    TypeNode::Func(..) | TypeNode::Array(..) => {
+                                        return Err(response!(
+                                            Wrong(format!(
+                                                "can't perform operation `{} {} {}`",
+                                                a, op, b
+                                            )),
+                                            self.source.file,
+                                            expression.pos
+                                        ))
+                                    }
+
+                                    _ => Type::from(TypeNode::Str),
+                                }
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                                    self.source.file,
+                                    expression.pos
+                                ));
+                            }
+                        }
+
+                        Eq | Lt | Gt | NEq | LtEq | GtEq => {
+                            if a == b {
+                                Type::from(TypeNode::Bool)
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                                    self.source.file,
+                                    expression.pos
+                                ));
+                            }
+                        }
+
+                        _ => {
+                            return Err(response!(
+                                Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                                self.source.file,
+                                expression.pos
+                            ))
+                        }
+                    },
                 }
-              } else {
-                self.flag = Some(FlagContext::Block(Some(implicit_type.clone())))
-              }
             }
-          }
 
-          implicit_type
+            Module(ref content) => {
+                if let ExpressionNode::Block(ref ast) = content.node {
+                    let mut visitor = Visitor::new(ast, self.source);
 
-        } else {
-          Type::from(TypeNode::Nil)
+                    visitor.visit()?;
+
+                    let content_type = visitor.module_content.clone();
+
+                    Type::from(TypeNode::Module(content_type, false))
+                } else {
+                    unreachable!()
+                }
+            }
+
+            UnwrapSplat(ref expr) => {
+                let t = self.type_expression(&**expr)?;
+
+                if let TypeMode::Splat(_) = t.mode {
+                    if let Some(Inside::Splat(Some(ref len))) = self.inside.last() {
+                        Type::new(t.node, TypeMode::Unwrap(*len))
+                    } else {
+                        Type::from(TypeNode::Any)
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+
+            Unwrap(ref expression) => {
+                let kind = self.type_expression(expression)?;
+
+                if let TypeNode::Optional(ref inner) = kind.node {
+                    Type::new((**inner).clone(), kind.mode.clone())
+                } else {
+                    unreachable!()
+                }
+            }
+
+            Neg(ref expr) => self.type_expression(expr)?,
+            Not(_) => Type::from(TypeNode::Bool),
+
+            _ => Type::from(TypeNode::Nil),
         };
 
-        self.pop_scope();
+        self.deid(t)
+    }
 
-        self.flag = flag_backup;
+    // `ensure_implicit` gets mad at wannabe implicit returns
+    fn visit_block(
+        &mut self,
+        content: &Vec<Statement>,
+        ensure_implicits: bool,
+        module_level: bool,
+    ) -> Result<(), ()> {
+        for (i, statement) in content.iter().enumerate() {
+            // ommiting functions, for that extra user-feel
+            if let StatementNode::Variable(ref kind, ref name, ref value) = statement.node {
+                if let Some(ref right) = *value {
+                    if let ExpressionNode::Function(ref params, ref retty, .., is_method) =
+                        right.node
+                    {
+                        let mut types = Vec::new();
 
-        block_type
-      },
+                        for param in params.iter() {
+                            types.push(self.deid(param.1.clone())?)
+                        }
 
-      Cast(_, ref t) => t.to_owned(),
+                        let t = Type::from(TypeNode::Func(
+                            types,
+                            Rc::new(retty.clone()),
+                            Some(Rc::new(right.node.clone())),
+                            is_method,
+                        ));
 
-      Binary(ref left, ref op, ref right) => {
-        use self::Operator::*;
+                        self.assign(name.to_owned(), t);
 
-        match (self.type_expression(left)?.node, op, self.type_expression(right)?.node) {
-          (ref a, ref op, ref b) => match **op {
-            Add | Sub | Mul | Div | Mod => if [a, b] != [&TypeNode::Nil, &TypeNode::Nil] { // real hack here
-              if a == b {
-                match a {
-                  TypeNode::Float | TypeNode::Int => match b {
-                    TypeNode::Float | TypeNode::Int => {
-                      Type::from(a.clone())
-                    },
+                        continue;
+                    } else {
+                        self.visit_statement(&statement)?;
 
-                    _ => return Err(
-                      response!(
-                        Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+                        let t = self.type_expression(right)?;
+
+                        if module_level {
+                            self.module_content.insert(name.clone(), t);
+                        }
+                    }
+                } else {
+                    if module_level {
+                        self.module_content.insert(name.clone(), kind.clone());
+                    }
+                }
+            }
+
+            if ensure_implicits {
+                if i < content.len() - 1 {
+                    if let StatementNode::Expression(ref expression) = statement.node {
+                        self.ensure_no_implicit(expression)?
+                    }
+                }
+            }
+
+            // at this point it's not a variable ...
+            self.visit_statement(&statement)?
+        }
+
+        for statement in content.iter() {
+            if let StatementNode::Variable(ref t, ref name, ref right) = statement.node {
+                if let Some(ref right) = *right {
+                    if let ExpressionNode::Function(..) = right.node {
+                        self.visit_statement(statement)?;
+
+                        let t = self.type_expression(right)?;
+
+                        if module_level {
+                            self.module_content.insert(name.to_owned(), t.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn visit_implement_block(
+        &mut self,
+        ast: &Vec<Statement>,
+        struct_name: &String,
+        new_content: &HashMap<String, Type>,
+        id: &String,
+        kind: &Type,
+        module_content: Option<&HashMap<String, Type>>,
+        is_index: bool,
+    ) -> Result<(), ()> {
+        let mut new_content = new_content.clone();
+
+        let original_kind = kind.clone();
+
+        for (i, statement) in ast.iter().enumerate() {
+            // don't visit function bodies
+            if let StatementNode::Variable(_, ref name, ref right) = statement.node {
+                if let Some(ref right) = *right {
+                    if let ExpressionNode::Function(ref params, ref retty, .., is_method) =
+                        right.node
+                    {
+                        let mut types = Vec::new();
+
+                        for param in params.iter() {
+                            types.push(self.deid(param.1.clone())?)
+                        }
+
+                        let t = Type::from(TypeNode::Func(
+                            types,
+                            Rc::new(retty.clone()),
+                            Some(Rc::new(right.node.clone())),
+                            is_method,
+                        ));
+
+                        // set type on struct, on the fucking fly wthf
+
+                        new_content.insert(
+                            name.clone(),
+                            Type::new(t.node.clone(), TypeMode::Implemented),
+                        );
+
+                        let kind = Type::new(
+                            TypeNode::Struct(struct_name.clone(), new_content.clone(), id.clone()),
+                            kind.mode.clone(),
+                        );
+
+                        // we have strong computers in 2018
+                        self.inside.pop();
+                        self.inside.push(Inside::Implement(kind.clone()));
+
+                        self.assign_str("self", Type::from(kind.node.clone()));
+
+                        if is_index {
+                            self.symtab.implement(
+                                id,
+                                name.clone(),
+                                Type::new(t.node.clone(), TypeMode::Implemented),
+                            );
+
+                            let mut new_module_content = module_content.unwrap().clone();
+
+                            new_module_content.insert(name.to_string(), kind.clone());
+
+                            self.assign(struct_name.to_owned(), kind.clone());
+
+                            if let Some(root) = self.symtab.stack[0].get(struct_name) {
+                                if root == original_kind {
+                                    self.module_content
+                                        .insert(struct_name.to_owned(), kind.clone());
+                                }
+                            }
+                        } else {
+                            self.symtab.implement(
+                                id,
+                                name.clone(),
+                                Type::new(t.node.clone(), TypeMode::Implemented),
+                            );
+
+                            self.assign(struct_name.to_owned(), kind.clone());
+
+                            if let Some(root) = self.symtab.stack[0].get(struct_name) {
+                                if root == original_kind {
+                                    self.module_content
+                                        .insert(struct_name.to_owned(), kind.clone());
+                                }
+                            }
+                        }
+
+                        self.assign(name.to_owned(), t);
+
+                        continue;
+                    }
+                } else {
+                    return Err(response!(
+                        Wrong("expected function definition"),
                         self.source.file,
-                        expression.pos
-                      )
-                    )
-                  },
-
-                  _ => return Err(
-                    response!(
-                      Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                      self.source.file,
-                      expression.pos
-                    )
-                  )
+                        statement.pos
+                    ));
                 }
-              } else {
-                return Err(
-                  response!(
-                    Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
+            } else {
+                return Err(response!(
+                    Wrong("expected function definition"),
                     self.source.file,
-                    expression.pos
-                  )
-                )
-              }
-            } else {
-              return Err(
-                response!(
-                  Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                  self.source.file,
-                  expression.pos
-                )
-              )
-            },
-
-            Pow => {
-              match a {
-                TypeNode::Float | TypeNode::Int => match b {
-                  TypeNode::Float | TypeNode::Int => {
-                    Type::from(a.clone())
-                  },
-
-                  _ => return Err(
-                    response!(
-                      Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                      self.source.file,
-                      expression.pos
-                    )
-                  )
-                },
-
-                _ => return Err(
-                  response!(
-                    Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                    self.source.file,
-                    expression.pos
-                  )
-                )
-              }
-            },
-
-            And | Or => if a == b && *a == TypeNode::Bool {
-              Type::from(TypeNode::Bool)
-            } else {
-              return Err(
-                response!(
-                  Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                  self.source.file,
-                  expression.pos
-                )
-              )
-            },
-
-            Concat => if *a == TypeNode::Str {
-              match *b {
-                TypeNode::Func(..) | TypeNode::Array(..) => return Err(
-                  response!(
-                    Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                    self.source.file,
-                    expression.pos
-                  )
-                ),
-
-                _ => Type::from(TypeNode::Str)
-              }
-            } else {
-              return Err(
-                response!(
-                  Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                  self.source.file,
-                  expression.pos
-                )
-              )
-            },
-
-            Eq | Lt | Gt | NEq | LtEq | GtEq => if a == b {
-              Type::from(TypeNode::Bool)
-            } else {
-              return Err(
-                response!(
-                  Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                  self.source.file,
-                  expression.pos
-                )
-              )
-            },
-
-            _ => return Err(
-              response!(
-                Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                self.source.file,
-                expression.pos
-              )
-            )
-          },
-        }
-      },
-
-      Module(ref content) => {
-        if let ExpressionNode::Block(ref ast) = content.node {
-          let mut visitor = Visitor::new(ast, self.source);
-
-          visitor.visit()?;
-
-          let content_type = visitor.module_content.clone();
-
-          Type::from(TypeNode::Module(content_type, false))
-        } else {
-          unreachable!()
-        }
-      },
-
-      UnwrapSplat(ref expr) => {
-        let t = self.type_expression(&**expr)?;
-
-        if let TypeMode::Splat(_) = t.mode {
-          if let Some(Inside::Splat(Some(ref len))) = self.inside.last() {
-            Type::new(t.node, TypeMode::Unwrap(*len))
-          } else {
-            Type::from(TypeNode::Any)
-          }
-        } else {
-          unreachable!()
-        }
-      },
-
-      Unwrap(ref expression) => {
-        let kind = self.type_expression(expression)?;
-
-        if let TypeNode::Optional(ref inner) = kind.node {
-          Type::new((**inner).clone(), kind.mode.clone())
-        } else {
-          unreachable!()
-        }
-      },
-
-      Neg(ref expr) => self.type_expression(expr)?,
-      Not(_)        => Type::from(TypeNode::Bool),
-
-      _ => Type::from(TypeNode::Nil)
-    };
-
-    self.deid(t)
-  }
-
-
-
-  // `ensure_implicit` gets mad at wannabe implicit returns
-  fn visit_block(&mut self, content: &Vec<Statement>, ensure_implicits: bool, module_level: bool) -> Result<(), ()> {
-    for (i, statement) in content.iter().enumerate() {
-      // ommiting functions, for that extra user-feel
-      if let StatementNode::Variable(ref kind, ref name, ref value) = statement.node {
-        if let Some(ref right) = *value {
-          if let ExpressionNode::Function(ref params, ref retty, .., is_method) = right.node {
-
-            let mut types = Vec::new();
-
-            for param in params.iter() {
-              types.push(self.deid(param.1.clone())?)
+                    statement.pos
+                ));
             }
-
-            let t = Type::from(
-              TypeNode::Func(types, Rc::new(retty.clone()), Some(Rc::new(right.node.clone())), is_method)
-            );
-
-            self.assign(name.to_owned(), t);
-
-            continue
-          } else {
-            self.visit_statement(&statement)?;
-
-            let t = self.type_expression(right)?;
-
-            if module_level {
-              self.module_content.insert(name.clone(), t);
-            }
-          }
-        } else {
-          if module_level {  
-            self.module_content.insert(name.clone(), kind.clone());
-          }
         }
-      }
 
-      if ensure_implicits {
-        if i < content.len() - 1 {
-          if let StatementNode::Expression(ref expression) = statement.node {
-            self.ensure_no_implicit(expression)?
-          }
-        }
-      }
-
-      // at this point it's not a variable ...
-      self.visit_statement(&statement)?
-    }
-
-    for statement in content.iter() {
-      if let StatementNode::Variable(ref t, ref name, ref right) = statement.node {
-        if let Some(ref right) = *right {
-          if let ExpressionNode::Function(..) = right.node {
-            self.visit_statement(statement)?;
-
-            let t = self.type_expression(right)?;
-
-            if module_level {
-              self.module_content.insert(name.to_owned(), t.clone());
-            }
-          }
-        }
-      }
-    }
-
-    Ok(())
-  }
-
-  #[allow(dead_code)]
-  pub fn visit_implement_block(&mut self, ast: &Vec<Statement>,
-    struct_name: &String,
-    new_content: &HashMap<String, Type>,
-    id: &String,
-    kind: &Type,
-    module_content: Option<&HashMap<String, Type>>,
-    is_index: bool,
-  ) -> Result<(), ()> {
-    let mut new_content = new_content.clone();
-
-    let original_kind = kind.clone();
-
-    for (i, statement) in ast.iter().enumerate() {
-
-      // don't visit function bodies
-      if let StatementNode::Variable(_, ref name, ref right) = statement.node {
-        if let Some(ref right) = *right {
-          if let ExpressionNode::Function(ref params, ref retty, .., is_method) = right.node {
-
-            let mut types = Vec::new();
-
-            for param in params.iter() {
-              types.push(self.deid(param.1.clone())?)
-            }
-
-            let t = Type::from(
-              TypeNode::Func(types, Rc::new(retty.clone()), Some(Rc::new(right.node.clone())), is_method)
-            );
-
-            // set type on struct, on the fucking fly wthf
-
-            new_content.insert(name.clone(), Type::new(t.node.clone(), TypeMode::Implemented));
-
-            let kind = Type::new(TypeNode::Struct(struct_name.clone(), new_content.clone(), id.clone()), kind.mode.clone());
-
-            // we have strong computers in 2018
-            self.inside.pop();
-            self.inside.push(Inside::Implement(kind.clone()));
-
-            self.assign_str("self", Type::from(kind.node.clone()));
-
-            if is_index {
-              self.symtab.implement(id, name.clone(), Type::new(t.node.clone(), TypeMode::Implemented));
-
-              let mut new_module_content = module_content.unwrap().clone();
-
-              new_module_content.insert(name.to_string(), kind.clone());
-
-              self.assign(struct_name.to_owned(), kind.clone());
-
-              if let Some(root) = self.symtab.stack[0].get(struct_name) {
-                if root == original_kind {
-                  self.module_content.insert(struct_name.to_owned(), kind.clone());
+        for statement in ast {
+            if let StatementNode::Variable(.., ref right) = statement.node {
+                if let Some(ref right) = *right {
+                    if let ExpressionNode::Function(..) = right.node {
+                        self.visit_statement(statement)?
+                    }
                 }
-              }
-            } else {
-              self.symtab.implement(id, name.clone(), Type::new(t.node.clone(), TypeMode::Implemented));
+            }
+        }
 
-              self.assign(struct_name.to_owned(), kind.clone());
+        Ok(())
+    }
 
-              if let Some(root) = self.symtab.stack[0].get(struct_name) {
-                if root == original_kind {
-                  self.module_content.insert(struct_name.to_owned(), kind.clone());
+    fn ensure_no_implicit(&self, expression: &Expression) -> Result<(), ()> {
+        use self::ExpressionNode::*;
+
+        match expression.node {
+            Block(ref statements) => {
+                if let Some(statement) = statements.last() {
+                    if let StatementNode::Expression(ref expression) = statement.node {
+                        match expression.node {
+                            Call(..) => (),
+                            Block(..) => {
+                                self.ensure_no_implicit(expression)?;
+                            }
+
+                            If(_, ref expr, _) | While(_, ref expr) => {
+                                self.ensure_no_implicit(&*expr)?
+                            }
+
+                            _ => {
+                                return Err(response!(
+                                    Wrong("unexpected expression without context"),
+                                    self.source.file,
+                                    expression.pos
+                                ))
+                            }
+                        }
+                    }
+
+                    ()
+                } else {
+                    ()
                 }
-              }
             }
 
-            self.assign(name.to_owned(), t);
-
-            continue
-          }
-        } else {
-          return Err(
-            response!(
-              Wrong("expected function definition"),
-              self.source.file,
-              statement.pos
-            )
-          )
-        }
-      } else {
-        return Err(
-          response!(
-            Wrong("expected function definition"),
-            self.source.file,
-            statement.pos
-          )
-        )
-      }
-    }
-
-    for statement in ast {
-      if let StatementNode::Variable(.., ref right) = statement.node {
-        if let Some(ref right) = *right {
-          if let ExpressionNode::Function(..) = right.node {
-            self.visit_statement(statement)?
-          }
-        }
-      }
-    }
-
-    Ok(())
-  }
-
-
-
-  fn ensure_no_implicit(&self, expression: &Expression) -> Result<(), ()> {
-    use self::ExpressionNode::*;
-
-    match expression.node {
-      Block(ref statements) => if let Some(statement) = statements.last() {
-        if let StatementNode::Expression(ref expression) = statement.node {
-          match expression.node {
-
-            Call(..)   => (),
-            Block(..)  => { self.ensure_no_implicit(expression)?; }
+            Call(..) => (),
 
             If(_, ref expr, _) | While(_, ref expr) => self.ensure_no_implicit(&*expr)?,
 
-            _ => return Err(
-              response!(
-                Wrong("unexpected expression without context"),
+            _ => {
+                return Err(response!(
+                    Wrong("unexpected expression without context"),
+                    self.source.file,
+                    expression.pos
+                ))
+            }
+        }
+
+        Ok(())
+    }
+
+    fn assert_types(&self, a: Type, b: Type, pos: &Pos) -> Result<bool, ()> {
+        if a != b {
+            Err(response!(
+                Wrong(format!("mismatched types, expected `{}` got `{}`", a, b)),
                 self.source.file,
-                expression.pos
-              )
-            )
-          }
+                pos
+            ))
+        } else {
+            Ok(true)
+        }
+    }
+
+    fn fetch(&self, name: &String, pos: &Pos) -> Result<Type, ()> {
+        if let Some(t) = self.symtab.fetch(name) {
+            Ok(t)
+        } else {
+            Err(response!(
+                Wrong(format!("can't seem to find `{}`", name)),
+                self.source.file,
+                pos
+            ))
+        }
+    }
+
+    fn fetch_str(&self, name: &str, pos: &Pos) -> Result<Type, ()> {
+        if let Some(t) = self.symtab.fetch_str(name) {
+            Ok(t)
+        } else {
+            Err(response!(
+                Wrong(format!("can't seem to find `{}`", name)),
+                self.source.file,
+                pos
+            ))
+        }
+    }
+
+    fn assign_str(&mut self, name: &str, t: Type) {
+        self.symtab.assign_str(name, t)
+    }
+
+    fn assign(&mut self, name: String, t: Type) {
+        self.symtab.assign(name, t)
+    }
+
+    fn push_scope(&mut self) {
+        self.symtab.push()
+    }
+
+    fn pop_scope(&mut self) {
+        self.symtab.pop()
+    }
+
+    pub fn deid(&mut self, t: Type) -> Result<Type, ()> {
+        if let TypeNode::Optional(ref content) = t.node {
+            return Ok(Type::new(
+                TypeNode::Optional(Rc::new(self.deid(Type::from((**content).clone()))?.node)),
+                t.mode,
+            ));
         }
 
-        ()
-      } else {
-        ()
-      },
+        if let TypeNode::Id(ref expr) = t.node {
+            let mut new_t;
 
-      Call(..) => (),
+            for inside in self.inside.iter().rev() {
+                if let Inside::ForeignModule(ref content) = inside {
+                    let empty_ast = Vec::new();
+                    let mut visitor = Visitor::new(&empty_ast, &self.source); // TODO: fix source to refer to proper file
 
-      If(_, ref expr, _) | While(_, ref expr) => self.ensure_no_implicit(&*expr)?,
+                    visitor.symtab = SymTab::from(content.clone());
 
-      _ => return Err(
-        response!(
-          Wrong("unexpected expression without context"),
-          self.source.file,
-          expression.pos
-        )
-      )
-    }
+                    new_t = visitor.type_expression(expr)?;
+                    new_t.mode = t.mode.clone();
 
-    Ok(())
-  }
+                    return Ok(new_t);
+                }
+            }
 
+            new_t = self.type_expression(expr)?;
+            new_t.mode = t.mode.clone();
 
-
-  fn assert_types(&self, a: Type, b: Type, pos: &Pos) -> Result<bool, ()> {
-    if a != b {
-      Err(
-        response!(
-          Wrong(format!("mismatched types, expected `{}` got `{}`", a, b)),
-          self.source.file,
-          pos
-        )
-      )
-    } else {
-      Ok(true)
-    }
-  }
-
-
-  fn fetch(&self, name: &String, pos: &Pos) -> Result<Type, ()> {
-    if let Some(t) = self.symtab.fetch(name) {
-      Ok(t)
-    } else {
-      Err(
-        response!(
-          Wrong(format!("can't seem to find `{}`", name)),
-          self.source.file,
-          pos
-        )
-      )
-    }
-  }
-
-  fn fetch_str(&self, name: &str, pos: &Pos) -> Result<Type, ()> {
-    if let Some(t) = self.symtab.fetch_str(name) {
-      Ok(t)
-    } else {
-      Err(
-        response!(
-          Wrong(format!("can't seem to find `{}`", name)),
-          self.source.file,
-          pos
-        )
-      )
-    }
-  }
-
-
-  fn assign_str(&mut self, name: &str, t: Type) {
-    self.symtab.assign_str(name, t)
-  }
-
-  fn assign(&mut self, name: String, t: Type) {
-    self.symtab.assign(name, t)
-  }
-
-
-
-  fn push_scope(&mut self) {
-    self.symtab.push()
-  }
-
-  fn pop_scope(&mut self) {
-    self.symtab.pop()
-  }
-
-
-
-  pub fn deid(&mut self, t: Type) -> Result<Type, ()> {
-    if let TypeNode::Optional(ref content) = t.node {
-      return Ok(
-        Type::new(
-          TypeNode::Optional(Rc::new(self.deid(Type::from((**content).clone()))?.node)),
-          t.mode
-        )
-      )
-    }
-
-    if let TypeNode::Id(ref expr) = t.node {
-      let mut new_t;
-
-      for inside in self.inside.iter().rev() {
-        if let Inside::ForeignModule(ref content) = inside {
-          let empty_ast   = Vec::new();
-          let mut visitor = Visitor::new(&empty_ast, &self.source); // TODO: fix source to refer to proper file
-        
-          visitor.symtab = SymTab::from(content.clone());
-
-          new_t = visitor.type_expression(expr)?;
-          new_t.mode = t.mode.clone();
-
-          return Ok(new_t)
+            Ok(new_t)
+        } else {
+            Ok(t)
         }
-      }
-
-      new_t = self.type_expression(expr)?;
-      new_t.mode = t.mode.clone();
-
-      Ok(new_t)
-    } else {
-      Ok(t)
-    }
-  }
-
-
-
-  pub fn is_implemented(&mut self, struct_id: &String, method_name: &String) -> bool {
-    if let Some(ref content) = self.symtab.get_implementations(struct_id) {
-      return content.contains_key(method_name)
     }
 
-    false
-  }
+    pub fn is_implemented(&mut self, struct_id: &String, method_name: &String) -> bool {
+        if let Some(ref content) = self.symtab.get_implementations(struct_id) {
+            return content.contains_key(method_name);
+        }
+
+        false
+    }
 }
