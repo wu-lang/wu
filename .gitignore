@@ -11,3 +11,7 @@ Cargo.lock
 
 /target/
 **/*.rs.bk
+
+# vim temp files
+*.swo
+*.swp
