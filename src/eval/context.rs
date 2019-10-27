@@ -1,11 +1,12 @@
 use crate::wu::parser::ast::Expression;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 /// This guy stores which variables are available in a given scope.
 /// Scopes have parents; if they don't know about a variable, they'll
 /// tell you to ask their parent about it. That's why parent is stored here.
 pub struct Context {
-    pub map: HashMap<String, Expression>,
+    pub map: HashMap<String, Rc<Expression>>,
     /// An index into the array of Contexts Evaluator stores.
     /// There's always going to be one Context which doesn't have a parent,
     /// so it's stored as an Option for this one OG Context that raised itself.

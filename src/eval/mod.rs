@@ -15,8 +15,9 @@ use crate::wu::{
 };
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
-type RustFn = Box<dyn Fn(Vec<&Expression>) -> Option<ExpressionNode>>;
+type RustFn = Box<dyn Fn(Vec<Rc<Expression>>) -> Option<ExpressionNode>>;
 
 /// Runs wu code.
 pub struct Evaluator<'g> {
@@ -41,6 +42,7 @@ impl<'g> Evaluator<'g> {
         builtins.insert(
             "print".to_string(),
             Box::new(|args: Vec<_>| {
+                println!("normal builtin call!");
                 println!("{}", args[0].string_ref().expect("can only print strings"));
                 None
             }),
@@ -57,28 +59,30 @@ impl<'g> Evaluator<'g> {
     /// Start evaluating some AST the top most level, i.e. Context 0.
     /// This implies that the code being evaluated is at the top most scope,
     /// and all other scopes spiral down from that one.
-    pub fn eval(&mut self, ast: &'g Vec<Statement>) {
-        self.eval_recurse(ast, 0);
+    pub fn eval(&mut self, ast: &Vec<Statement>) {
+        self.eval_recurse(0, ast.clone());
     }
 
     /// Evaluate some AST, referring to the provided index as the context to use.
     /// Because this function can use any level of context, it's more useful for recursion;
     /// to evaluate a block or module in a new scope, you can simply call this function on the AST
     /// and spawn a new child context off of the current context for it to be evaluated in.
-    pub fn eval_recurse(&mut self, ast: &'g Vec<Statement>, ctx: usize) {
+    pub fn eval_recurse(&mut self, ctx: usize, ast: Vec<Statement>) {
         for Statement { node, .. } in ast {
             println!("node: {:?}", node);
             match node {
-                StatementNode::Expression(Expression { node, .. }) => {
-                    self.eval_expression(node, ctx);
+                StatementNode::Expression(expr) => {
+                    self.eval_expression(ctx, Rc::new(expr));
                 }
                 StatementNode::Assignment(id_expr, value) => {
-                    let id = id_expr.identifier_ref().expect("can only assign to identifiers");
-                    self.assign(ctx, id.clone(), value.clone());
+                    let id = id_expr
+                        .identifier_ref()
+                        .expect("can only assign to identifiers");
+                    self.assign(ctx, id.clone(), Rc::new(value));
                 }
                 StatementNode::Variable(_, id, value) => {
                     if let Some(value) = value {
-                        self.assign(ctx, id.clone(), value.clone());
+                        self.assign(ctx, id.clone(), Rc::new(value));
                     }
                 }
                 _ => {}
@@ -86,59 +90,71 @@ impl<'g> Evaluator<'g> {
         }
     }
 
-    fn eval_expression(&mut self, expr: &ExpressionNode, ctx: usize) {
+    fn eval_expression(&mut self, ctx: usize, expr: Rc<Expression>) -> Option<Rc<Expression>> {
         use ExpressionNode::*;
 
-        match expr {
+        match &expr.node {
             Call(called, args) => {
                 match &(*called).node {
                     Identifier(id) => {
-                        if id == "__rust_call" {
-                            // __rust_call takes one string parameter, which is composed of words
-                            // separated by spaces. The first word is the name of the function to
-                            // call, the second word is the name of variables to pass it.
-                            let arg = args[0]
-                                .string_ref()
-                                .expect("__rust_call must take string arg");
+                        println!("id: {}", id);
+                        if self.builtins.contains_key(id) {
+                            println!("found builtin call!");
+                            println!("args: {:?}", args);
 
-                            // the string parameter that's passed to rust_call, split into words.
-                            let mut call = arg.split(" ");
+                            let args = args
+                                .into_iter()
+                                .map(|arg| {
+                                    self.eval_expression(ctx, Rc::new(arg.clone()))
+                                        .unwrap_or_else(|| {
+                                            panic!("can't pass as function arg: {}", arg.pos)
+                                        })
+                                })
+                                .collect::<Vec<_>>();
 
-                            // the first thing in that giant string parameter, which should be the
-                            // Rust function to call
-                            let fn_name = call.next()
-                                .expect("the first argument to __rust_call must be the name of the fn to call");
+                            let builtin = self
+                                .builtins
+                                .get(id)
+                                .expect("found builtin but couldn't pull it from HashMap");
 
                             // if we can find a function with that name, call it. Look up the
                             // values the variable names refer to, and pass the function those
                             // values as parameters.
-                            if let Some(builtin) = self.builtins.get(fn_name) {
-                                builtin(call.map(|arg| {
-                                    self.fetch(ctx, arg).unwrap_or_else(|why| {
-                                        panic!("no value for rust_call var {}: {}", called.pos, why)
-                                    })
-                                }).collect::<Vec<_>>());
-                            }
+                            return builtin(args)
+                                .map(|node| Rc::new(Expression::new(node, expr.pos.clone())));
                         }
                     }
                     _ => {}
                 }
             }
+            Identifier(id) => {
+                return self.fetch(ctx, &id);
+            }
+            Int(_) => return Some(expr),
+            Float(_) => return Some(expr),
+            Str(_) => return Some(expr),
+            Char(_) => return Some(expr),
+            Bool(_) => return Some(expr),
             _ => {}
         }
+
+        None
     }
 
     /// Recursively searches through a given context and then all of its ancestors for a certain
     /// value, and return a reference to that value.
-    fn fetch(&self, ctx: usize, id: &str) -> Result<&Expression, String> {
+    //fn fetch(&self, ctx: usize, id: &str) -> Result<&Expression, String> {
+    fn fetch(&self, ctx: usize, id: &str) -> Option<Rc<Expression>> {
         let Context { map, parent } = &self.contexts[ctx];
         map.get(id)
-            .or_else(move || parent.and_then(move |parent| self.fetch(parent, id).ok()))
-            .ok_or(format!("couldn't find variable with identifier \"{}\"", id))
+            .map(|x| Rc::clone(x))
+            .or_else(move || parent.and_then(move |parent| self.fetch(parent, id)))
+        //.ok()))
+        //.ok_or(format!("couldn't find variable with identifier \"{}\"", id))
     }
-    
+
     /// Stores a new value in the most local context.
-    fn assign(&mut self, ctx: usize, id: String, to: Expression) -> Option<Expression> {
+    fn assign(&mut self, ctx: usize, id: String, to: Rc<Expression>) -> Option<Rc<Expression>> {
         self.contexts[ctx].map.insert(id, to)
     }
 }
@@ -176,20 +192,19 @@ fn test_eval() {
 
         let method_calls = HashMap::new();
         let mut evalr = Evaluator::new(&source, &method_calls); //&visitor.method_calls)
-        evalr.builtins.insert(
-            "print".to_string(),
-            {
-                let output = output.clone();
+        evalr.builtins.insert("print".to_string(), {
+            let output = output.clone();
 
-                Box::new(move |args: Vec<_>| {
-                    let mut output = output.lock().unwrap();
-                    output.push_str(args[0].string_ref().expect("can only print strings"));
-                    output.push('\n');
+            Box::new(move |args: Vec<_>| {
+                let mut output = output.lock().unwrap();
+                output.push_str(args[0].string_ref().expect("can only print strings"));
+                output.push('\n');
 
-                    None
-                })
-            },
-        );
+                println!("overrriden builtin call!");
+
+                None
+            })
+        });
         evalr.eval(&ast);
 
         let output = output.lock().unwrap().to_string();
@@ -197,10 +212,7 @@ fn test_eval() {
     }
 
     assert_eq!(
-        eval(
-            "hi := \"hello wurld!\" \n\
-            __rust_call(\"print hi\")"
-        ),
+        eval("print(\"hello wurld!\")"),
         "hello wurld!\n".to_string(),
     );
 }
