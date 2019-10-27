@@ -73,6 +73,28 @@ pub struct Expression {
     pub node: ExpressionNode,
     pub pos: Pos,
 }
+impl Expression {
+    pub fn identifier_ref(&self) -> Result<&String, &Self> {
+        match &self.node {
+            ExpressionNode::Identifier(id) => Ok(id),
+            _ => Err(&self),
+        }
+    }
+
+    /*pub fn string(self) -> Result<String, Self> {
+        match self.node {
+            ExpressionNode::Str(id) => Ok(id),
+            _ => Err(self),
+        }
+    }*/
+
+    pub fn string_ref(&self) -> Result<&String, &Self> {
+        match &self.node {
+            ExpressionNode::Str(id) => Ok(id),
+            _ => Err(&self),
+        }
+    }
+}
 
 impl Expression {
     pub fn new(node: ExpressionNode, pos: Pos) -> Self {

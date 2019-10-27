@@ -2,8 +2,8 @@ extern crate colored;
 
 use self::colored::Colorize;
 
-mod wu;
 mod eval;
+mod wu;
 
 use eval::Evaluator;
 
@@ -156,7 +156,7 @@ pub fn run(content: &str, file: &str, action: Action) -> Option<String> {
                 Action::Compile => {
                     let mut generator = Generator::new(&source, &visitor.method_calls);
                     Some(generator.generate(&ast))
-                },
+                }
                 Action::Interpret => {
                     let mut evaluator = Evaluator::new(&source, &visitor.method_calls);
                     evaluator.eval(&ast);
@@ -229,12 +229,14 @@ fn main() {
                 }
             }
 
-            action => process_path(&args[2], match action {
-                "compile" | "comp" | "c" => Action::Compile,
-                "interpret" | "eval" | "evaluate" | "interp" | "i" | "e" => Action::Interpret,
-                other => panic!("unknown action: {}", other)
-            }),
-           
+            action => process_path(
+                &args[2],
+                match action {
+                    "compile" | "comp" | "c" => Action::Compile,
+                    "interpret" | "eval" | "evaluate" | "interp" | "i" | "e" => Action::Interpret,
+                    other => panic!("unknown action: {}", other),
+                },
+            ),
         }
     } else {
         println!("{}", HELP)
