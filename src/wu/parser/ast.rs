@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::fmt;
 use std::rc::Rc;
 
@@ -81,6 +82,39 @@ impl Expression {
         }
     }
 
+    //Function(Vec<(String, Type)>, Type, Rc<Expression>, bool), // is_method: bool
+    pub fn function_ref(
+        &self,
+    ) -> Result<(&Vec<(String, Type)>, &Type, &Rc<Expression>, &bool), &Self> {
+        match &self.node {
+            ExpressionNode::Function(args, return_type, block, is_method) => {
+                Ok((args, return_type, block, is_method))
+            }
+            _ => Err(&self),
+        }
+    }
+
+    pub fn float(&self) -> Result<f64, &Self> {
+        match &self.node {
+            ExpressionNode::Float(f) => Ok(*f),
+            _ => Err(&self),
+        }
+    }
+
+    pub fn int(&self) -> Result<u64, &Self> {
+        match &self.node {
+            ExpressionNode::Int(i) => Ok(*i),
+            _ => Err(&self),
+        }
+    }
+
+    pub fn block(self) -> Result<Vec<Statement>, Self> {
+        match self.node {
+            ExpressionNode::Block(ast) => Ok(ast),
+            _ => Err(self),
+        }
+    }
+
     /*pub fn string(self) -> Result<String, Self> {
         match self.node {
             ExpressionNode::Str(id) => Ok(id),
@@ -93,6 +127,10 @@ impl Expression {
             ExpressionNode::Str(id) => Ok(id),
             _ => Err(&self),
         }
+    }
+
+    pub fn try_str(&self) -> Option<&str> {
+        self.string_ref().map(|x| x.as_str()).ok()
     }
 }
 
