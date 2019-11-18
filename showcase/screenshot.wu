@@ -1,7 +1,6 @@
 Player: struct {
   x: float
   y: float
-  
   name: str?
 }
 

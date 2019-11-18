@@ -1,6 +1,6 @@
 print: extern fun(...?)
 
-bee:  int? = 100
+bee:  int? = 100 + 10
 buzz: int  = bee!
 foo:  int? = bee
 
