@@ -234,7 +234,7 @@ impl PartialEq for TypeMode {
             (&Optional, _) => true,
             (&Undeclared, _) => false,
             (_, &Undeclared) => false,
-            (&Splat(a), &Splat(b)) => &a == &b,
+            (&Splat(a), &Splat(b)) => (a.is_none() || b.is_none()) || a <= b,
             (&Unwrap(_), _) => true,
             (_, &Unwrap(_)) => true,
             _ => false,
@@ -252,7 +252,7 @@ impl Display for TypeMode {
             Undeclared => write!(f, "undeclared "),
             Optional => write!(f, "optional? "),
             Implemented => Ok(()),
-            Splat(_) => write!(f, "..."),
+            Splat(ref count) => write!(f, "..."),
             Unwrap(_) => write!(f, "*"),
         }
     }
@@ -360,7 +360,16 @@ impl<'v> Visitor<'v> {
 
         match statement.node {
             Expression(ref expr) => self.visit_expression(expr),
-            Variable(..) => self.visit_variable(&statement.node, &statement.pos),
+            Variable(..) => self.visit_variable(&statement.node, &statement.pos, false),
+            SplatVariable(ref t, ref splats, ref right) => {
+                for splat in splats.iter() {
+                    let fake_var = StatementNode::Variable(t.to_owned(), splat.to_owned(), right.to_owned());
+
+                    self.visit_variable(&fake_var, &statement.pos, true)?
+                }
+
+                Ok(())
+            },
 
             Return(ref value) => {
                 if self.inside.contains(&Inside::Function) {
@@ -627,21 +636,21 @@ impl<'v> Visitor<'v> {
                                                                     {
                                                                         if ty.node != ty_b.node {
                                                                             return Err(
-                                        response!(
-                                          Wrong(format!("expected implemented type `{}` for `{}`", ty, name)),
-                                          self.source.file,
-                                          position
-                                        )
-                                      );
+                                                                                response!(
+                                                                                Wrong(format!("expected implemented type `{}` for `{}`", ty, name)),
+                                                                                self.source.file,
+                                                                                position
+                                                                                )
+                                                                            );
                                                                         }
                                                                     } else {
                                                                         return Err(
-                                      response!(
-                                        Wrong(format!("missing implementation of method `{}: {}`", name, ty)),
-                                        self.source.file,
-                                        position
-                                      )
-                                    );
+                                                                            response!(
+                                                                                Wrong(format!("missing implementation of method `{}: {}`", name, ty)),
+                                                                                self.source.file,
+                                                                                position
+                                                                            )
+                                                                        );
                                                                     }
                                                                 }
                                                             }
@@ -690,6 +699,34 @@ impl<'v> Visitor<'v> {
                 Ok(())
             }
 
+            SplatAssignment(ref splats, ref right) => {
+                for splat in splats.iter() {
+                    self.visit_expression(splat)?;
+                }
+
+                self.visit_expression(right)?;
+
+                let a = self.type_expression(&splats[0])?;
+
+                for splat in splats.iter() {
+                    let splat_t = self.type_expression(splat)?;
+
+                    if splat_t != a {
+                        return Err(response!(
+                            Wrong(format!("can't splat assign different types, expected `{}` found `{}`", a, splat_t)),
+                            self.source.file,
+                            splat.pos
+                        ))
+                    }
+                }
+
+                let b = self.type_expression(right)?;
+
+                self.assert_types(Type::new(a.node, TypeMode::Splat(Some(splats.len()))), b, &statement.pos)?;
+
+                Ok(())
+            }
+
             _ => Ok(()),
         }
     }
@@ -704,6 +741,14 @@ impl<'v> Visitor<'v> {
                 }
 
                 self.fetch(name, &expression.pos)?;
+
+                Ok(())
+            }
+
+            Splat(ref splats) => {
+                for splat in splats.iter() {
+                    self.visit_expression(&splat)?
+                }
 
                 Ok(())
             }
@@ -920,6 +965,50 @@ impl<'v> Visitor<'v> {
                     return Err(response!(
                         Wrong(format!(
                             "mismatched condition, must be `bool` got `{}`",
+                            condition_type
+                        )),
+                        self.source.file,
+                        expression.pos
+                    ));
+                }
+            }
+
+            For(ref condition, ref body) => {
+                self.visit_expression(&*condition)?;
+
+                let condition_type = self.type_expression(&*condition)?.node;
+
+                if condition_type == TypeNode::Int {
+                    self.inside.push(Inside::Loop);
+
+                    self.visit_expression(body)?;
+
+                    let body_type = self.type_expression(body)?;
+
+                    if body_type.node != TypeNode::Nil {
+                        let body_pos = if let Block(ref content) = body.node {
+                            content.last().unwrap().pos.clone()
+                        } else {
+                            unreachable!()
+                        };
+
+                        return Err(response!(
+                            Wrong(format!(
+                                "mismatched types, expected `nil` found `{}`",
+                                body_type
+                            )),
+                            self.source.file,
+                            body_pos
+                        ));
+                    }
+
+                    self.inside.pop();
+
+                    Ok(())
+                } else {
+                    return Err(response!(
+                        Wrong(format!(
+                            "mismatched condition, must be `int` got `{}`",
                             condition_type
                         )),
                         self.source.file,
@@ -1396,14 +1485,18 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    fn visit_variable(&mut self, variable: &StatementNode, pos: &Pos) -> Result<(), ()> {
+    fn visit_variable(&mut self, variable: &StatementNode, pos: &Pos, is_splat: bool) -> Result<(), ()> {
         use self::ExpressionNode::*;
 
         if let &StatementNode::Variable(ref var_type, ref name, ref right) = variable {
             let mut variable_type = var_type.clone();
 
             if let TypeNode::Id(ref ident) = var_type.node {
-                let ident_type = self.type_expression(&ident)?;
+                let mut ident_type = self.type_expression(&ident)?;
+
+                if is_splat {
+                    ident_type.mode = TypeMode::Regular
+                }
 
                 if let TypeNode::Struct(..) = ident_type.node {
                     variable_type = Type::from(ident_type.node)
@@ -1420,11 +1513,15 @@ impl<'v> Visitor<'v> {
 
             if let &Some(ref right) = right {
                 match right.node {
-                    Function(..) | Block(_) | If(..) | While(..) => (),
+                    Function(..) | Block(_) | If(..) | While(..) | For(..) => (),
                     _ => self.visit_expression(right)?,
                 }
 
-                let right_type = self.type_expression(&right)?;
+                let mut right_type = self.type_expression(&right)?;
+
+                if is_splat {
+                    right_type.mode = TypeMode::Regular
+                }
 
                 if !variable_type.node.strong_cmp(&TypeNode::Nil) {
                     if !variable_type
@@ -1448,7 +1545,7 @@ impl<'v> Visitor<'v> {
                 }
 
                 match right.node {
-                    Function(..) | Block(_) | If(..) | While(..) => self.visit_expression(right)?,
+                    Function(..) | Block(_) | If(..) | While(..) | For(..) => self.visit_expression(right)?,
                     _ => (),
                 }
             } else {
@@ -1487,6 +1584,29 @@ impl<'v> Visitor<'v> {
                 let t = self.fetch(name, &expression.pos)?;
 
                 self.deid(t)?
+            }
+
+            Splat(ref splats) => {
+                let a = self.type_expression(&splats[0])?;
+
+                let splat_type = Type::new(
+                    a.node.clone(),
+                    TypeMode::Splat(Some(splats.len()))
+                );
+
+                for splat in splats.iter() {
+                    let splat_t = self.type_expression(splat)?;
+
+                    if splat_t != a {
+                        return Err(response!(
+                            Wrong(format!("can't splat assign different types, expected `{}` found `{}`", a, splat_t)),
+                            self.source.file,
+                            splat.pos
+                        ))
+                    }
+                }
+
+                splat_type
             }
 
             Extern(ref kind, _) => {
@@ -1685,7 +1805,7 @@ impl<'v> Visitor<'v> {
                     for element in statements {
                         match element.node {
                             StatementNode::Expression(ref expression) => match expression.node {
-                                Block(_) | If(..) | While(..) => {
+                                Function(..) | Block(_) | If(..) | While(..) | For(..) => {
                                     self.type_expression(expression)?;
                                 }
 
@@ -2171,7 +2291,7 @@ impl<'v> Visitor<'v> {
                                 self.ensure_no_implicit(expression)?;
                             }
 
-                            If(_, ref expr, _) | While(_, ref expr) => {
+                            If(_, ref expr, _) | While(_, ref expr) | For(_, ref expr) => {
                                 self.ensure_no_implicit(&*expr)?
                             }
 
@@ -2193,7 +2313,7 @@ impl<'v> Visitor<'v> {
 
             Call(..) => (),
 
-            If(_, ref expr, _) | While(_, ref expr) => self.ensure_no_implicit(&*expr)?,
+            If(_, ref expr, _) | While(_, ref expr) | For(_, ref expr) => self.ensure_no_implicit(&*expr)?,
 
             _ => {
                 return Err(response!(

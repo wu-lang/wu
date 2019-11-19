@@ -7,7 +7,9 @@ use super::*;
 pub enum StatementNode {
     Expression(Expression),
     Variable(Type, String, Option<Expression>),
+    SplatVariable(Type, Vec<String>, Option<Expression>),
     Assignment(Expression, Expression),
+    SplatAssignment(Vec<Expression>, Expression),
     Return(Option<Rc<Expression>>),
     Implement(Expression, Expression, Option<Expression>),
     Import(String, Vec<String>),
@@ -56,6 +58,8 @@ pub enum ExpressionNode {
         Rc<Expression>,
         Option<Vec<(Option<Expression>, Expression, Pos)>>,
     ),
+    For(Rc<Expression>, Rc<Expression>),
+    Splat(Vec<Expression>),
 
     While(Rc<Expression>, Rc<Expression>),
     Module(Rc<Expression>),

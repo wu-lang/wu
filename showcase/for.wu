@@ -1,0 +1,51 @@
+print: extern fun(...)
+len:   extern fun(any) -> int = "table.getn"
+
+for 10 {
+    print("ten times!")
+}
+
+iter_list: fun(t: [any]) -> fun -> any? {
+    i := 0
+    n := len(t)
+
+    fun {
+        i += 1
+        if i <= n {
+            t[i]
+        }
+    }
+}
+
+range: fun(args: ...int) -> fun -> int? {
+    i   := args[0]
+    to  := args[1]
+    inc := args[2]
+
+    unless i {
+        return 
+    }
+
+    unless to {
+        to = i
+        i  = to == 0 and 0 or (to > 0 and 1 or -1) 
+    }
+
+    inc = inc or (i < to and 1 or -1)
+    i  -= inc
+
+    fun {
+        if i == to {
+            nil
+        } else {
+            i += 1
+            i
+        }
+    }
+}
+
+list := [1, 2, 3, 4, 5, 6]
+
+for i in iter_list(list) {
+
+}

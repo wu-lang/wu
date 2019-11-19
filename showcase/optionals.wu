@@ -5,3 +5,7 @@ buzz: int  = bee!
 foo:  int? = bee
 
 print(bee, buzz, foo, nil)
+
+foo: fun -> [int] {
+    [1, 2, 3, 4]
+}

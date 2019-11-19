@@ -1,0 +1,14 @@
+foo: int
+bar: int
+
+foo, bar = 100, 100, 1
+
+a, b := 10, 10
+
+y: int = b
+
+waps: fun -> ...int {
+    1, 2, 3
+}
+
+foo, bar, b := { 1 }, { 2 }, 2

@@ -98,6 +98,43 @@ impl<'g> Generator<'g> {
             Expression(ref expression) => self.generate_expression(expression),
             Variable(_, ref left, ref right) => self.generate_local(left, right),
             Assignment(ref left, ref right) => self.generate_assignment(left, right),
+            SplatVariable(_, ref splats, ref right) => {
+                let mut left = String::new();
+
+                for (i, splat) in splats.iter().enumerate() {
+                    left.push_str(&splat);
+
+                    if i < splats.len() - 1 {
+                        left.push_str(", ")
+                    }
+                }
+
+                self.generate_local(left.as_str(), right)
+            },
+
+            SplatAssignment(ref splats, ref right) => {
+                let mut left_string = String::new();
+
+                for (i, splat) in splats.iter().enumerate() {
+                    left_string.push_str(&self.generate_expression(&splat));
+
+                    if i < splats.len() - 1 {
+                        left_string.push_str(", ")
+                    }
+                }
+
+                let flag_backup = self.flag.clone();
+
+                self.flag = Some(FlagImplicit::Assign(left_string.clone()));
+
+                let right_string = self.generate_expression(right);
+
+                self.flag = flag_backup;
+
+                let result = format!("{} = {}", left_string, right_string);
+
+                result
+            },
 
             Return(ref expr) => {
                 if let Some(ref expr) = *expr {
@@ -185,6 +222,20 @@ impl<'g> Generator<'g> {
         use std::string;
 
         let result = match expression.node {
+            Splat(ref splats) => {
+                let mut result = String::new();
+
+                for (i, splat) in splats.iter().enumerate() {
+                    result.push_str(&self.generate_expression(&splat));
+
+                    if i < splats.len() - 1 {
+                        result.push_str(", ")
+                    }
+                }
+
+                result
+            }
+
             Binary(ref left, ref op, ref right) => {
                 let mut result = string::String::new();
 
@@ -545,6 +596,78 @@ impl<'g> Generator<'g> {
                 result
             }
 
+            For(ref iterator, ref body) => {
+                let flag_backup = self.flag.clone();
+                let inside_backup = self.inside.clone();
+
+                if self.inside == Some(Inside::Loop) {
+                    self.loop_depth += 1
+                } else {
+                    self.loop_depth = 0;
+                    self.inside = Some(Inside::Loop)
+                }
+
+                let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
+                    self.flag = Some(FlagImplicit::Return);
+
+                    "(function()\n"
+                } else {
+                    ""
+                }
+                .to_string();
+
+                if self.flag == Some(FlagImplicit::Return) {
+                    self.flag = None
+                }
+
+                let iterator = self.generate_expression(iterator);
+
+                let mut whole = format!("for __iterator_{} = 1, {} do\n", self.loop_depth, iterator);
+
+                let mut body_string = "repeat\n".to_string(); // doing this to remove redundant 'do' and 'end'
+
+                if let Block(ref content) = body.node {
+                    for (i, element) in content.iter().enumerate() {
+                        if i == content.len() - 1 {
+                            if StatementNode::Skip == element.node {
+                                break
+                            } else {
+                                if let StatementNode::Expression(ref expression) = element.node {
+                                    if Empty == expression.node {
+                                        break
+                                    }
+                                }
+                            }
+                        }
+
+                        body_string.push_str(&self.generate_statement(&element));
+                        body_string.push('\n')
+                    }
+                }
+
+                // body_string.push_str(&format!("::__while_{}::\n", self.loop_depth));
+                body_string.push_str("until true\n");
+
+                self.push_line(&mut whole, &body_string);
+
+                whole.push_str("end\n");
+
+                if let Some(FlagImplicit::Assign(_)) = flag_backup {
+                    self.push_line(&mut result, &whole)
+                } else {
+                    result.push_str(&whole)
+                }
+
+                self.flag = flag_backup;
+                self.inside = inside_backup;
+
+                if let Some(FlagImplicit::Assign(_)) = self.flag {
+                    result.push_str("end)()")
+                }
+
+                result
+            }
+
             While(ref condition, ref body) => {
                 let flag_backup = self.flag.clone();
                 let inside_backup = self.inside.clone();
@@ -667,14 +790,13 @@ impl<'g> Generator<'g> {
                     if t.node == Int { ")" } else { "" }
                 )
             }
-
             UnwrapSplat(ref expression) => {
                 format!("table.unpack({})", self.generate_expression(expression))
             }
             Unwrap(ref expression) => {
                 let right = self.generate_expression(expression);
 
-                format!("{0}; assert({0} ~= nil)", right)
+                format!("{0}; assert({0} ~= nil, \"can't unwrap 'nil'\")", right)
             },
             Neg(ref n) => format!("-{}", self.generate_expression(n)),
             Not(ref n) => format!("not {}", self.generate_expression(n)),
