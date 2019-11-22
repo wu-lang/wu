@@ -29,11 +29,10 @@ The language is meant and designed to be a solid alternative to MoonScript, whil
 - [x] Nilable/Optional types for better Lua interop
 - [x] Compound operations
 - [ ] Binding if-let for safe Optional unwrapping
-- [ ] Multiple returns for better Lua interop
+- [x] Multiple returns for better Lua interop
 - [ ] `extern module` for easier wrapping
 - [x] Lua STD wrapper
-- [ ] For-loops and ranges
-- [ ] Iterator library
+- [x] For-loops and iterators
 - [ ] Lexical macros
 - [ ] A custom, super fast virtual machine
 
