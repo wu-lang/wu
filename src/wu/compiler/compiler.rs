@@ -23,6 +23,7 @@ pub struct Generator<'g> {
     inside: Option<Inside>,
 
     loop_depth: usize,
+    special_break: bool,
 
     method_calls: &'g HashMap<Pos, bool>,
 }
@@ -36,6 +37,7 @@ impl<'g> Generator<'g> {
             inside: None,
 
             loop_depth: 0,
+            special_break: false,
 
             method_calls,
         }
@@ -172,8 +174,13 @@ impl<'g> Generator<'g> {
                 result
             }
 
-            Break => String::from("break"),
-            Skip => String::from("do break end"),
+            Break => if self.special_break {
+                format!("__brk_{} = true break", self.loop_depth)
+            } else {
+                String::from("break")
+            }
+
+            Skip => String::from("break"),
 
             Implement(ref name, ref body, _) => {
                 if let ExpressionNode::Block(ref content) = body.node {
@@ -452,11 +459,11 @@ impl<'g> Generator<'g> {
             }
 
             Array(ref content) => {
-                let mut result = "({\n".to_string();
+                let mut result = "{\n".to_string();
 
                 for (i, arg) in content.iter().enumerate() {
                     let value = self.generate_expression(arg);
-                    let mut line = format!("[{}] = {}", i, value);
+                    let mut line = format!("[{}] = {}", i + 1, value);
 
                     if i < content.len() - 1 {
                         line.push(',')
@@ -465,7 +472,7 @@ impl<'g> Generator<'g> {
                     result.push_str(&self.make_line(&line));
                 }
 
-                result.push_str("})");
+                result.push_str("}");
 
                 result
             }
@@ -599,6 +606,7 @@ impl<'g> Generator<'g> {
             For(ref iterator, ref body) => {
                 let flag_backup = self.flag.clone();
                 let inside_backup = self.inside.clone();
+                self.special_break = true;
 
                 if self.inside == Some(Inside::Loop) {
                     self.loop_depth += 1
@@ -620,11 +628,23 @@ impl<'g> Generator<'g> {
                     self.flag = None
                 }
 
-                let iterator = self.generate_expression(iterator);
+                let (expr, iterator) = &*iterator;
 
-                let mut whole = format!("for __iterator_{} = 1, {} do\n", self.loop_depth, iterator);
+                let mut whole = if let Some(ref iterator) = iterator {
+                    let iterator = self.generate_expression(&*iterator);
+                    let expr = self.generate_expression(&*expr);
 
-                let mut body_string = "repeat\n".to_string(); // doing this to remove redundant 'do' and 'end'
+                    format!("for {} in {} do", expr, iterator)
+
+                } else {
+                    let iterator = self.generate_expression(&*expr);
+
+                    format!("for __iterator_{} = 1, {} do\n", self.loop_depth, iterator)
+                };
+
+                let mut body_string = format!("\nlocal __brk_{} = false\n", self.loop_depth); // doing this to remove redundant 'do' and 'end'
+
+                body_string.push_str("repeat\n");
 
                 if let Block(ref content) = body.node {
                     for (i, element) in content.iter().enumerate() {
@@ -647,10 +667,13 @@ impl<'g> Generator<'g> {
 
                 // body_string.push_str(&format!("::__while_{}::\n", self.loop_depth));
                 body_string.push_str("until true\n");
+                body_string.push_str(&format!("if __brk_{} then break end", self.loop_depth));
 
                 self.push_line(&mut whole, &body_string);
 
                 whole.push_str("end\n");
+
+                self.special_break = false;
 
                 if let Some(FlagImplicit::Assign(_)) = flag_backup {
                     self.push_line(&mut result, &whole)
@@ -844,7 +867,7 @@ impl<'g> Generator<'g> {
         if let &Some(ref right) = right {
             if let ExpressionNode::Function(..) = right.node {
                 result = self.generate_expression(right);
-                result = result.replace("function", &format!("function {}", name));
+                result = result.replacen("function", &format!("function {}", name), 1);
             } else {
                 let right_str = match right.node {
                     ExpressionNode::Struct(..) => "{}".to_string(),

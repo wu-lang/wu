@@ -108,7 +108,7 @@ impl PartialEq for TypeNode {
             (&Bool, &Bool) => true,
             (&Nil, &Nil) => true,
             (&This, &This) => true,
-            (&Array(ref a, ref la), &Array(ref b, ref lb)) => a == b && (la == &None || la == lb),
+            (&Array(ref a, ref la), &Array(ref b, ref lb)) => a == b && (la == &None || (a.node == Any && lb == &None) || la == lb),
             (&Id(ref a), &Id(ref b)) => a == b,
             (&Func(ref a_params, ref a_retty, .., a), &Func(ref b_params, ref b_retty, .., b)) => {
                 a_params == b_params && a_retty == b_retty && a == b
@@ -974,11 +974,53 @@ impl<'v> Visitor<'v> {
             }
 
             For(ref condition, ref body) => {
-                self.visit_expression(&*condition)?;
+                let (expr, iterator) = &*condition;
 
-                let condition_type = self.type_expression(&*condition)?.node;
+                if let Some(ref iterator) = iterator {
+                    self.visit_expression(&iterator)?;
 
-                if condition_type == TypeNode::Int {
+                    let iterator = if let ExpressionNode::Call(ref called, ..) = iterator.node {
+                        called
+                    } else {
+                        iterator
+                    };
+
+                    let iterator_t = self.type_expression(&iterator)?;
+                    let params_t = Type::new(TypeNode::Any, TypeMode::Splat(None));
+
+                    // TODO: ACTUALLY INFER ITERATOR TYPE
+
+                    // allowed: fun(...) -> ...
+
+                    if iterator_t != Type::function(vec!(params_t.clone()), params_t.clone(), false)
+                        && iterator_t != Type::function(vec!(), Type::from(TypeNode::Any), false) {
+
+                        return Err(response!(
+                            Wrong(format!(
+                                "mismatched type, expected iterator function found `{}`",
+                                iterator_t
+                            )),
+                            self.source.file,
+                            iterator.pos
+                        ));
+                    }
+
+                    match expr.node {
+                        ExpressionNode::Identifier(ref name) => self.symtab.assign((*name).clone(), Type::from(TypeNode::Any)),
+                        ExpressionNode::Splat(ref names) => for name in names.iter() {
+                            if let ExpressionNode::Identifier(ref name) = name.node {
+                                self.symtab.assign((*name).clone(), Type::from(TypeNode::Any))
+                            }
+                        },
+                        _ => return Err(response!(
+                            Wrong("expected identifier as accumulator"),
+                            self.source.file,
+                            expr.pos
+                        )),
+                    }
+                }
+
+                if (iterator.is_none() && self.type_expression(&expr)?.node == TypeNode::Int) || iterator.is_some() {
                     self.inside.push(Inside::Loop);
 
                     self.visit_expression(body)?;
@@ -1008,8 +1050,8 @@ impl<'v> Visitor<'v> {
                 } else {
                     return Err(response!(
                         Wrong(format!(
-                            "mismatched condition, must be `int` got `{}`",
-                            condition_type
+                            "mismatched repetition count, must be `int` got `{}`",
+                            self.type_expression(&expr)?.node
                         )),
                         self.source.file,
                         expression.pos

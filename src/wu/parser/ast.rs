@@ -58,7 +58,7 @@ pub enum ExpressionNode {
         Rc<Expression>,
         Option<Vec<(Option<Expression>, Expression, Pos)>>,
     ),
-    For(Rc<Expression>, Rc<Expression>),
+    For((Rc<Expression>, Option<Rc<Expression>>), Rc<Expression>),
     Splat(Vec<Expression>),
 
     While(Rc<Expression>, Rc<Expression>),

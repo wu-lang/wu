@@ -56,6 +56,7 @@ impl<'l> Lexer<'l> {
                 "nil",
                 "switch",
                 "for",
+                "in",
             ],
         )));
 

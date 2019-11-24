@@ -565,12 +565,20 @@ impl<'p> Parser<'p> {
                         position,
                     ),
 
-                    "[" => Expression::new(
-                        ExpressionNode::Array(
-                            self.parse_block_of(("[", "]"), &Self::_parse_expression_comma)?,
-                        ),
-                        self.span_from(position),
-                    ),
+                    "[" => {
+                        self.in_sequence = true;
+
+                        let expr = Expression::new(
+                            ExpressionNode::Array(
+                                self.parse_block_of(("[", "]"), &Self::_parse_expression_comma)?,
+                            ),
+                            self.span_from(position),
+                        );
+
+                        self.in_sequence = false;
+
+                        expr
+                    },
 
                     "(" => {
                         self.next()?;
@@ -699,7 +707,18 @@ impl<'p> Parser<'p> {
                             self.next()?;
                             self.next_newline()?;
 
-                            let iterator = Rc::new(self.parse_expression()?);
+                            let expr = Rc::new(self.parse_expression()?);
+                            let mut iterator = None;
+
+                            self.next_newline()?;
+
+                            if self.current_lexeme() == "in" {
+                                self.next()?;
+                                self.next_newline()?;
+
+                                iterator = Some(Rc::new(self.parse_expression()?))
+                            }
+
                             let for_position = self.span_from(position.clone());
 
                             let body = Rc::new(Expression::new(
@@ -711,7 +730,7 @@ impl<'p> Parser<'p> {
 
                             Expression::new(
                                 ExpressionNode::For(
-                                    iterator, body,
+                                    (expr, iterator), body,
                                 ),
                                 for_position
                             )
