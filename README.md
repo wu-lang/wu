@@ -11,34 +11,32 @@ An expression oriented, gradually typed and mission-critical programming languag
 
 A full walk-through of the language can be found over at the [wu-lang documentation](https://wu-lang.gitbook.io/guide/).
 
-### Motivation
+### Details
 
-Apart from being a strong and exquisite hipster language, Wu strives to be a decently useful, control-focused high-level language for use in game development as well as general purpose development. Its syntax is highly inspired by Rust's strong *explicit* syntax, combined with concepts from Jonathan Blow's Jai syntax and the sugar of MoonScript and the functional language family.
+Wu strives to be a decently useful language with focus on control, readability and scalability. The syntax of Wu is heavily inspired by the strong and safe one of Rust, while keeping the advantages of being high-level and gradually typed. The language is meant and designed to be a solid alternative to Python, Lua and MoonScript, while being superior on control and maintainability.
 
-The language is meant and designed to be a solid alternative to MoonScript, while being superior on control and maintainability.
+### Example
 
-### Teaser
+<img src="https://i.ibb.co/TtJP6DQ/code.png" alt="code" border="0">
 
-<img src="https://i.ibb.co/p3N0xC3/code.png" alt="code" border="0">
+## Selling points
 
-## Roadmap
+- [x] Compiles to Lua
+- [x] Gradual typing
+- [x] Rust-like trait system
+- [x] Expression oriented design
+- [x] Perfect Lua interoperability
+- [x] Match patterns
+- [x] Cool logo
+- [ ] You are using it
 
-- [x] Minimum viable product
-- [x] Trait system
-- [x] Fix modules
-- [x] Nilable/Optional types for better Lua interop
-- [x] Compound operations
-- [ ] Binding if-let for safe optional-unwrapping
-- [x] Multiple returns for better Lua interop
-- [ ] `extern module` for easier wrapping
-- [x] Lua STD wrapper
-- [x] For-loops and iterators
-- [ ] Lexical macros
-- [ ] Operator overloading and meta things
+## Libraries
+
+- [`lover`](https://github.com/nilq/lover): Type-safe bindings for the Love2D game engine
 
 ## Disclaimer
 
-Wu is built by a minimal team of people, all members of which are basically kids working on the compiler when bored in class. The whole thing is currently in very early stages. That said, it's probably fine, so go use it in production.
+Wu is built and maintained by a minimal team of people and was primarily developed during boring primary school classes, to help make time pass faster. Currently being maintained by a 17 year old.
 
 ## Contributors
 
