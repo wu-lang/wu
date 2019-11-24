@@ -551,17 +551,17 @@ impl<'v> Visitor<'v> {
                                                 if let Some(ty_b) = content.get(name) {
                                                     if ty.node != ty_b.node {
                                                         return Err(response!(
-                                Wrong(format!("expected implemented type `{}` for `{}`", ty, name)),
-                                self.source.file,
-                                position
-                              ));
+                                                            Wrong(format!("expected implemented type `{}` for `{}`", ty, name)),
+                                                            self.source.file,
+                                                            position
+                                                        ));
                                                     }
                                                 } else {
                                                     return Err(response!(
-                              Wrong(format!("missing implementation of method `{}: {}`", name, ty)),
-                              self.source.file,
-                              position
-                            ));
+                                                        Wrong(format!("missing implementation of method `{}: {}`", name, ty)),
+                                                        self.source.file,
+                                                        position
+                                                    ));
                                                 }
                                             }
                                         }

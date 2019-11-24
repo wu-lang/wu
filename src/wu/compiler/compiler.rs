@@ -62,6 +62,8 @@ impl<'g> Generator<'g> {
             }
         }
 
+        names.dedup();
+
         names
     }
 
@@ -453,7 +455,7 @@ impl<'g> Generator<'g> {
 
                 self.flag = flag_backup;
 
-                result.push_str("end");
+                result.push_str("end\n");
 
                 result
             }
@@ -597,7 +599,7 @@ impl<'g> Generator<'g> {
                 if let Some(FlagImplicit::Assign(_)) = self.flag {
                     result.push_str("end\nend)()")
                 } else {
-                    result.push_str("end")
+                    result.push_str("end\n")
                 }
 
                 result

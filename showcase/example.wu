@@ -1,17 +1,28 @@
 Vector: struct {
     x: float
+    y: float
+}
+
+Movable: trait {
+    move: fun(self, float, float)
+}
+
+implement Vector: Movable {
+    move: fun(self, dx: float, dy: float) {
+        self x += dx
+        self y += dy
+    }
 }
 
 implement Vector {
-    seub: fun(self, other: Self) -> Self {
-        new Self {
-            x: self x + other x
-        }
-    }
-
-    add: fun(a: int) -> Self {
-        new Self { x: 10 }
+    length: fun(self) -> float {
+        (self x^2 + self y^2)^0.5
     }
 }
 
-b := Vector add(10) 
+position := new Vector {
+    x: 100
+    y: 200
+}
+
+position move(10, 10)
