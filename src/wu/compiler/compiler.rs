@@ -792,7 +792,7 @@ impl<'g> Generator<'g> {
             Int(ref n) => format!("{}", n),
             Float(ref n) => format!("{}", n),
             Bool(ref n) => format!("{}", n),
-            Str(ref n) => format!("\"{}\"", n),
+            Str(ref n) => format!("\"{}\"", n.replace("\\n", "\\\\n").replace('\n', "\\n")),
             Char(ref n) => format!("\"{}\"", n),
             Identifier(ref n) => Self::make_valid(n),
 

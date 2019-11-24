@@ -1,0 +1,63 @@
+Vector: struct {
+    x: float
+    y: float
+}
+
+Movable: trait {
+    move: fun(self, float, float)
+}
+
+implement Vector: Movable {
+    move: fun(self, dx: float, dy: float) {
+        self x += dx
+        self y += dy
+    }
+}
+
+implement Vector {
+    zero: fun -> Vector {
+        new Vector {
+            x: 0
+            y: 0
+        }
+    }
+
+    length: fun(self) -> float {
+        (self x^2 + self y^2)^0.5
+    }
+
+    normalize: fun(self) {
+        len := self length()
+
+        self x /= len
+        self y /= len
+    }
+
+    extend: fun(self, other: Self) -> Vector {
+        new Vector {
+            x: self x + other x
+            y: self x + other y
+        }
+    }
+}
+
+
+# real shit
+print: extern fun(...)
+
+a := Vector zero()
+b := new Vector {
+    x: 100
+    y: 200
+}
+
+print("b length:", b length())
+print("normalizing b ...")
+b normalize()
+print("new b length:", b length())
+
+print("\n==========\n")
+
+c := a extend(b)
+
+print("c length:", c length())
