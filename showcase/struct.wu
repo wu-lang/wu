@@ -1,0 +1,30 @@
+Foo: struct {}
+
+Bar: trait {
+    foobar: fun(int)
+}
+
+implement Foo: Bar {
+    foobar: fun(a: int) {
+        nil
+    }
+}
+
+implement Foo {
+    boo: fun -> Self {
+        new Self {}
+    }
+}
+
+implement Foo {
+    foo: fun() -> Self {
+        new Self {
+        }
+    }
+
+    bob: fun(self, a: Self) -> Self {
+        new Self {}
+    }
+}
+
+fo := Foo foo()

@@ -507,10 +507,6 @@ impl<'v> Visitor<'v> {
 
                 self.visit_expression(struct_name)?;
 
-                let t = self.type_expression(struct_name)?;
-
-                self.assign_str("Self", t.clone());
-
                 let position = struct_name.pos.clone();
 
                 match struct_name.node {
@@ -736,6 +732,14 @@ impl<'v> Visitor<'v> {
 
         match expression.node {
             Identifier(ref name) => {
+                if name == "Self" {
+                    for inside in self.inside.iter() {
+                        if let Inside::Implement(ref s) = inside {
+                            return Ok(())
+                        }
+                    }
+                }
+
                 if let Some(content) = self.symtab.get_foreign_module(name) {
                     self.inside.push(Inside::ForeignModule(content.clone()))
                 }
@@ -1531,6 +1535,14 @@ impl<'v> Visitor<'v> {
         use self::ExpressionNode::*;
 
         if let &StatementNode::Variable(ref var_type, ref name, ref right) = variable {
+            if name == "Self" {
+                return Err(response!(
+                    Wrong(format!("it's illegal to shadow `Self`")),
+                    self.source.file,
+                    pos
+                ));
+            }
+
             let mut variable_type = var_type.clone();
 
             if let TypeNode::Id(ref ident) = var_type.node {
@@ -1623,6 +1635,15 @@ impl<'v> Visitor<'v> {
 
         let t = match expression.node {
             Identifier(ref name) => {
+                if name == "Self" {
+                    for inside in self.inside.iter() {
+                        if let Inside::Implement(ref s) = inside {
+
+                            return Ok(self.deid(s.clone())?)
+                        }
+                    }
+                }
+
                 let t = self.fetch(name, &expression.pos)?;
 
                 self.deid(t)?
