@@ -15,7 +15,7 @@ A full walk-through of the language can be found over at the [wu-lang documentat
 
 Wu strives to be a decently useful language with focus on control, readability and scalability. The syntax of Wu is heavily inspired by the strong and safe one of Rust, while keeping the advantages of being high-level and gradually typed. The language is meant and designed to be a solid alternative to Python, Lua and MoonScript, while being superior on control and maintainability.
 
-### Teaser
+### Example
 
 <img src="https://i.ibb.co/TtJP6DQ/code.png" alt="code" border="0">
 
@@ -29,6 +29,10 @@ Wu strives to be a decently useful language with focus on control, readability a
 - [x] Match patterns
 - [x] Cool logo
 - [ ] You are using it
+
+## Libraries
+
+- [`lover`](https://github.com/nilq/lover): Type-safe bindings for the Love2D game engine
 
 ## Disclaimer
 
