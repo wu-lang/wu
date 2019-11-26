@@ -1,4 +1,6 @@
 extern crate colored;
+extern crate toml;
+extern crate git2;
 
 use self::colored::Colorize;
 
@@ -9,6 +11,7 @@ use self::wu::lexer::*;
 use self::wu::parser::*;
 use self::wu::source::*;
 use self::wu::visitor::*;
+use self::wu::handler::*;
 
 use std::fs;
 use std::fs::metadata;
@@ -21,13 +24,17 @@ use std::path::Path;
 
 const HELP: &'static str = "\
 The Wu Compiler
-- made by Niels
 
 Usage:
-  wu                # Show this message
-  wu <file>         # Compile .wu file to corresponding .lua file
-  wu <folder>       # Compile all .wu files in given folder
-  wu clean <folder> # Removes all compiled .lua files in given folder
+    wu                # Show this message
+    wu <file>         # Compile .wu file to corresponding .lua file
+    wu <folder>       # Compile all .wu files in given folder
+    wu clean <folder> # Removes all compiled .lua files from given folder
+
+Project usage:
+    wu new <name>     # Create a new Wu project
+    wu sync           # Installs/synchronizes dependencies
+    wu build          # Installs dependencies and builds current project
 ";
 
 fn compile_path(path: &str) {
@@ -211,6 +218,8 @@ fn clean_path(path: &str) {
 }
 
 fn main() {
+    use handler::*;
+
     let args = env::args().collect::<Vec<String>>();
 
     if args.len() > 1 {
@@ -219,7 +228,25 @@ fn main() {
                 if args.len() > 2 {
                     clean_path(&args[2])
                 }
-            }
+            },
+
+            "new" => if args.len() > 2 {
+                new(Some(&args[2]))
+            } else {
+                new(None)
+            },
+
+            "build" => {
+                get();
+
+                if args.len() > 2 {
+                    compile_path(&args[2])
+                } else {
+                    compile_path(".")
+                }
+            },
+
+            "sync" => get(),
 
             file => compile_path(&file),
         }

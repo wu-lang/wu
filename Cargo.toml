@@ -5,6 +5,8 @@ authors = ["nilq <i.am@nilq.dk>"]
 edition = "2018"
 
 [dependencies]
-colored   = "*"
-rustyline = "*"
-backtrace = "0.3"
+colored     = "*"
+rustyline   = "*"
+backtrace   = "0.3"
+toml        = "0.4"
+git2        = "0.6"
