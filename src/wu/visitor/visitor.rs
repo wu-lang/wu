@@ -355,6 +355,21 @@ impl<'v> Visitor<'v> {
         }
     }
 
+    pub fn from_symtab(ast: &'v Vec<Statement>, source: &'v Source, symtab: SymTab) -> Self {
+        Visitor {
+            symtab,
+
+            source,
+            ast,
+
+            flag: None,
+            inside: Vec::new(),
+
+            method_calls: HashMap::new(),
+            module_content: HashMap::new(),
+        }
+    }
+
     fn visit_statement(&mut self, statement: &Statement) -> Result<(), ()> {
         use self::StatementNode::*;
 

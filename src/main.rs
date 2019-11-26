@@ -126,7 +126,26 @@ pub fn run(content: &str, file: &str) -> Option<String> {
 
     match parser.parse() {
         Ok(ref ast) => {
-            let mut visitor = Visitor::new(ast, &source);
+            let mut symtab = SymTab::new();
+
+            let splat_any = Type::new(TypeNode::Any, TypeMode::Splat(None));
+
+            symtab.assign_str(
+                "print",
+                Type::function(vec!(splat_any.clone()), Type::from(TypeNode::Nil), false)  
+            );
+
+            symtab.assign_str(
+                "ipairs",
+                Type::function(vec!(splat_any.clone()), splat_any.clone(), false)
+            );
+
+            symtab.assign_str(
+                "pairs",
+                Type::function(vec!(splat_any.clone()), splat_any, false)
+            );
+
+            let mut visitor = Visitor::from_symtab(ast, &source, symtab);
 
             match visitor.visit() {
                 Ok(_) => (),
