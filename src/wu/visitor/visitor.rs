@@ -2325,7 +2325,71 @@ impl<'v> Visitor<'v> {
 
                         self.assign(name.to_owned(), t);
 
-                        continue;
+                        continue
+                    } else if let ExpressionNode::Extern(ref t, _) = right.node {
+                        if let TypeNode::Func(..) = t.node {
+                            new_content.insert(
+                                name.clone(),
+                                Type::new(t.node.clone(), TypeMode::Implemented),
+                            );
+
+                            let kind = Type::new(
+                                TypeNode::Struct(struct_name.clone(), new_content.clone(), id.clone()),
+                                kind.mode.clone(),
+                            );
+
+                            // we have strong computers in 2018
+                            self.inside.pop();
+                            self.inside.push(Inside::Implement(kind.clone()));
+
+                            self.assign_str("self", Type::from(kind.node.clone()));
+
+                            if is_index {
+                                self.symtab.implement(
+                                    id,
+                                    name.clone(),
+                                    Type::new(t.node.clone(), TypeMode::Implemented),
+                                );
+
+                                let mut new_module_content = module_content.unwrap().clone();
+
+                                new_module_content.insert(name.to_string(), kind.clone());
+
+                                self.assign(struct_name.to_owned(), kind.clone());
+
+                                if let Some(root) = self.symtab.stack[0].get(struct_name) {
+                                    if root == original_kind {
+                                        self.module_content
+                                            .insert(struct_name.to_owned(), kind.clone());
+                                    }
+                                }
+                            } else {
+                                self.symtab.implement(
+                                    id,
+                                    name.clone(),
+                                    Type::new(t.node.clone(), TypeMode::Implemented),
+                                );
+
+                                self.assign(struct_name.to_owned(), kind.clone());
+
+                                if let Some(root) = self.symtab.stack[0].get(struct_name) {
+                                    if root == original_kind {
+                                        self.module_content
+                                            .insert(struct_name.to_owned(), kind.clone());
+                                    }
+                                }
+                            }
+
+                            self.assign(name.to_owned(), t.to_owned());
+
+                            continue
+                        } else {
+                            return Err(response!(
+                                Wrong("expected function definition"),
+                                self.source.file,
+                                statement.pos
+                            ));
+                        }
                     }
                 } else {
                     return Err(response!(
