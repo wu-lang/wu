@@ -1,6 +1,7 @@
 extern crate colored;
 extern crate toml;
 extern crate git2;
+extern crate rustyline;
 
 use self::colored::Colorize;
 
@@ -11,7 +12,7 @@ use self::wu::lexer::*;
 use self::wu::parser::*;
 use self::wu::source::*;
 use self::wu::visitor::*;
-use self::wu::handler::*;
+use self::wu::handler;
 
 use std::fs;
 use std::fs::metadata;
@@ -48,7 +49,7 @@ fn compile_path(path: &str) {
 
         println!(
             "{} {}",
-            "compiling".green().bold(),
+            "Compiling".green().bold(),
             path.to_string().replace("./", "")
         );
 
@@ -191,7 +192,7 @@ fn clean_path(path: &str) {
                         let path = format!("{}.lua", split[0..split.len() - 1].to_vec().join("."));
 
                         if Path::new(&path).is_file() {
-                            println!("{} {}", "removing".red().bold(), path.replace("./", ""));
+                            println!("{} {}", "Removing".red().bold(), path.replace("./", ""));
 
                             match fs::remove_file(&path) {
                                 Ok(_) => (),
@@ -218,8 +219,6 @@ fn clean_path(path: &str) {
 }
 
 fn main() {
-    use handler::*;
-
     let args = env::args().collect::<Vec<String>>();
 
     if args.len() > 1 {
@@ -231,13 +230,13 @@ fn main() {
             },
 
             "new" => if args.len() > 2 {
-                new(Some(&args[2]))
+                handler::new(Some(&args[2]))
             } else {
-                new(None)
+                handler::new(None)
             },
 
             "build" => {
-                get();
+                handler::get();
 
                 if args.len() > 2 {
                     compile_path(&args[2])
@@ -246,7 +245,7 @@ fn main() {
                 }
             },
 
-            "sync" => get(),
+            "sync" => handler::get(),
 
             file => compile_path(&file),
         }

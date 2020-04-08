@@ -1,5 +1,3 @@
-print: extern fun(...)
-
 i := 0
 
 for 10 {
@@ -12,8 +10,6 @@ for 10 {
 }
 
 list := [1, 2, 3, 3]
-
-ipairs: extern fun(...) -> ...
 
 for x, y in ipairs(list) {
     print(x, y)

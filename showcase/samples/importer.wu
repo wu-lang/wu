@@ -1,8 +1,5 @@
 import traits { foo  , Player  }
-import lover  {
-  BigFoo
-  love
-}
+import lover  { love }
 
 a := new Player {
   x: 100.0

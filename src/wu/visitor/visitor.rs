@@ -402,6 +402,8 @@ impl<'v> Visitor<'v> {
                 }
             }
 
+            ExternBlock(ref block) => self.visit_statement(&*block),
+
             Break => {
                 if self.inside.contains(&Inside::Loop) {
                     Ok(())

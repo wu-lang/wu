@@ -140,6 +140,8 @@ impl<'g> Generator<'g> {
                 result
             },
 
+            ExternBlock(..) => String::new(),
+
             Return(ref expr) => {
                 if let Some(ref expr) = *expr {
                     use self::ExpressionNode::*;

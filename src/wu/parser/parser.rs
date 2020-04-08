@@ -237,7 +237,31 @@ impl<'p> Parser<'p> {
                         StatementNode::Import(path, specifics),
                         self.span_from(position),
                     )
-                }
+                },
+
+                "extern" => {
+                    self.next()?;
+                    self.next_newline()?;
+                    
+                    if self.current_lexeme() == "extern" {
+                        return Err(
+                            response!(
+                                Wrong("expected literally any other statement"),
+                                self.source.file,
+                                self.current_position()
+                            )
+                        )
+                    }
+
+                    let stmt = self.parse_statement()?;
+
+                    Statement::new(
+                        StatementNode::ExternBlock(
+                            Rc::new(stmt)
+                        ),
+                        position
+                    )
+                },
 
                 "implement" => {
                     let pos = self.span_from(position);
@@ -1380,7 +1404,7 @@ impl<'p> Parser<'p> {
     fn parse_block_of<B>(
         &mut self,
         delimeters: (&str, &str),
-        parse_with: &Fn(&mut Self) -> Result<Option<B>, ()>,
+        parse_with: &dyn Fn(&mut Self) -> Result<Option<B>, ()>,
     ) -> Result<Vec<B>, ()> {
         self.eat_lexeme(delimeters.0)?;
 
@@ -1407,7 +1431,7 @@ impl<'p> Parser<'p> {
             } else {
                 block_tokens.push(self.current());
 
-                self.next()?
+                self.next()?;
             }
         }
 
@@ -1631,7 +1655,8 @@ impl<'p> Parser<'p> {
 
     fn _parse_struct_param_comma(self: &mut Self) -> Result<Option<(String, Type)>, ()> {
         if self.remaining() > 0 && self.current_lexeme() == "\n" {
-            self.next()?
+            self.next()?;
+            self.next_newline()?;
         }
 
         if self.remaining() == 0 {
