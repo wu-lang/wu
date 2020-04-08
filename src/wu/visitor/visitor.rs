@@ -333,6 +333,9 @@ pub struct Visitor<'v> {
 
     pub method_calls: HashMap<Pos, bool>,
     pub module_content: HashMap<String, Type>,
+    pub import_map: HashMap<Pos, (String, String)>,
+
+    pub root: String,
 }
 
 impl<'v> Visitor<'v> {
@@ -342,7 +345,7 @@ impl<'v> Visitor<'v> {
         Ok(())
     }
 
-    pub fn new(ast: &'v Vec<Statement>, source: &'v Source) -> Self {
+    pub fn new(ast: &'v Vec<Statement>, source: &'v Source, root: String) -> Self {
         Visitor {
             symtab: SymTab::new(),
 
@@ -354,10 +357,13 @@ impl<'v> Visitor<'v> {
 
             method_calls: HashMap::new(),
             module_content: HashMap::new(),
+            import_map: HashMap::new(),
+
+            root,
         }
     }
 
-    pub fn from_symtab(ast: &'v Vec<Statement>, source: &'v Source, symtab: SymTab) -> Self {
+    pub fn from_symtab(ast: &'v Vec<Statement>, source: &'v Source, symtab: SymTab, root: String) -> Self {
         Visitor {
             symtab,
 
@@ -369,6 +375,9 @@ impl<'v> Visitor<'v> {
 
             method_calls: HashMap::new(),
             module_content: HashMap::new(),
+            import_map: HashMap::new(),
+
+            root,
         }
     }
 
@@ -458,7 +467,7 @@ impl<'v> Visitor<'v> {
 
                         let parsed = Parser::new(tokens, &source).parse()?;
 
-                        let mut visitor = Visitor::new(&parsed, &source);
+                        let mut visitor = Visitor::new(&parsed, &source, self.root.clone());
 
                         visitor.visit()?;
 
@@ -2090,7 +2099,7 @@ impl<'v> Visitor<'v> {
 
             Module(ref content) => {
                 if let ExpressionNode::Block(ref ast) = content.node {
-                    let mut visitor = Visitor::new(ast, self.source);
+                    let mut visitor = Visitor::new(ast, self.source, self.root.clone());
 
                     visitor.visit()?;
 
@@ -2213,7 +2222,7 @@ impl<'v> Visitor<'v> {
     }
 
     #[inline]
-    fn find_module(&self, path: &String, root: &String, statement: &Statement, is_deep_run: bool) -> Result<String, ()> {
+    fn find_module(&mut self, path: &String, root: &String, statement: &Statement, is_deep_run: bool) -> Result<String, ()> {
         let my_folder = if is_deep_run {
             Path::new(&root)
         } else {
@@ -2249,9 +2258,14 @@ impl<'v> Visitor<'v> {
                     ));
                 } else {
                     if let Ok(root) = env::var("WU_HOME") {
-                        return Ok(
-                            self.find_module(path, &root, statement, true)?
-                        )
+                        let new_path = self.find_module(path, &root[..root.len() - 1].to_string(), statement, true)?;
+
+                        let file_name = new_path.split("/").last().unwrap();
+                        let path = format!("{}/.wu/libs/{}", self.root, file_name);
+
+                        self.import_map.insert(statement.pos.clone(), (new_path.clone(), path.clone()));
+
+                        return Ok(new_path)
                     } else {
                         return Err(response!(
                             Wrong(format!(
@@ -2575,7 +2589,7 @@ impl<'v> Visitor<'v> {
             for inside in self.inside.iter().rev() {
                 if let Inside::ForeignModule(ref content) = inside {
                     let empty_ast = Vec::new();
-                    let mut visitor = Visitor::new(&empty_ast, &self.source); // TODO: fix source to refer to proper file
+                    let mut visitor = Visitor::new(&empty_ast, &self.source, self.root.clone()); // TODO: fix source to refer to proper file
 
                     visitor.symtab = SymTab::from(content.clone());
 

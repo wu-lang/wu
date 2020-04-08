@@ -42,7 +42,7 @@ Project usage:
     wu build          # Installs dependencies and builds current project
 ";
 
-fn compile_path(path: &str) {
+fn compile_path(path: &str, root: &String) {
     let meta = match metadata(path) {
         Ok(m) => m,
         Err(why) => panic!("{}", why),
@@ -58,7 +58,7 @@ fn compile_path(path: &str) {
         );
 
         if *split.last().unwrap() == "wu" {
-            if let Some(n) = file_content(path) {
+            if let Some(n) = file_content(path, root) {
                 write(path, &n);
             }
         }
@@ -71,13 +71,13 @@ fn compile_path(path: &str) {
             let split: Vec<&str> = folder_path.split('.').collect();
 
             if Path::new(&folder_path).is_dir() || *split.last().unwrap() == "wu" {
-                compile_path(&folder_path)
+                compile_path(&folder_path, root)
             }
         }
     }
 }
 
-fn file_content(path: &str) -> Option<String> {
+fn file_content(path: &str, root: &String) -> Option<String> {
     let display = Path::new(path).display();
 
     let mut file = match File::open(&path) {
@@ -89,7 +89,7 @@ fn file_content(path: &str) -> Option<String> {
 
     match file.read_to_string(&mut s) {
         Err(why) => panic!("failed to read {}: {}", display, why),
-        Ok(_) => run(&s, path),
+        Ok(_) => run(&s, path, root),
     }
 }
 
@@ -118,7 +118,7 @@ fn write(path: &str, data: &str) {
     }
 }
 
-pub fn run(content: &str, file: &str) -> Option<String> {
+pub fn run(content: &str, file: &str, root: &String) -> Option<String> {
     let source = Source::from(
         file,
         content.lines().map(|x| x.into()).collect::<Vec<String>>(),
@@ -158,14 +158,30 @@ pub fn run(content: &str, file: &str) -> Option<String> {
                 Type::function(vec!(splat_any.clone()), splat_any, false)
             );
 
-            let mut visitor = Visitor::from_symtab(ast, &source, symtab);
+            let mut visitor = Visitor::from_symtab(ast, &source, symtab, root.clone());
 
             match visitor.visit() {
                 Ok(_) => (),
                 _ => return None,
             }
 
-            let mut generator = Generator::new(&source, &visitor.method_calls);
+            if visitor.import_map.len().clone() > 0 {
+                let local_home = &format!("{}/.wu/libs/", root);
+                fs::create_dir_all(local_home).expect("failed to create `.wu/libs/`");
+
+                for (_, v) in visitor.import_map.iter() {
+                    let file_name = v.0.split("/").last().unwrap();
+                    let path = format!("{}/.wu/libs/{}", Path::new(root).canonicalize().unwrap().display(), file_name);
+
+
+                    println!("\n{} ==> {}", path, v.0);
+                    fs::copy(v.0.clone(), path).expect("failed to copy libs");
+                }
+
+                compile_path(local_home, local_home)
+            }
+
+            let mut generator = Generator::new(&source, &visitor.method_calls, &visitor.import_map);
 
             Some(generator.generate(&ast))
         }
@@ -254,6 +270,8 @@ fn main() {
 
     let args = env::args().collect::<Vec<String>>();
 
+    let root = Path::new(&args[0].to_string()).parent().unwrap().display().to_string();
+
     if args.len() > 1 {
         match args[1].as_str() {
             "clean" => {
@@ -272,9 +290,9 @@ fn main() {
                 handler::get();
 
                 if args.len() > 2 {
-                    compile_path(&args[2])
+                    compile_path(&args[2], &root)
                 } else {
-                    compile_path(".")
+                    compile_path(".", &root)
                 }
             },
 
@@ -283,7 +301,7 @@ fn main() {
             file => {
                 let now = Instant::now();
 
-                compile_path(&file);
+                compile_path(&file, &file.to_string());
 
                 println!(
                     "{} things in {}ms",

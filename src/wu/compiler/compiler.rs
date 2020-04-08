@@ -26,10 +26,11 @@ pub struct Generator<'g> {
     special_break: bool,
 
     method_calls: &'g HashMap<Pos, bool>,
+    import_map: &'g HashMap<Pos, (String, String)>,
 }
 
 impl<'g> Generator<'g> {
-    pub fn new(source: &'g Source, method_calls: &'g HashMap<Pos, bool>) -> Self {
+    pub fn new(source: &'g Source, method_calls: &'g HashMap<Pos, bool>, import_map: &'g HashMap<Pos, (String, String)>) -> Self {
         Generator {
             source,
 
@@ -40,6 +41,7 @@ impl<'g> Generator<'g> {
             special_break: false,
 
             method_calls,
+            import_map
         }
     }
 
@@ -164,13 +166,18 @@ impl<'g> Generator<'g> {
             }
 
             Import(ref name, ref specifics) => {
-                let my_folder = Path::new(&self.source.file.0).parent().unwrap();
-                let file_path = format!("{}/{}", my_folder.to_str().unwrap(), name);
+                let file_path = if let Some(new_path) = self.import_map.get(&statement.pos) {
+                    format!("{}{}", new_path.1.clone().split(&format!("{}.wu", name)).collect::<Vec<&str>>()[0].to_string(), name)
+                } else {
+                    let my_folder = Path::new(&self.source.file.0).parent().unwrap();
+                    format!("{}/{}", my_folder.to_str().unwrap(), name)
+                };
+                
 
                 let mut result = format!("local {} = require('{}')\n", name, file_path);
 
                 for specific in specifics {
-                    result.push_str(&format!("{0} = {1}['{0}']\n", specific, name))
+                    result.push_str(&format!("local {0} = {1}['{0}']\n", specific, name))
                 }
 
                 result.push('\n');
