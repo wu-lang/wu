@@ -2,6 +2,7 @@ extern crate colored;
 extern crate toml;
 extern crate git2;
 extern crate rustyline;
+extern crate dirs;
 
 use self::colored::Colorize;
 
@@ -12,6 +13,7 @@ use self::wu::lexer::*;
 use self::wu::parser::*;
 use self::wu::source::*;
 use self::wu::visitor::*;
+use self::wu::error::*;
 use self::wu::handler;
 
 use std::fs;
@@ -22,6 +24,8 @@ use std::env;
 
 use std::io::prelude::*;
 use std::path::Path;
+use std::time::{Duration, Instant};
+
 
 const HELP: &'static str = "\
 The Wu Compiler
@@ -47,7 +51,7 @@ fn compile_path(path: &str) {
     if meta.is_file() {
         let split: Vec<&str> = path.split('.').collect();
 
-        println!(
+        print!(
             "{} {}",
             "Compiling".green().bold(),
             path.to_string().replace("./", "")
@@ -58,6 +62,7 @@ fn compile_path(path: &str) {
                 write(path, &n);
             }
         }
+        println!()
     } else {
         let paths = fs::read_dir(path).unwrap();
 
@@ -218,7 +223,35 @@ fn clean_path(path: &str) {
     }
 }
 
+#[inline]
+fn confirm_home() {
+    if env::var("WU_HOME").is_err() {
+        let dir = if let Some(dir) = dirs::home_dir() {
+            format!("{}/.wu/libs/", dir.display())
+        } else {
+            return response!(
+                Response::Weird(format!("missing environment variable `WU_HOME`")),
+                Response::Note("failed to find home directory, you can set the variable yourself")
+            )
+        };
+
+        if !Path::new(&dir).exists() {
+            if fs::create_dir_all(dir).is_err() {
+                response!(
+                    Response::Weird(format!("missing environment variable `WU_HOME`")),
+                    Response::Note("run again as super-user to fix this automatically")
+                )
+            }
+        } else {
+            env::set_var("WU_HOME", dir)
+        }
+    }
+}
+
+#[inline]
 fn main() {
+    confirm_home();
+
     let args = env::args().collect::<Vec<String>>();
 
     if args.len() > 1 {
@@ -247,7 +280,17 @@ fn main() {
 
             "sync" => handler::get(),
 
-            file => compile_path(&file),
+            file => {
+                let now = Instant::now();
+
+                compile_path(&file);
+
+                println!(
+                    "{} things in {}ms",
+                    "  Finished".green().bold(),
+                    now.elapsed().as_millis()
+                );
+            }
         }
     } else {
         println!("{}", HELP)

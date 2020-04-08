@@ -10,6 +10,8 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
+use std::env;
+
 #[derive(Debug, Clone)]
 pub enum TypeNode {
     Int,
@@ -429,45 +431,19 @@ impl<'v> Visitor<'v> {
             }
 
             Import(ref path, ref specifics) => {
-                let my_folder = Path::new(&self.source.file.0).parent().unwrap();
-                let file_path = format!("./{}/{}.wu", my_folder.to_str().unwrap(), path);
-
-                let module = Path::new(&file_path);
-
-                let init_path = format!("./{}/{}/init.wu", my_folder.to_str().unwrap(), path);
-
-                let module = if !module.exists() {
-                    let module = Path::new(&init_path);
-
-                    if !module.exists() {
-                        return Err(response!(
-                            Wrong(format!(
-                                "no such module `{0}`, needed either `{0}.wu` or `{0}/init.wu`",
-                                path
-                            )),
-                            self.source.file,
-                            statement.pos
-                        ));
-                    }
-
-                    module
-                } else {
-                    module
-                };
-
-                let display = module.display();
+                let module = self.find_module(path, &self.source.file.0, &statement, false)?;
 
                 let mut file = match File::open(&module) {
-                    Err(why) => panic!("failed to open {}: {}", display, why),
+                    Err(why) => panic!("failed to open {}: {}", module, why),
                     Ok(file) => file,
                 };
 
                 let mut content = String::new();
 
                 match file.read_to_string(&mut content) {
-                    Err(why) => panic!("failed to read {}: {}", display, why),
+                    Err(why) => panic!("failed to read {}: {}", module, why),
                     Ok(_) => {
-                        let source = Source::new(module.to_str().unwrap().to_string());
+                        let source = Source::new(module);
                         let lexer = Lexer::default(content.chars().collect(), &source);
 
                         let mut tokens = Vec::new();
@@ -2234,6 +2210,68 @@ impl<'v> Visitor<'v> {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    fn find_module(&self, path: &String, root: &String, statement: &Statement, is_deep_run: bool) -> Result<String, ()> {
+        let my_folder = if is_deep_run {
+            Path::new(&root)
+        } else {
+            Path::new(&root).parent().unwrap()
+        };
+
+        let mut file_path = format!("{}/{}.wu", my_folder.to_str().unwrap(), path);
+
+        if !is_deep_run {
+            file_path = format!("./{}", file_path)
+        }
+
+        let module = Path::new(&file_path);
+
+        let mut init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
+
+        if !is_deep_run {
+            init_path = format!("./{}", init_path)
+        }
+
+        let module = if !module.exists() {
+            let module = Path::new(&init_path);
+
+            if !module.exists() {
+                if is_deep_run {
+                    return Err(response!(
+                        Wrong(format!(
+                            "no such module `{0}`, needed either `{0}.wu` or `{0}/init.wu`",
+                            path
+                        )),
+                        self.source.file,
+                        statement.pos
+                    ));
+                } else {
+                    if let Ok(root) = env::var("WU_HOME") {
+                        return Ok(
+                            self.find_module(path, &root, statement, true)?
+                        )
+                    } else {
+                        return Err(response!(
+                            Wrong(format!(
+                                "no such module `{0}`, needed either `{0}.wu` or `{0}/init.wu`",
+                                path
+                            )),
+                            self.source.file,
+                            statement.pos,
+                            Note("missing environment variable `WU_HOME`")
+                        ));
+                    }
+                }
+            } else {
+                module
+            }
+        } else {
+            module
+        };
+
+        Ok(module.display().to_string())
     }
 
     #[allow(dead_code)]
