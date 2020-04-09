@@ -443,7 +443,10 @@ impl<'v> Visitor<'v> {
             }
 
             Import(ref path, ref specifics) => {
-                let module = self.find_module(path, &self.root.clone(), &statement, self.is_deep)?;
+                let local_root = Path::new(&self.source.file.0).parent().unwrap().display().to_string();
+                // &self.root.clone()
+                println!("PARENT:: {}", local_root);
+                let module = self.find_module(path, &local_root, &statement, self.is_deep)?;
 
                 let mut file = match File::open(&module) {
                     Err(why) => panic!("failed to open {}: {}", module, why),
@@ -2246,32 +2249,32 @@ impl<'v> Visitor<'v> {
     fn find_module(&mut self, path: &String, root: &String, statement: &Statement, is_deep_run: bool) -> Result<String, ()> {
         let is_deep_run = is_deep_run || self.is_deep;
 
-        let my_folder = if is_deep_run {
-            Path::new(&root)
-        } else {
-            Path::new(&root).parent().unwrap()
-        };
+        let my_folder = Path::new(&root);
+
+        println!("FOLDER: {}", my_folder.display());
 
         let mut file_path = format!("{}/{}.wu", my_folder.to_str().unwrap(), path);
 
-        if !is_deep_run {
-            use backtrace::Backtrace;
-            file_path = format!("./{}", file_path)
-        }
+        // if !is_deep_run {
+        //     file_path = format!("./{}", file_path)
+        // }
 
         let module = Path::new(&file_path);
 
         let mut init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
 
-        if !is_deep_run {
-            init_path = format!("./{}", init_path)
-        }
+        // if !is_deep_run {
+        //     init_path = format!("./{}", init_path)
+        // }
 
         let module = if !module.exists() {
+            println!("MODULE THAT DOESN*T EXIST: {}", module.display());
             let module = Path::new(&init_path);
 
             if !module.exists() {
                 if is_deep_run {
+
+                    println!("CHECKING DEEP {}", module.display());
 
                     return Err(response!(
                         Wrong(format!(
@@ -2283,6 +2286,7 @@ impl<'v> Visitor<'v> {
                     ));
                 } else {
                     if let Ok(root) = env::var("WU_HOME") {
+                        println!("CHECKING DEEP THEN {}", self.root);
                         // - 1 cause / is added in the next iteration
                         let new_path = self.find_module(path, &root[..root.len() - 1].to_string(), statement, true)?;
 

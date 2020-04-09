@@ -81,8 +81,12 @@ impl<'g> Generator<'g> {
         let mut output = String::new();
 
         for statement in ast.iter() {
-            output.push_str(&self.generate_statement(&statement));
-            output.push('\n')
+            let line = self.generate_statement(&statement);
+            output.push_str(&line);
+
+            if line.trim().len() > 0 {
+                output.push('\n')
+            }
         }
 
         self.push_line(&mut result, &output);
@@ -176,8 +180,9 @@ impl<'g> Generator<'g> {
                 let file_path = if let Some(new_path) = self.import_map.get(&statement.pos) {
                     format!("{}", new_path.1.clone().split(&format!("/{}", name)).collect::<Vec<&str>>()[0].to_string())
                 } else {
-                    let my_folder = Path::new(&self.source.file.0).parent().unwrap();
-                    format!("{}/{}", my_folder.to_str().unwrap(), name)
+                    // let my_folder = Path::new(&self.source.file.0).parent().unwrap();
+                    // format!("{}/{}", my_folder.to_str().unwrap(), name)
+                    name.to_string()
                 };
 
                 let mut result = String::new();
