@@ -63,14 +63,16 @@ fn compile_path(path: &str, root: &String) {
 
         if *split.last().unwrap() == "wu" {
             let meta = match metadata(root) {
-                Ok(m) => m,
-                Err(why) => panic!("{}", why),
+                Ok(m) => Some(m),
+                Err(_) => None,
             };
 
             let mut root = root.to_string();
 
-            if !meta.is_dir() {
-                root = Path::new(&root).parent().unwrap().display().to_string();
+            if let Some(meta) = meta {
+                if !meta.is_dir() {
+                    root = Path::new(&root).parent().unwrap().display().to_string();
+                }
             }
 
             if let Some(n) = file_content(path, &root) {

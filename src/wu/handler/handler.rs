@@ -48,30 +48,35 @@ pub fn get() {
           Value::Table(ref t) => {
             let mut modules = Vec::new();
 
+            let mut dep_path = "libs/".to_string();
+
+            if let Some(ref path) = value.get("libpath") {
+              if let Value::String(ref path) = path {
+                dep_path = format!("{}", path);
+              } else {
+                wrong("Expected string `libpath` value")
+              }
+            }
+
             for member in t {
-              if !Path::new("src/libs/").exists() {
-                fs::create_dir("src/libs/").unwrap();
+              if !Path::new(&dep_path).exists() {
+                fs::create_dir_all(&dep_path).unwrap();
               }
 
               if let Value::String(ref url) = *member.1 {
-                let path = &format!("src/libs/{}", member.0);
+                let path = &format!("{}/{}", dep_path, member.0);
 
                 if Path::new(path).exists() {
                   fs::remove_dir_all(path).unwrap()
                 }
 
-                println!("{}", format!("{} {}", "Downloading".green().bold(), member.0));
+                println!("{}", format!("{} {} => `{}`", "Cloning".green().bold(), member.0, dep_path));
                 clone(&format!("https://github.com/{}", url), path);
 
                 modules.push(format!("import {}", member.0))
               } else {
                 wrong("Expected string URL value")
               }
-            }
-            
-            if modules.len() > 0 {
-              let mut init = File::create("src/libs/init.wu").unwrap();
-              init.write_all(modules.join("\n").as_bytes()).unwrap();
             }
           },
 
@@ -98,7 +103,7 @@ fn clone(url: &str, path: &str) {
 
   match RepoBuilder::new().fetch_options(fo).with_checkout(co).clone(url, Path::new(path)) {
     Ok(_)  => (),
-    Err(_) => wrong(&format!("Failed to download '{}'", url))
+    Err(why) => wrong(&format!("Failed to download '{}' :: {}", url, why))
   }
 
   println!()
