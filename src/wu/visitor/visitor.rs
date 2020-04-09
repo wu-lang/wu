@@ -336,6 +336,7 @@ pub struct Visitor<'v> {
     pub import_map: HashMap<Pos, (String, String)>,
 
     pub root: String,
+    pub is_deep: bool,
 }
 
 impl<'v> Visitor<'v> {
@@ -360,6 +361,7 @@ impl<'v> Visitor<'v> {
             import_map: HashMap::new(),
 
             root,
+            is_deep: false,
         }
     }
 
@@ -378,6 +380,7 @@ impl<'v> Visitor<'v> {
             import_map: HashMap::new(),
 
             root,
+            is_deep: false,
         }
     }
 
@@ -440,7 +443,7 @@ impl<'v> Visitor<'v> {
             }
 
             Import(ref path, ref specifics) => {
-                let module = self.find_module(path, &self.source.file.0, &statement, false)?;
+                let module = self.find_module(path, &self.root.clone(), &statement, self.is_deep)?;
 
                 let mut file = match File::open(&module) {
                     Err(why) => panic!("failed to open {}: {}", module, why),
@@ -467,7 +470,17 @@ impl<'v> Visitor<'v> {
 
                         let parsed = Parser::new(tokens, &source).parse()?;
 
-                        let mut visitor = Visitor::new(&parsed, &source, self.root.clone());
+                        let mut is_deep = false;
+
+                        let root = if let Some(other_path) = self.import_map.get(&statement.pos) {
+                            is_deep = true;
+                            Path::new(&other_path.0).parent().unwrap().display().to_string()
+                        } else {
+                            self.root.clone()
+                        };
+
+                        let mut visitor = Visitor::new(&parsed, &source, root);
+                        visitor.is_deep = is_deep;
 
                         visitor.visit()?;
 
@@ -2231,6 +2244,8 @@ impl<'v> Visitor<'v> {
 
     #[inline]
     fn find_module(&mut self, path: &String, root: &String, statement: &Statement, is_deep_run: bool) -> Result<String, ()> {
+        let is_deep_run = is_deep_run || self.is_deep;
+
         let my_folder = if is_deep_run {
             Path::new(&root)
         } else {
@@ -2240,6 +2255,7 @@ impl<'v> Visitor<'v> {
         let mut file_path = format!("{}/{}.wu", my_folder.to_str().unwrap(), path);
 
         if !is_deep_run {
+            use backtrace::Backtrace;
             file_path = format!("./{}", file_path)
         }
 
@@ -2256,9 +2272,10 @@ impl<'v> Visitor<'v> {
 
             if !module.exists() {
                 if is_deep_run {
+
                     return Err(response!(
                         Wrong(format!(
-                            "no such module `{0}`, needed either `{0}.wu` or `{0}/init.wu`",
+                            "no such module `{0}`, needed either `{0}.wu`, `{0}/init.wu` or in `$WU_HOME`",
                             path
                         )),
                         self.source.file,
@@ -2271,6 +2288,7 @@ impl<'v> Visitor<'v> {
                         let file_name = new_path.split("/").last().unwrap();
                         let path = format!("{}/.wu/libs/{}", self.root, file_name);
 
+                        // 0 is canonical
                         self.import_map.insert(statement.pos.clone(), (new_path.clone(), path.clone()));
 
                         return Ok(new_path)

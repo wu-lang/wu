@@ -1,0 +1,15 @@
+File: struct {}
+
+implement File {
+   close:   extern fun()
+   flush:   extern fun()
+   lines:   extern fun()            -> fun
+   read:    extern fun(...?)        -> ...?
+   seek:    extern fun(str?, int?)  -> int?
+   setvbuf: extern fun(str?, int?)
+   write:   extern fun(...)
+}
+
+file := new File {}
+
+file close()
