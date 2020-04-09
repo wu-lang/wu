@@ -3,6 +3,10 @@ extern crate toml;
 extern crate git2;
 extern crate rustyline;
 extern crate dirs;
+extern crate fs_extra;
+
+use fs_extra::dir::*;
+use fs_extra::copy_items;
 
 use self::colored::Colorize;
 
@@ -58,7 +62,18 @@ fn compile_path(path: &str, root: &String) {
         );
 
         if *split.last().unwrap() == "wu" {
-            if let Some(n) = file_content(path, root) {
+            let meta = match metadata(root) {
+                Ok(m) => m,
+                Err(why) => panic!("{}", why),
+            };
+
+            let mut root = root.to_string();
+
+            if !meta.is_dir() {
+                root = Path::new(&root).parent().unwrap().display().to_string();
+            }
+
+            if let Some(n) = file_content(path, &root) {
                 write(path, &n);
             }
         }
@@ -162,20 +177,6 @@ pub fn run(content: &str, file: &str, root: &String) -> Option<String> {
             match visitor.visit() {
                 Ok(_) => (),
                 _ => return None,
-            }
-
-            if visitor.import_map.len().clone() > 0 {
-                let local_home = &format!("{}/.wu/libs/", root);
-                fs::create_dir_all(local_home).expect("failed to create `.wu/libs/`");
-
-                for (_, v) in visitor.import_map.iter() {
-                    let file_name = v.0.split("/").last().unwrap();
-                    let path = format!("{}/.wu/libs/{}", Path::new(root).canonicalize().unwrap().display(), file_name);
-
-                    fs::copy(v.0.clone(), path).expect("failed to copy libs");
-                }
-
-                compile_path(local_home, local_home)
             }
 
             let mut generator = Generator::new(&source, &visitor.method_calls, &visitor.import_map);

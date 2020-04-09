@@ -51,6 +51,13 @@ impl<'g> Generator<'g> {
         let mut names = Vec::new();
 
         for statement in statements {
+            let mut statement = statement.clone();
+            if let ExternBlock(ref s) = statement.node {
+                if let Variable(..) = s.node {
+                    statement.node = s.node.clone()
+                }
+            }
+
             match statement.node {
                 Variable(_, ref name, ..) => names.push(name.to_owned()),
                 Import(ref name, ref imports) => {
@@ -167,13 +174,22 @@ impl<'g> Generator<'g> {
 
             Import(ref name, ref specifics) => {
                 let file_path = if let Some(new_path) = self.import_map.get(&statement.pos) {
-                    format!("{}{}", new_path.1.clone().split(&format!("{}.wu", name)).collect::<Vec<&str>>()[0].to_string(), name)
+                    format!("{}", new_path.1.clone().split(&format!("/{}", name)).collect::<Vec<&str>>()[0].to_string())
                 } else {
                     let my_folder = Path::new(&self.source.file.0).parent().unwrap();
                     format!("{}/{}", my_folder.to_str().unwrap(), name)
                 };
 
-                let mut result = format!("local {} = require('{}')\n", name, file_path);
+                let mut result = String::new();
+
+                if let Some(abs_path) = self.import_map.get(&statement.pos) {
+                    let path = file_path[..file_path.len() - 1].to_string();
+                    result = format!("package.path = package.path .. ';{0}?.lua;{0}?/init.lua'\n", path);
+                    result.push_str(&format!("local {} = require('{}')\n", name, name))
+
+                } else {
+                    result = format!("local {} = require('{}')\n", name, file_path)
+                }
 
                 for specific in specifics {
                     result.push_str(&format!("local {0} = {1}['{0}']\n", specific, name))
@@ -820,7 +836,7 @@ impl<'g> Generator<'g> {
                     "{}{}){}",
                     result,
                     self.generate_expression(a),
-                    if t.node == Int { ")" } else { "" }
+                    if t.node.strong_cmp(&Int) { ")" } else { "" }
                 )
             }
             UnwrapSplat(ref expression) => {

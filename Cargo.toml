@@ -11,4 +11,4 @@ backtrace   = "0.3"
 toml        = "0.4"
 git2        = "0.6"
 dirs        = "2.0.2"
-
+fs_extra    = "1.1.0"

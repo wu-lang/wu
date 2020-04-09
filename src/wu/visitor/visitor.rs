@@ -2283,10 +2283,10 @@ impl<'v> Visitor<'v> {
                     ));
                 } else {
                     if let Ok(root) = env::var("WU_HOME") {
+                        // - 1 cause / is added in the next iteration
                         let new_path = self.find_module(path, &root[..root.len() - 1].to_string(), statement, true)?;
 
-                        let file_name = new_path.split("/").last().unwrap();
-                        let path = format!("{}/.wu/libs/{}", self.root, file_name);
+                        let path = format!("{}/", root);
 
                         // 0 is canonical
                         self.import_map.insert(statement.pos.clone(), (new_path.clone(), path.clone()));
