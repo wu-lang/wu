@@ -2152,6 +2152,14 @@ impl<'v> Visitor<'v> {
         module_level: bool,
     ) -> Result<(), ()> {
         for (i, statement) in content.iter().enumerate() {
+            let mut statement = statement.clone();
+
+            if let StatementNode::ExternBlock(ref s) = statement.node {
+                if let StatementNode::Variable(..) = s.node {
+                    statement.node = s.node.clone()
+                }
+            }
+
             // ommiting functions, for that extra user-feel
             if let StatementNode::Variable(ref kind, ref name, ref value) = statement.node {
                 if let Some(ref right) = *value {

@@ -51,7 +51,7 @@ fn compile_path(path: &str, root: &String) {
     if meta.is_file() {
         let split: Vec<&str> = path.split('.').collect();
 
-        print!(
+        println!(
             "{} {}",
             "Compiling".green().bold(),
             path.to_string().replace("./", "")
@@ -62,7 +62,6 @@ fn compile_path(path: &str, root: &String) {
                 write(path, &n);
             }
         }
-        println!()
     } else {
         let paths = fs::read_dir(path).unwrap();
 
@@ -173,8 +172,6 @@ pub fn run(content: &str, file: &str, root: &String) -> Option<String> {
                     let file_name = v.0.split("/").last().unwrap();
                     let path = format!("{}/.wu/libs/{}", Path::new(root).canonicalize().unwrap().display(), file_name);
 
-
-                    println!("\n{} ==> {}", path, v.0);
                     fs::copy(v.0.clone(), path).expect("failed to copy libs");
                 }
 

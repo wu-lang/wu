@@ -172,7 +172,6 @@ impl<'g> Generator<'g> {
                     let my_folder = Path::new(&self.source.file.0).parent().unwrap();
                     format!("{}/{}", my_folder.to_str().unwrap(), name)
                 };
-                
 
                 let mut result = format!("local {} = require('{}')\n", name, file_path);
 
