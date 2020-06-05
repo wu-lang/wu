@@ -105,6 +105,10 @@ pub enum Operator {
 }
 
 impl Operator {
+    pub fn is_right_ass(&self) -> bool {
+        &Operator::Pow == self
+    }
+
     pub fn from_str(operator: &str) -> Option<(Operator, u8)> {
         use self::Operator::*;
 
