@@ -1016,67 +1016,39 @@ impl<'p> Parser<'p> {
         }
     }
 
-    fn parse_binary(&mut self, left: Expression) -> Result<Expression, ()> {
+    fn parse_binary(&mut self, left: Expression, min_prec: usize) -> Result<Expression, ()> {
+        let mut left = left;
         let left_position = left.pos.clone();
 
-        let mut expression_stack = vec![left];
-        let mut operator_stack = vec![Operator::from_str(&self.eat()?).unwrap()];
+        while self.current_type() == TokenType::Operator {
+            let index_backup = self.index;
+            let operator = Operator::from_str(self.eat()?.as_str()).unwrap();
 
-        expression_stack.push(self.parse_atom()?);
-
-        while operator_stack.len() > 0 {
-            while self.current_type() == TokenType::Operator {
-                let position = self.current_position();
-                let (operator, precedence) = Operator::from_str(&self.eat()?).unwrap();
-
-                if precedence < operator_stack.last().unwrap().1 {
-                    let right = expression_stack.pop().unwrap();
-                    let left = expression_stack.pop().unwrap();
-
-                    expression_stack.push(Expression::new(
-                        ExpressionNode::Binary(
-                            Rc::new(left),
-                            operator_stack.pop().unwrap().0,
-                            Rc::new(right),
-                        ),
-                        self.current_position(),
-                    ));
-
-                    if self.remaining() > 0 {
-                        expression_stack.push(self.parse_atom()?);
-                        operator_stack.push((operator, precedence))
-                    } else {
-                        return Err(response!(
-                            Wrong("reached EOF in operation"),
-                            self.source.file,
-                            position
-                        ));
-                    }
-                } else {
-                    expression_stack.push(self.parse_atom()?);
-                    operator_stack.push((operator, precedence))
-                }
+            if operator.1 < min_prec as u8 {
+                self.index = index_backup;
+                break
             }
 
-            let right = expression_stack.pop().unwrap();
-            let left = expression_stack.pop().unwrap();
+            let prec = if !operator.0.is_right_ass() {
+                operator.1 + 1
+            } else {
+                operator.1
+            };
 
-            expression_stack.push(Expression::new(
+            let mut right = self.parse_atom()?;
+            right = self.parse_binary(right, prec as usize)?;
+
+            left = Expression::new(
                 ExpressionNode::Binary(
                     Rc::new(left),
-                    operator_stack.pop().unwrap().0,
-                    Rc::new(right),
+                    operator.0,
+                    Rc::new(right.clone())
                 ),
-                self.current_position(),
-            ));
+                self.span_from(left_position.clone())
+            );
         }
 
-        let expression = expression_stack.pop().unwrap();
-
-        Ok(Expression::new(
-            expression.node,
-            self.span_from(left_position),
-        ))
+        Ok(left)
     }
 
     fn parse_type(&mut self) -> Result<Type, ()> {

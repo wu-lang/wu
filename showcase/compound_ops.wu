@@ -1,3 +1,13 @@
+Foo: struct {
+    b: int
+}
+
+grr := new Foo {
+    b: 100
+}
+
+grr b += 10
+
 a: int = 100
 
 a *= 100
