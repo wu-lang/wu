@@ -1,7 +1,6 @@
 return (function()
   local File = {}
   
-  
   local file = setmetatable({
   }, {__index=File})
   

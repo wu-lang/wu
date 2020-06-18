@@ -504,7 +504,7 @@ impl<'p> Parser<'p> {
         let atom = self.parse_atom()?;
 
         if self.current_type() == TokenType::Operator {
-            self.parse_binary(atom)
+            self.parse_binary(atom, 0)
         } else {
             Ok(atom)
         }

@@ -2256,6 +2256,10 @@ impl<'v> Visitor<'v> {
         //     file_path = format!("./{}", file_path)
         // }
 
+        if &file_path[0..1] == "/" && !is_deep_run {
+            file_path = format!(".{}", file_path)
+        }
+
         let module = Path::new(&file_path);
 
         let mut init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
