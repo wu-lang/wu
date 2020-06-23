@@ -102,6 +102,8 @@ pub enum Operator {
     GtEq,
     Or,
     And,
+    PipeLeft,
+    PipeRight,
 }
 
 impl Operator {
@@ -115,6 +117,8 @@ impl Operator {
         let op_prec = match operator {
             "or" => (Or, 0),
             "and" => (And, 0),
+            "<|" => (PipeLeft, 0),
+            "|>" => (PipeRight, 0),
             "==" => (Eq, 1),
             "<" => (Lt, 1),
             ">" => (Gt, 1),
@@ -153,6 +157,8 @@ impl Operator {
             GtEq => ">=",
             Or => "or",
             And => "and",
+            PipeLeft => "<|",
+            PipeRight => "|>"
         }
     }
 

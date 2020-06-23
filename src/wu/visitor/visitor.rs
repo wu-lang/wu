@@ -2064,6 +2064,30 @@ impl<'v> Visitor<'v> {
                             }
                         }
 
+                        PipeLeft => {
+                            if let TypeNode::Func(_, ret, ..) = a {
+                                (**ret).clone()
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!("can't pipe into non-function `{} {} {}`", a, op, b)),
+                                    self.source.file,
+                                    expression.pos
+                                ));
+                            }
+                        },
+
+                        PipeRight => {
+                            if let TypeNode::Func(_, ret, ..) = b {
+                                (**ret).clone()
+                            } else {
+                                return Err(response!(
+                                    Wrong(format!("can't pipe into non-function `{} {} {}`", a, op, b)),
+                                    self.source.file,
+                                    expression.pos
+                                ));
+                            }
+                        },
+
                         Concat => {
                             if *a == TypeNode::Str {
                                 match *b {
@@ -2261,8 +2285,7 @@ impl<'v> Visitor<'v> {
         }
 
         let module = Path::new(&file_path);
-
-        let mut init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
+        let init_path = format!("{}/{}/init.wu", my_folder.to_str().unwrap(), path);
 
         // if !is_deep_run {
         //     init_path = format!("./{}", init_path)

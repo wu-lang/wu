@@ -277,6 +277,18 @@ impl<'g> Generator<'g> {
             Binary(ref left, ref op, ref right) => {
                 let mut result = string::String::new();
 
+                match op {
+                    Operator::PipeLeft => {
+                        return format!("{}({})", self.generate_expression(&left), self.generate_expression(&right))
+                    },
+
+                    Operator::PipeRight => {
+                        return format!("{}({})", self.generate_expression(&right), self.generate_expression(&left))
+                    }
+
+                    _ => ()
+                }
+
                 let folded = Parser::fold_expression(&expression);
 
                 if &folded != expression {

@@ -18,3 +18,11 @@ c: str = "duggiduggiduk"
 
 c ++= "hey"
 c ++= a 
+
+
+lol: fun(x: int) -> int {
+    return x
+}
+
+print(lol <| 10)
+print(10 |> lol |> lol |> lol)
