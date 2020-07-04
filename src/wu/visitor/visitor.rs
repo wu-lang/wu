@@ -2365,9 +2365,7 @@ impl<'v> Visitor<'v> {
                             true,
                         )?;
 
-                        let path = format!("{}", root);
-
-                        println!("inserted canonical {} + {}", new_path.clone(), path.clone());
+                        let path = format!("{}/", root);
 
                         // 0 is canonical
                         self.import_map

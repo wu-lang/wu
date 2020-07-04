@@ -919,9 +919,7 @@ impl<'g> Generator<'g> {
                 format!("table.unpack({})", self.generate_expression(expression))
             }
             Unwrap(ref expression) => {
-                let right = self.generate_expression(expression);
-
-                format!("{0}; assert({0} ~= nil, \"can't unwrap 'nil'\")", right)
+                self.generate_expression(expression)
             }
             Neg(ref n) => format!("-{}", self.generate_expression(n)),
             Not(ref n) => format!("not {}", self.generate_expression(n)),
