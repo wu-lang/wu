@@ -33,6 +33,7 @@ Wu strives to be a decently useful language with focus on control, readability a
 ## Libraries
 
 - [`lover`](https://github.com/nilq/lover): Type-safe bindings for the Love2D game engine.
+- [`std`](https://github.com/wu-lang/std): Wrapper for the Lua standard library.
 
 ## Disclaimer
 
@@ -42,9 +43,9 @@ Wu is built and maintained by a minimal team of people and was primarily develop
 
 - [nilq](https://github.com/nilq)
 
-- [fuzzylitchi](https://github.com/fuzzylitchi)
-
 - [evolbug](https://github.com/evolbug)
+
+- [fuzzylitchi](https://github.com/fuzzylitchi)
 
 ### License
 
