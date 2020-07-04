@@ -45,7 +45,7 @@ impl<'p> Parser<'p> {
                 let position = self.current_position();
                 let name = self.eat_type(&Identifier)?;
 
-                let mut splat_names = vec!(name.clone());
+                let mut splat_names = vec![name.clone()];
 
                 while self.current_lexeme() == "," {
                     self.next()?;
@@ -72,10 +72,10 @@ impl<'p> Parser<'p> {
 
                                 self.new_line()?;
 
-                                return Ok(statement)
+                                return Ok(statement);
                             }
                         }
-                    
+
                         self.index = backup;
 
                         let kind = if self.current_lexeme() == "=" {
@@ -106,7 +106,6 @@ impl<'p> Parser<'p> {
                                     self.span_from(position),
                                 )
                             }
-
                         } else {
                             if splat_names.len() > 1 {
                                 Statement::new(
@@ -128,12 +127,15 @@ impl<'p> Parser<'p> {
                         if splat_names.len() > 1 {
                             Statement::new(
                                 StatementNode::SplatAssignment(
-                                    splat_names.iter().map(|x|
-                                        Expression::new(
-                                            ExpressionNode::Identifier(x.clone()),
-                                            position.clone()
-                                        )
-                                    ).collect::<Vec<Expression>>(),
+                                    splat_names
+                                        .iter()
+                                        .map(|x| {
+                                            Expression::new(
+                                                ExpressionNode::Identifier(x.clone()),
+                                                position.clone(),
+                                            )
+                                        })
+                                        .collect::<Vec<Expression>>(),
                                     self.parse_expression()?,
                                 ),
                                 position,
@@ -141,7 +143,10 @@ impl<'p> Parser<'p> {
                         } else {
                             Statement::new(
                                 StatementNode::Assignment(
-                                    Expression::new(ExpressionNode::Identifier(name), position.clone()),
+                                    Expression::new(
+                                        ExpressionNode::Identifier(name),
+                                        position.clone(),
+                                    ),
                                     self.parse_expression()?,
                                 ),
                                 position,
@@ -151,16 +156,15 @@ impl<'p> Parser<'p> {
 
                     c => {
                         if splat_names.len() > 1 {
-                            return Err(
-                                response!(
-                                    Wrong(format!("expected `:` or `=`, found `{}`", c)),
-                                    self.source.file,
-                                    position
-                                )
-                            )
+                            return Err(response!(
+                                Wrong(format!("expected `:` or `=`, found `{}`", c)),
+                                self.source.file,
+                                position
+                            ));
                         }
 
-                        let expression = Expression::new(ExpressionNode::Identifier(name), position.clone());
+                        let expression =
+                            Expression::new(ExpressionNode::Identifier(name), position.clone());
 
                         if let Some(result) = self.try_parse_compound(&expression)? {
                             result
@@ -237,31 +241,24 @@ impl<'p> Parser<'p> {
                         StatementNode::Import(path, specifics),
                         self.span_from(position),
                     )
-                },
+                }
 
                 "extern" => {
                     self.next()?;
                     self.next_newline()?;
-                    
+
                     if self.current_lexeme() == "extern" {
-                        return Err(
-                            response!(
-                                Wrong("expected literally any other statement"),
-                                self.source.file,
-                                self.current_position()
-                            )
-                        )
+                        return Err(response!(
+                            Wrong("expected literally any other statement"),
+                            self.source.file,
+                            self.current_position()
+                        ));
                     }
 
                     let stmt = self.parse_statement()?;
 
-                    Statement::new(
-                        StatementNode::ExternBlock(
-                            Rc::new(stmt)
-                        ),
-                        position
-                    )
-                },
+                    Statement::new(StatementNode::ExternBlock(Rc::new(stmt)), position)
+                }
 
                 "implement" => {
                     let pos = self.span_from(position);
@@ -341,7 +338,7 @@ impl<'p> Parser<'p> {
 
     fn try_parse_compound(&mut self, left: &Expression) -> Result<Option<Statement>, ()> {
         if self.current_type() != TokenType::Operator {
-            return Ok(None)
+            return Ok(None);
         }
 
         let backup_index = self.index;
@@ -602,7 +599,7 @@ impl<'p> Parser<'p> {
                         self.in_sequence = false;
 
                         expr
-                    },
+                    }
 
                     "(" => {
                         self.next()?;
@@ -674,8 +671,6 @@ impl<'p> Parser<'p> {
 
                             loop {
                                 let mut branch_position = self.current_position();
-
-                                self.eat_lexeme("|")?;
 
                                 let left = self.parse_expression()?;
 
@@ -753,12 +748,10 @@ impl<'p> Parser<'p> {
                             ));
 
                             Expression::new(
-                                ExpressionNode::For(
-                                    (expr, iterator), body,
-                                ),
-                                for_position
+                                ExpressionNode::For((expr, iterator), body),
+                                for_position,
                             )
-                        },
+                        }
 
                         "if" => {
                             self.next()?;
@@ -954,7 +947,7 @@ impl<'p> Parser<'p> {
                 "," => {
                     if !self.in_sequence {
                         let position = expression.pos.clone();
-                        let mut splats = vec!(expression);
+                        let mut splats = vec![expression];
 
                         self.in_sequence = true;
 
@@ -967,12 +960,10 @@ impl<'p> Parser<'p> {
 
                         self.in_sequence = false;
 
-                        Ok(
-                            Expression::new(
-                                ExpressionNode::Splat(splats),
-                                self.span_from(position)
-                            )
-                        )
+                        Ok(Expression::new(
+                            ExpressionNode::Splat(splats),
+                            self.span_from(position),
+                        ))
                     } else {
                         Ok(expression)
                     }
@@ -1026,7 +1017,7 @@ impl<'p> Parser<'p> {
 
             if operator.1 < min_prec as u8 {
                 self.index = index_backup;
-                break
+                break;
             }
 
             let prec = if !operator.0.is_right_ass() {
@@ -1039,12 +1030,8 @@ impl<'p> Parser<'p> {
             right = self.parse_binary(right, prec as usize)?;
 
             left = Expression::new(
-                ExpressionNode::Binary(
-                    Rc::new(left),
-                    operator.0,
-                    Rc::new(right.clone())
-                ),
-                self.span_from(left_position.clone())
+                ExpressionNode::Binary(Rc::new(left), operator.0, Rc::new(right.clone())),
+                self.span_from(left_position.clone()),
             );
         }
 
@@ -1161,7 +1148,8 @@ impl<'p> Parser<'p> {
                 "..." => {
                     self.next()?;
 
-                    let splatted = if ([")", "=", "?", "{"].contains(&self.current_lexeme().as_str())
+                    let splatted = if ([")", "=", "?", "{"]
+                        .contains(&self.current_lexeme().as_str())
                         && self.current_type() == TokenType::Symbol)
                         || self.remaining() == 0
                         || self.current_lexeme() == "\n"

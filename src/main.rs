@@ -1,24 +1,24 @@
 extern crate colored;
-extern crate toml;
-extern crate git2;
-extern crate rustyline;
 extern crate dirs;
 extern crate fs_extra;
+extern crate git2;
+extern crate rustyline;
+extern crate toml;
 
-use fs_extra::dir::*;
 use fs_extra::copy_items;
+use fs_extra::dir::*;
 
 use self::colored::Colorize;
 
 mod wu;
 
 use self::wu::compiler::*;
+use self::wu::error::*;
+use self::wu::handler;
 use self::wu::lexer::*;
 use self::wu::parser::*;
 use self::wu::source::*;
 use self::wu::visitor::*;
-use self::wu::error::*;
-use self::wu::handler;
 
 use std::fs;
 use std::fs::metadata;
@@ -29,7 +29,6 @@ use std::env;
 use std::io::prelude::*;
 use std::path::Path;
 use std::time::{Duration, Instant};
-
 
 const HELP: &'static str = "\
 The Wu Compiler
@@ -161,17 +160,17 @@ pub fn run(content: &str, file: &str, root: &String) -> Option<String> {
 
             symtab.assign_str(
                 "print",
-                Type::function(vec!(splat_any.clone()), Type::from(TypeNode::Nil), false)  
+                Type::function(vec![splat_any.clone()], Type::from(TypeNode::Nil), false),
             );
 
             symtab.assign_str(
                 "ipairs",
-                Type::function(vec!(splat_any.clone()), splat_any.clone(), false)
+                Type::function(vec![splat_any.clone()], splat_any.clone(), false),
             );
 
             symtab.assign_str(
                 "pairs",
-                Type::function(vec!(splat_any.clone()), splat_any, false)
+                Type::function(vec![splat_any.clone()], splat_any, false),
             );
 
             let mut visitor = Visitor::from_symtab(ast, &source, symtab, root.clone());
@@ -248,7 +247,7 @@ fn confirm_home() {
             return response!(
                 Response::Weird(format!("missing environment variable `WU_HOME`")),
                 Response::Note("failed to find home directory, you can set the variable yourself")
-            )
+            );
         };
 
         if !Path::new(&dir).exists() {
@@ -270,7 +269,11 @@ fn main() {
 
     let args = env::args().collect::<Vec<String>>();
 
-    let root = Path::new(&args[0].to_string()).parent().unwrap().display().to_string();
+    let root = Path::new(&args[0].to_string())
+        .parent()
+        .unwrap()
+        .display()
+        .to_string();
 
     if args.len() > 1 {
         match args[1].as_str() {
@@ -278,13 +281,15 @@ fn main() {
                 if args.len() > 2 {
                     clean_path(&args[2])
                 }
-            },
+            }
 
-            "new" => if args.len() > 2 {
-                handler::new(Some(&args[2]))
-            } else {
-                handler::new(None)
-            },
+            "new" => {
+                if args.len() > 2 {
+                    handler::new(Some(&args[2]))
+                } else {
+                    handler::new(None)
+                }
+            }
 
             "build" => {
                 handler::get();
@@ -294,7 +299,7 @@ fn main() {
                 } else {
                     compile_path(".", &root)
                 }
-            },
+            }
 
             "sync" => handler::get(),
 

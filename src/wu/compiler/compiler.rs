@@ -14,13 +14,14 @@ pub enum FlagImplicit {
 pub enum Inside {
     Loop,
     Nothing,
+    Then,
 }
 
 pub struct Generator<'g> {
     source: &'g Source,
 
     flag: Option<FlagImplicit>,
-    inside: Option<Inside>,
+    inside: Vec<Inside>,
 
     loop_depth: usize,
     special_break: bool,
@@ -30,18 +31,22 @@ pub struct Generator<'g> {
 }
 
 impl<'g> Generator<'g> {
-    pub fn new(source: &'g Source, method_calls: &'g HashMap<Pos, bool>, import_map: &'g HashMap<Pos, (String, String)>) -> Self {
+    pub fn new(
+        source: &'g Source,
+        method_calls: &'g HashMap<Pos, bool>,
+        import_map: &'g HashMap<Pos, (String, String)>,
+    ) -> Self {
         Generator {
             source,
 
             flag: None,
-            inside: None,
+            inside: Vec::new(),
 
             loop_depth: 0,
             special_break: false,
 
             method_calls,
-            import_map
+            import_map,
         }
     }
 
@@ -127,7 +132,7 @@ impl<'g> Generator<'g> {
                 }
 
                 self.generate_local(left.as_str(), right)
-            },
+            }
 
             SplatAssignment(ref splats, ref right) => {
                 let mut left_string = String::new();
@@ -151,7 +156,7 @@ impl<'g> Generator<'g> {
                 let result = format!("{} = {}", left_string, right_string);
 
                 result
-            },
+            }
 
             ExternBlock(..) => String::new(),
 
@@ -178,7 +183,15 @@ impl<'g> Generator<'g> {
 
             Import(ref name, ref specifics) => {
                 let file_path = if let Some(new_path) = self.import_map.get(&statement.pos) {
-                    format!("{}", new_path.1.clone().split(&format!("/{}", name)).collect::<Vec<&str>>()[0].to_string())
+                    format!(
+                        "{}",
+                        new_path
+                            .1
+                            .clone()
+                            .split(&format!("/{}", name))
+                            .collect::<Vec<&str>>()[0]
+                            .to_string()
+                    )
                 } else {
                     // let my_folder = Path::new(&self.source.file.0).parent().unwrap();
                     // format!("{}/{}", my_folder.to_str().unwrap(), name)
@@ -189,9 +202,11 @@ impl<'g> Generator<'g> {
 
                 if let Some(abs_path) = self.import_map.get(&statement.pos) {
                     let path = file_path[..file_path.len() - 1].to_string();
-                    result = format!("package.path = package.path .. ';{0}?.lua;{0}?/init.lua'\n", path);
+                    result = format!(
+                        "package.path = package.path .. ';{0}?.lua;{0}?/init.lua'\n",
+                        path
+                    );
                     result.push_str(&format!("local {} = require('{}')\n", name, name))
-
                 } else {
                     result = format!("local {} = require('{}')\n", name, file_path)
                 }
@@ -205,10 +220,12 @@ impl<'g> Generator<'g> {
                 result
             }
 
-            Break => if self.special_break {
-                format!("__brk_{} = true break", self.loop_depth)
-            } else {
-                String::from("break")
+            Break => {
+                if self.special_break {
+                    format!("__brk_{} = true break", self.loop_depth)
+                } else {
+                    String::from("break")
+                }
             }
 
             Skip => String::from("break"),
@@ -279,14 +296,22 @@ impl<'g> Generator<'g> {
 
                 match op {
                     Operator::PipeLeft => {
-                        return format!("{}({})", self.generate_expression(&left), self.generate_expression(&right))
-                    },
-
-                    Operator::PipeRight => {
-                        return format!("{}({})", self.generate_expression(&right), self.generate_expression(&left))
+                        return format!(
+                            "{}({})",
+                            self.generate_expression(&left),
+                            self.generate_expression(&right)
+                        )
                     }
 
-                    _ => ()
+                    Operator::PipeRight => {
+                        return format!(
+                            "{}({})",
+                            self.generate_expression(&right),
+                            self.generate_expression(&left)
+                        )
+                    }
+
+                    _ => (),
                 }
 
                 let folded = Parser::fold_expression(&expression);
@@ -375,8 +400,9 @@ impl<'g> Generator<'g> {
 
             Block(ref content) => {
                 let flag_backup = self.flag.clone();
-
                 let flag = self.flag.clone();
+
+                let mut in_return = false;
 
                 let mut result = if let Some(ref f) = flag {
                     match *f {
@@ -386,17 +412,36 @@ impl<'g> Generator<'g> {
                             "(function()\n"
                         }
 
-                        FlagImplicit::Return => "",
+                        FlagImplicit::Return => {
+                            in_return = true;
+                            self.flag = None;
 
-                        _ => "do\n",
+                            ""
+                        }
+
+                        _ => {
+                            if content.len() == 1 && !self.inside.contains(&Inside::Then) {
+                                "do\n"
+                            } else {
+                                ""
+                            }
+                        }
                     }
                 } else {
-                    "do\n"
+                    if !self.inside.contains(&Inside::Then) {
+                        "do\n"
+                    } else {
+                        ""
+                    }
                 }
                 .to_string();
 
                 for (i, element) in content.iter().enumerate() {
                     if i == content.len() - 1 {
+                        if in_return {
+                            self.flag = flag.clone();
+                        }
+
                         if self.flag.is_some() {
                             if let StatementNode::Expression(ref expression) = element.node {
                                 match expression.node {
@@ -407,6 +452,11 @@ impl<'g> Generator<'g> {
                                                 Block(..) | If(..) | While(..) => {
                                                     self.generate_expression(expression)
                                                 }
+
+                                                ExpressionNode::EOF | ExpressionNode::Empty => {
+                                                    String::new()
+                                                }
+
                                                 _ => format!(
                                                     "return {}",
                                                     self.generate_expression(expression)
@@ -441,10 +491,18 @@ impl<'g> Generator<'g> {
 
                         FlagImplicit::Return => (),
 
-                        _ => result.push_str("end\n"),
+                        _ => {
+                            if !self.inside.contains(&Inside::Then) {
+                                result.push_str("end\n")
+                            } else {
+                                ()
+                            }
+                        }
                     }
                 } else {
-                    result.push_str("end\n")
+                    if !self.inside.contains(&Inside::Then) {
+                        result.push_str("end\n")
+                    }
                 }
 
                 result
@@ -484,7 +542,6 @@ impl<'g> Generator<'g> {
                 }
 
                 let flag_backup = self.flag.clone();
-
                 self.flag = Some(FlagImplicit::Return);
 
                 let line = match body.node {
@@ -492,10 +549,9 @@ impl<'g> Generator<'g> {
                     _ => format!("return {}", self.generate_expression(body)),
                 };
 
-                result.push_str(&&line);
-
                 self.flag = flag_backup;
 
+                result.push_str(&&line);
                 result.push_str("end\n");
 
                 result
@@ -538,6 +594,8 @@ impl<'g> Generator<'g> {
 
             If(ref condition, ref body, ref elses) => {
                 let flag_backup = self.flag.clone();
+
+                self.inside.push(Inside::Then);
 
                 let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
                     self.flag = Some(FlagImplicit::Return);
@@ -636,6 +694,7 @@ impl<'g> Generator<'g> {
                 }
 
                 self.flag = flag_backup;
+                self.inside.pop();
 
                 if let Some(FlagImplicit::Assign(_)) = self.flag {
                     result.push_str("end\nend)()")
@@ -648,14 +707,14 @@ impl<'g> Generator<'g> {
 
             For(ref iterator, ref body) => {
                 let flag_backup = self.flag.clone();
-                let inside_backup = self.inside.clone();
+                self.inside.push(Inside::Then);
                 self.special_break = true;
 
-                if self.inside == Some(Inside::Loop) {
+                if self.inside.contains(&Inside::Loop) {
                     self.loop_depth += 1
                 } else {
                     self.loop_depth = 0;
-                    self.inside = Some(Inside::Loop)
+                    self.inside.push(Inside::Loop)
                 }
 
                 let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
@@ -678,7 +737,6 @@ impl<'g> Generator<'g> {
                     let expr = self.generate_expression(&*expr);
 
                     format!("for {} in {} do", expr, iterator)
-
                 } else {
                     let iterator = self.generate_expression(&*expr);
 
@@ -693,11 +751,11 @@ impl<'g> Generator<'g> {
                     for (i, element) in content.iter().enumerate() {
                         if i == content.len() - 1 {
                             if StatementNode::Skip == element.node {
-                                break
+                                break;
                             } else {
                                 if let StatementNode::Expression(ref expression) = element.node {
                                     if Empty == expression.node {
-                                        break
+                                        break;
                                     }
                                 }
                             }
@@ -725,7 +783,8 @@ impl<'g> Generator<'g> {
                 }
 
                 self.flag = flag_backup;
-                self.inside = inside_backup;
+                self.inside.pop();
+                self.inside.pop();
 
                 if let Some(FlagImplicit::Assign(_)) = self.flag {
                     result.push_str("end)()")
@@ -736,13 +795,13 @@ impl<'g> Generator<'g> {
 
             While(ref condition, ref body) => {
                 let flag_backup = self.flag.clone();
-                let inside_backup = self.inside.clone();
+                self.inside.push(Inside::Then);
 
-                if self.inside == Some(Inside::Loop) {
+                if self.inside.contains(&Inside::Loop) {
                     self.loop_depth += 1
                 } else {
                     self.loop_depth = 0;
-                    self.inside = Some(Inside::Loop)
+                    self.inside.push(Inside::Loop)
                 }
 
                 let mut result = if let Some(FlagImplicit::Assign(_)) = self.flag {
@@ -797,7 +856,8 @@ impl<'g> Generator<'g> {
                 }
 
                 self.flag = flag_backup;
-                self.inside = inside_backup;
+                self.inside.pop();
+                self.inside.pop();
 
                 if let Some(FlagImplicit::Assign(_)) = self.flag {
                     result.push_str("end)()")
@@ -863,7 +923,7 @@ impl<'g> Generator<'g> {
                 let right = self.generate_expression(expression);
 
                 format!("{0}; assert({0} ~= nil, \"can't unwrap 'nil'\")", right)
-            },
+            }
             Neg(ref n) => format!("-{}", self.generate_expression(n)),
             Not(ref n) => format!("not {}", self.generate_expression(n)),
 

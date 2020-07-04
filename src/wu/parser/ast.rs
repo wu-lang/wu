@@ -158,7 +158,7 @@ impl Operator {
             Or => "or",
             And => "and",
             PipeLeft => "<|",
-            PipeRight => "|>"
+            PipeRight => "|>",
         }
     }
 

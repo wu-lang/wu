@@ -110,7 +110,9 @@ impl PartialEq for TypeNode {
             (&Bool, &Bool) => true,
             (&Nil, &Nil) => true,
             (&This, &This) => true,
-            (&Array(ref a, ref la), &Array(ref b, ref lb)) => a == b && (la == &None || (a.node == Any && lb == &None) || la == lb),
+            (&Array(ref a, ref la), &Array(ref b, ref lb)) => {
+                a == b && (la == &None || (a.node == Any && lb == &None) || la == lb)
+            }
             (&Id(ref a), &Id(ref b)) => a == b,
             (&Func(ref a_params, ref a_retty, .., a), &Func(ref b_params, ref b_retty, .., b)) => {
                 a_params == b_params && a_retty == b_retty && a == b
@@ -365,7 +367,12 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    pub fn from_symtab(ast: &'v Vec<Statement>, source: &'v Source, symtab: SymTab, root: String) -> Self {
+    pub fn from_symtab(
+        ast: &'v Vec<Statement>,
+        source: &'v Source,
+        symtab: SymTab,
+        root: String,
+    ) -> Self {
         Visitor {
             symtab,
 
@@ -392,13 +399,14 @@ impl<'v> Visitor<'v> {
             Variable(..) => self.visit_variable(&statement.node, &statement.pos, false),
             SplatVariable(ref t, ref splats, ref right) => {
                 for splat in splats.iter() {
-                    let fake_var = StatementNode::Variable(t.to_owned(), splat.to_owned(), right.to_owned());
+                    let fake_var =
+                        StatementNode::Variable(t.to_owned(), splat.to_owned(), right.to_owned());
 
                     self.visit_variable(&fake_var, &statement.pos, true)?
                 }
 
                 Ok(())
-            },
+            }
 
             Return(ref value) => {
                 if self.inside.contains(&Inside::Function) {
@@ -443,7 +451,11 @@ impl<'v> Visitor<'v> {
             }
 
             Import(ref path, ref specifics) => {
-                let local_root = Path::new(&self.source.file.0).parent().unwrap().display().to_string();
+                let local_root = Path::new(&self.source.file.0)
+                    .parent()
+                    .unwrap()
+                    .display()
+                    .to_string();
                 // &self.root.clone()
                 let module = self.find_module(path, &local_root, &statement, self.is_deep)?;
 
@@ -476,7 +488,11 @@ impl<'v> Visitor<'v> {
 
                         let root = if let Some(other_path) = self.import_map.get(&statement.pos) {
                             is_deep = true;
-                            Path::new(&other_path.0).parent().unwrap().display().to_string()
+                            Path::new(&other_path.0)
+                                .parent()
+                                .unwrap()
+                                .display()
+                                .to_string()
                         } else {
                             self.root.clone()
                         };
@@ -726,16 +742,23 @@ impl<'v> Visitor<'v> {
 
                     if splat_t != a {
                         return Err(response!(
-                            Wrong(format!("can't splat assign different types, expected `{}` found `{}`", a, splat_t)),
+                            Wrong(format!(
+                                "can't splat assign different types, expected `{}` found `{}`",
+                                a, splat_t
+                            )),
                             self.source.file,
                             splat.pos
-                        ))
+                        ));
                     }
                 }
 
                 let b = self.type_expression(right)?;
 
-                self.assert_types(Type::new(a.node, TypeMode::Splat(Some(splats.len()))), b, &statement.pos)?;
+                self.assert_types(
+                    Type::new(a.node, TypeMode::Splat(Some(splats.len()))),
+                    b,
+                    &statement.pos,
+                )?;
 
                 Ok(())
             }
@@ -752,7 +775,7 @@ impl<'v> Visitor<'v> {
                 if name == "Self" {
                     for inside in self.inside.iter() {
                         if let Inside::Implement(ref s) = inside {
-                            return Ok(())
+                            return Ok(());
                         }
                     }
                 }
@@ -1013,9 +1036,9 @@ impl<'v> Visitor<'v> {
 
                     // allowed: fun(...) -> ...
 
-                    if iterator_t != Type::function(vec!(params_t.clone()), params_t.clone(), false)
-                        && iterator_t != Type::function(vec!(), Type::from(TypeNode::Any), false) {
-
+                    if iterator_t != Type::function(vec![params_t.clone()], params_t.clone(), false)
+                        && iterator_t != Type::function(vec![], Type::from(TypeNode::Any), false)
+                    {
                         return Err(response!(
                             Wrong(format!(
                                 "mismatched type, expected iterator function found `{}`",
@@ -1027,21 +1050,30 @@ impl<'v> Visitor<'v> {
                     }
 
                     match expr.node {
-                        ExpressionNode::Identifier(ref name) => self.symtab.assign((*name).clone(), Type::from(TypeNode::Any)),
-                        ExpressionNode::Splat(ref names) => for name in names.iter() {
-                            if let ExpressionNode::Identifier(ref name) = name.node {
-                                self.symtab.assign((*name).clone(), Type::from(TypeNode::Any))
+                        ExpressionNode::Identifier(ref name) => self
+                            .symtab
+                            .assign((*name).clone(), Type::from(TypeNode::Any)),
+                        ExpressionNode::Splat(ref names) => {
+                            for name in names.iter() {
+                                if let ExpressionNode::Identifier(ref name) = name.node {
+                                    self.symtab
+                                        .assign((*name).clone(), Type::from(TypeNode::Any))
+                                }
                             }
-                        },
-                        _ => return Err(response!(
-                            Wrong("expected identifier as accumulator"),
-                            self.source.file,
-                            expr.pos
-                        )),
+                        }
+                        _ => {
+                            return Err(response!(
+                                Wrong("expected identifier as accumulator"),
+                                self.source.file,
+                                expr.pos
+                            ))
+                        }
                     }
                 }
 
-                if (iterator.is_none() && self.type_expression(&expr)?.node == TypeNode::Int) || iterator.is_some() {
+                if (iterator.is_none() && self.type_expression(&expr)?.node == TypeNode::Int)
+                    || iterator.is_some()
+                {
                     self.inside.push(Inside::Loop);
 
                     self.visit_expression(body)?;
@@ -1548,7 +1580,12 @@ impl<'v> Visitor<'v> {
         }
     }
 
-    fn visit_variable(&mut self, variable: &StatementNode, pos: &Pos, is_splat: bool) -> Result<(), ()> {
+    fn visit_variable(
+        &mut self,
+        variable: &StatementNode,
+        pos: &Pos,
+        is_splat: bool,
+    ) -> Result<(), ()> {
         use self::ExpressionNode::*;
 
         if let &StatementNode::Variable(ref var_type, ref name, ref right) = variable {
@@ -1616,7 +1653,9 @@ impl<'v> Visitor<'v> {
                 }
 
                 match right.node {
-                    Function(..) | Block(_) | If(..) | While(..) | For(..) => self.visit_expression(right)?,
+                    Function(..) | Block(_) | If(..) | While(..) | For(..) => {
+                        self.visit_expression(right)?
+                    }
                     _ => (),
                 }
             } else {
@@ -1655,8 +1694,7 @@ impl<'v> Visitor<'v> {
                 if name == "Self" {
                     for inside in self.inside.iter() {
                         if let Inside::Implement(ref s) = inside {
-
-                            return Ok(self.deid(s.clone())?)
+                            return Ok(self.deid(s.clone())?);
                         }
                     }
                 }
@@ -1669,20 +1707,20 @@ impl<'v> Visitor<'v> {
             Splat(ref splats) => {
                 let a = self.type_expression(&splats[0])?;
 
-                let splat_type = Type::new(
-                    a.node.clone(),
-                    TypeMode::Splat(Some(splats.len()))
-                );
+                let splat_type = Type::new(a.node.clone(), TypeMode::Splat(Some(splats.len())));
 
                 for splat in splats.iter() {
                     let splat_t = self.type_expression(splat)?;
 
                     if splat_t != a {
                         return Err(response!(
-                            Wrong(format!("can't splat assign different types, expected `{}` found `{}`", a, splat_t)),
+                            Wrong(format!(
+                                "can't splat assign different types, expected `{}` found `{}`",
+                                a, splat_t
+                            )),
                             self.source.file,
                             splat.pos
-                        ))
+                        ));
                     }
                 }
 
@@ -2069,24 +2107,30 @@ impl<'v> Visitor<'v> {
                                 (**ret).clone()
                             } else {
                                 return Err(response!(
-                                    Wrong(format!("can't pipe into non-function `{} {} {}`", a, op, b)),
+                                    Wrong(format!(
+                                        "can't pipe into non-function `{} {} {}`",
+                                        a, op, b
+                                    )),
                                     self.source.file,
                                     expression.pos
                                 ));
                             }
-                        },
+                        }
 
                         PipeRight => {
                             if let TypeNode::Func(_, ret, ..) = b {
                                 (**ret).clone()
                             } else {
                                 return Err(response!(
-                                    Wrong(format!("can't pipe into non-function `{} {} {}`", a, op, b)),
+                                    Wrong(format!(
+                                        "can't pipe into non-function `{} {} {}`",
+                                        a, op, b
+                                    )),
                                     self.source.file,
                                     expression.pos
                                 ));
                             }
-                        },
+                        }
 
                         Concat => {
                             if *a == TypeNode::Str {
@@ -2269,7 +2313,13 @@ impl<'v> Visitor<'v> {
     }
 
     #[inline]
-    fn find_module(&mut self, path: &String, root: &String, statement: &Statement, is_deep_run: bool) -> Result<String, ()> {
+    fn find_module(
+        &mut self,
+        path: &String,
+        root: &String,
+        statement: &Statement,
+        is_deep_run: bool,
+    ) -> Result<String, ()> {
         let is_deep_run = is_deep_run || self.is_deep;
 
         let my_folder = Path::new(&root);
@@ -2296,7 +2346,6 @@ impl<'v> Visitor<'v> {
 
             if !module.exists() {
                 if is_deep_run {
-
                     return Err(response!(
                         Wrong(format!(
                             "no such module `{0}`, needed either `{0}.wu`, `{0}/init.wu` or in `$WU_HOME`",
@@ -2308,14 +2357,20 @@ impl<'v> Visitor<'v> {
                 } else {
                     if let Ok(root) = env::var("WU_HOME") {
                         // - 1 cause / is added in the next iteration
-                        let new_path = self.find_module(path, &root[..root.len() - 1].to_string(), statement, true)?;
+                        let new_path = self.find_module(
+                            path,
+                            &root[..root.len() - 1].to_string(),
+                            statement,
+                            true,
+                        )?;
 
                         let path = format!("{}/", root);
 
                         // 0 is canonical
-                        self.import_map.insert(statement.pos.clone(), (new_path.clone(), path.clone()));
+                        self.import_map
+                            .insert(statement.pos.clone(), (new_path.clone(), path.clone()));
 
-                        return Ok(new_path)
+                        return Ok(new_path);
                     } else {
                         return Err(response!(
                             Wrong(format!(
@@ -2429,7 +2484,7 @@ impl<'v> Visitor<'v> {
 
                         self.assign(name.to_owned(), t);
 
-                        continue
+                        continue;
                     } else if let ExpressionNode::Extern(ref t, _) = right.node {
                         if let TypeNode::Func(..) = t.node {
                             new_content.insert(
@@ -2438,7 +2493,11 @@ impl<'v> Visitor<'v> {
                             );
 
                             let kind = Type::new(
-                                TypeNode::Struct(struct_name.clone(), new_content.clone(), id.clone()),
+                                TypeNode::Struct(
+                                    struct_name.clone(),
+                                    new_content.clone(),
+                                    id.clone(),
+                                ),
                                 kind.mode.clone(),
                             );
 
@@ -2486,7 +2545,7 @@ impl<'v> Visitor<'v> {
 
                             self.assign(name.to_owned(), t.to_owned());
 
-                            continue
+                            continue;
                         } else {
                             return Err(response!(
                                 Wrong("expected function definition"),
@@ -2559,7 +2618,9 @@ impl<'v> Visitor<'v> {
 
             Call(..) => (),
 
-            If(_, ref expr, _) | While(_, ref expr) | For(_, ref expr) => self.ensure_no_implicit(&*expr)?,
+            If(_, ref expr, _) | While(_, ref expr) | For(_, ref expr) => {
+                self.ensure_no_implicit(&*expr)?
+            }
 
             _ => {
                 return Err(response!(
