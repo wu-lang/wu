@@ -1,1 +1,6 @@
 import test { lol }
+import lover { graphics }
+
+graphics setColor(1, 1, 0)
+
+import library

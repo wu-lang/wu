@@ -193,9 +193,8 @@ impl<'g> Generator<'g> {
                             .to_string()
                     )
                 } else {
-                    // let my_folder = Path::new(&self.source.file.0).parent().unwrap();
-                    // format!("{}/{}", my_folder.to_str().unwrap(), name)
-                    name.to_string()
+                    let my_folder = Path::new(&self.source.file.0).parent().unwrap();
+                    format!("{}/{}", my_folder.to_str().unwrap(), name)
                 };
 
                 let mut result = String::new();
@@ -206,7 +205,7 @@ impl<'g> Generator<'g> {
                         "package.path = package.path .. ';{0}?.lua;{0}?/init.lua'\n",
                         path
                     );
-                    result.push_str(&format!("local {} = require('{}')\n", name, name))
+                    result.push_str(&format!("local {0} = require('{0}')\n", name))
                 } else {
                     result = format!("local {} = require('{}')\n", name, file_path)
                 }

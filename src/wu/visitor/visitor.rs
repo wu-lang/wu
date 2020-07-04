@@ -367,6 +367,7 @@ impl<'v> Visitor<'v> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_symtab(
         ast: &'v Vec<Statement>,
         source: &'v Source,
@@ -2364,7 +2365,9 @@ impl<'v> Visitor<'v> {
                             true,
                         )?;
 
-                        let path = format!("{}/", root);
+                        let path = format!("{}", root);
+
+                        println!("inserted canonical {} + {}", new_path.clone(), path.clone());
 
                         // 0 is canonical
                         self.import_map
