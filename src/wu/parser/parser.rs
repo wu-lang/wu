@@ -243,23 +243,6 @@ impl<'p> Parser<'p> {
                     )
                 }
 
-                "extern" => {
-                    self.next()?;
-                    self.next_newline()?;
-
-                    if self.current_lexeme() == "extern" {
-                        return Err(response!(
-                            Wrong("expected literally any other statement"),
-                            self.source.file,
-                            self.current_position()
-                        ));
-                    }
-
-                    let stmt = self.parse_statement()?;
-
-                    Statement::new(StatementNode::ExternBlock(Rc::new(stmt)), position)
-                }
-
                 "implement" => {
                     let pos = self.span_from(position);
 
@@ -378,6 +361,50 @@ impl<'p> Parser<'p> {
 
     fn parse_right_hand(&mut self, name: String) -> Result<Option<Expression>, ()> {
         let declaration = match self.current_lexeme().as_str() {
+            "extern" => {
+                let position = self.current_position();
+                self.next()?;
+                
+                if self.current_lexeme() == "module" {
+                    if self.current_lexeme() == "extern" {
+                        return Err(response!(
+                            Wrong("expected literally any other expression"),
+                            self.source.file,
+                            self.current_position()
+                        ));
+                    }
+    
+                    let expr = self.parse_right_hand(name)?;
+    
+                    if let Some(expr) = expr {
+                        Some(
+                            Expression::new(ExpressionNode::ExternExpression(Rc::new(expr)), self.span_from(position))
+                        )
+                    } else {
+                        return Err(response!(
+                            Wrong("expected right-hand expression in extern"),
+                            self.source.file,
+                            self.current_position()
+                        ));
+                    }
+                } else {
+                    let kind = self.parse_type()?;
+
+                    let lua = if self.current_lexeme() == "=" {
+                        self.next()?;
+
+                        Some(self.eat_type(&TokenType::Str)?)
+                    } else {
+                        None
+                    };
+
+                    Some(Expression::new(
+                        ExpressionNode::Extern(kind, lua),
+                        self.span_from(position),
+                    ))
+                }
+            },
+
             "fun" => Some(self.parse_function()?),
 
             "struct" => {

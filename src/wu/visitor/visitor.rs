@@ -790,6 +790,8 @@ impl<'v> Visitor<'v> {
                 Ok(())
             }
 
+            ExternExpression(ref expr) => self.visit_expression(expr),
+
             Splat(ref splats) => {
                 for splat in splats.iter() {
                     self.visit_expression(&splat)?
@@ -1739,6 +1741,8 @@ impl<'v> Visitor<'v> {
 
                 Type::from(kind.node.clone())
             }
+
+            ExternExpression(ref expr) => self.type_expression(expr)?,
 
             Str(_) => Type::from(TypeNode::Str),
             Char(_) => Type::from(TypeNode::Char),

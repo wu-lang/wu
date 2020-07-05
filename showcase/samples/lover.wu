@@ -1,4 +1,4 @@
-extern love: module {
+love: extern module {
 	conf: fun(t: any) {}
 }
 
