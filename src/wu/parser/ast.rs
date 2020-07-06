@@ -40,6 +40,8 @@ pub enum ExpressionNode {
     UnwrapSplat(Rc<Expression>),
     Unwrap(Rc<Expression>),
 
+    Tuple(Vec<Expression>),
+
     Neg(Rc<Expression>),
     Not(Rc<Expression>),
 

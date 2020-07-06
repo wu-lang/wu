@@ -556,6 +556,26 @@ impl<'g> Generator<'g> {
                 result
             }
 
+            Tuple(ref content) => {
+                let mut result = String::new();
+
+                for (i, element) in content.iter().enumerate() {
+                    result.push_str(
+                        &self.generate_expression(&element)
+                    );
+
+                    if i != content.len() - 1 {
+                        result.push_str(", ")
+                    }
+                }
+
+                if self.flag == Some(FlagImplicit::Return) {
+                    result
+                } else {
+                    format!("{{ {} }}", result)
+                }
+            }
+
             Array(ref content) => {
                 let mut result = "{\n".to_string();
 

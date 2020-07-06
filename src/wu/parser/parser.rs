@@ -629,20 +629,46 @@ impl<'p> Parser<'p> {
                     }
 
                     "(" => {
-                        self.next()?;
-                        self.next_newline()?;
+                        let backup_index = self.index;
 
-                        if self.current_lexeme() == ")" && self.current_type() == TokenType::Symbol
-                        {
-                            self.next()?;
+                        self.in_sequence = true;
 
-                            Expression::new(ExpressionNode::Empty, self.span_from(position))
+                        let possible_content = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
+
+                        self.in_sequence = false;
+
+
+                        if possible_content.len() > 1 {
+                            self.in_sequence = true;
+
+                            let expr = Expression::new(
+                                ExpressionNode::Tuple(
+                                    possible_content
+                                ),
+                                self.span_from(position),
+                            );
+
+                            self.in_sequence = false;
+
+                            expr
                         } else {
-                            let expression = self.parse_expression()?;
+                            self.index = backup_index;
 
-                            self.eat_lexeme(")")?;
-
-                            expression
+                            self.next()?;
+                            self.next_newline()?;
+    
+                            if self.current_lexeme() == ")" && self.current_type() == TokenType::Symbol
+                            {
+                                self.next()?;
+    
+                                Expression::new(ExpressionNode::Empty, self.span_from(position))
+                            } else {
+                                let expression = self.parse_expression()?;
+    
+                                self.eat_lexeme(")")?;
+    
+                                expression
+                            }
                         }
                     }
 
@@ -1137,6 +1163,31 @@ impl<'p> Parser<'p> {
             },
 
             Symbol => match self.current_lexeme().as_str() {
+                "(" => {
+                    self.next()?;
+                    self.next_newline()?;
+
+                    let mut content = Vec::new();
+
+                    content.push(
+                        self.parse_type()?
+                    );
+
+                    self.next_newline()?;
+
+                    while self.current_lexeme() == "," {
+                        self.eat()?;
+
+                        content.push(self.parse_type()?);
+
+                        self.next_newline()?;
+                    }
+
+                    self.eat_lexeme(")")?;
+
+                    Type::tuple(content)
+                },
+
                 "[" => {
                     self.next()?;
                     self.next_newline()?;

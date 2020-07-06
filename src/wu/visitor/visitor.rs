@@ -28,6 +28,7 @@ pub enum TypeNode {
     Struct(String, HashMap<String, Type>, String),
     Trait(String, HashMap<String, Type>),
     Optional(Rc<TypeNode>),
+    Tuple(Vec<Type>),
     This,
 }
 
@@ -79,6 +80,7 @@ impl TypeNode {
             (&Char, &Char) => true,
             (&This, &This) => true,
             (&Nil, &Nil) => true,
+            (&Tuple(ref a), &Tuple(ref b)) => a == b,
             (&Optional(ref a), &Optional(ref b)) => a == b,
             (&Id(ref a), &Id(ref b)) => a == b,
             (&Array(ref a, ref la), &Array(ref b, ref lb)) => a == b && (la == &None || la == lb),
@@ -110,6 +112,7 @@ impl PartialEq for TypeNode {
             (&Bool, &Bool) => true,
             (&Nil, &Nil) => true,
             (&This, &This) => true,
+            (&Tuple(ref a), &Tuple(ref b)) => a == b,
             (&Array(ref a, ref la), &Array(ref b, ref lb)) => {
                 a == b && (la == &None || (a.node == Any && lb == &None) || la == lb)
             }
@@ -190,6 +193,20 @@ impl Display for TypeNode {
             Nil => write!(f, "nil"),
             This => write!(f, "self"),
             Any => write!(f, "any"),
+
+            Tuple(ref content) => {
+                write!(f, "(");
+
+                for (i, t) in content.iter().enumerate() {
+                    write!(f, "{}", t);
+
+                    if i != content.len() - 1 {
+                        write!(f, ", ");
+                    }
+                }
+
+                write!(f, ")")
+            }
 
             Trait(ref name, _) => write!(f, "{}", name),
 
@@ -287,6 +304,10 @@ impl Type {
 
     pub fn from(node: TypeNode) -> Type {
         Type::new(node, TypeMode::Regular)
+    }
+
+    pub fn tuple(t: Vec<Type>) -> Type {
+        Type::new(TypeNode::Tuple(t), TypeMode::Regular)
     }
 
     pub fn array(t: Type, len: Option<usize>) -> Type {
@@ -1159,6 +1180,14 @@ impl<'v> Visitor<'v> {
                 }
             }
 
+            Tuple(ref content) => {
+                for element in content.iter() {
+                    self.visit_expression(&element)?
+                }
+
+                Ok(())
+            }
+
             Array(ref content) => {
                 if content.len() == 0 {
                     return Ok(());
@@ -1750,6 +1779,16 @@ impl<'v> Visitor<'v> {
             Int(_) => Type::from(TypeNode::Int),
             Float(_) => Type::from(TypeNode::Float),
 
+            Tuple(ref content) => {
+                let mut t = Vec::new();
+
+                for element in content.iter() {
+                    t.push(self.type_expression(&element)?)
+                }
+
+                Type::tuple(t)
+            }
+
             Array(ref content) => {
                 let mut kind = Type::from(TypeNode::Any);
 
@@ -1759,6 +1798,7 @@ impl<'v> Visitor<'v> {
 
                 Type::array(kind, Some(content.len()))
             }
+
             Initialization(ref name, _) => Type::from(self.type_expression(name)?.node),
 
             If(_, ref body, ..) => self.type_expression(body)?,
