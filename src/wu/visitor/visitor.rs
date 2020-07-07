@@ -1313,8 +1313,8 @@ impl<'v> Visitor<'v> {
 
                             return Err(response!(
                                 Wrong(format!(
-                                    "mismatched argument count, expected `{}` got {}",
-                                    i,
+                                    "mismatched argument count, expected {} got {}",
+                                    params.len(),
                                     args.len()
                                 )),
                                 self.source.file,
