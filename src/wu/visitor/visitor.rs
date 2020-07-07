@@ -2783,7 +2783,25 @@ impl<'v> Visitor<'v> {
 
             Ok(new_t)
         } else {
-            Ok(t)
+            match t.node {
+                TypeNode::Func(ref params, ref retty, ref b, c) => {
+                    let mut new_params = Vec::new();
+
+                    for p in params.iter() {
+                        new_params.push(self.deid((*p).clone())?)
+                    }
+
+                    let new_retty = self.deid((**retty).clone())?;
+
+                    Ok(
+                        Type::new(
+                            TypeNode::Func(new_params, Rc::new(new_retty), b.clone(), c),
+                            t.mode.clone()
+                        )
+                    )
+                }
+                _ => Ok(t)
+            }
         }
     }
 
