@@ -1590,6 +1590,8 @@ impl<'p> Parser<'p> {
             self.next_newline()?;
         }
 
+        self.next_newline()?;
+
         let name = self.eat_type(&TokenType::Identifier)?;
 
         let mut kind = if name == "self" {
@@ -1625,6 +1627,8 @@ impl<'p> Parser<'p> {
         }
 
         let param = Some((name, kind));
+
+        self.next_newline()?;
 
         if self.remaining() > 0 {
             if ![",", "\n"].contains(&self.current_lexeme().as_str()) {
