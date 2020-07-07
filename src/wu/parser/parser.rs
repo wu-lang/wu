@@ -8,6 +8,7 @@ pub struct Parser<'p> {
     tokens: Vec<Token>,
     source: &'p Source,
     in_sequence: bool,
+    tmp_sequence: bool,
 }
 
 impl<'p> Parser<'p> {
@@ -17,6 +18,7 @@ impl<'p> Parser<'p> {
             source,
             index: 0,
             in_sequence: false,
+            tmp_sequence: false,
         }
     }
 
@@ -310,7 +312,8 @@ impl<'p> Parser<'p> {
                 }
 
                 _ => {
-                    let expression = self.parse_expression()?;
+                    let mut expression = self.parse_expression()?;
+                    expression = self.maybe_splat(expression)?;
 
                     let position = expression.pos.clone();
 
@@ -319,7 +322,9 @@ impl<'p> Parser<'p> {
             },
 
             _ => {
-                let expression = self.parse_expression()?;
+                let mut expression = self.parse_expression()?;
+                expression = self.maybe_splat(expression)?;
+
                 let position = expression.pos.clone();
 
                 if let Some(result) = self.try_parse_compound(&expression)? {
@@ -342,6 +347,33 @@ impl<'p> Parser<'p> {
         self.new_line()?;
 
         Ok(statement)
+    }
+
+    fn maybe_splat(&mut self, expr: Expression) -> Result<Expression, ()> {
+        match self.current_lexeme().as_str() {
+            "," => {
+                let position = expr.pos.clone();
+                let mut splats = vec![expr];
+
+                self.enter_sequence();
+
+                while self.current_lexeme() == "," {
+                    self.next()?;
+
+                    let expr = self.parse_expression()?;
+                    splats.push(expr)
+                }
+
+                self.exit_sequence();
+
+                Ok(Expression::new(
+                    ExpressionNode::Splat(splats),
+                    self.span_from(position),
+                ))
+            }
+
+            _ => Ok(expr)
+        }
     }
 
     fn try_parse_compound(&mut self, left: &Expression) -> Result<Option<Statement>, ()> {
@@ -639,7 +671,7 @@ impl<'p> Parser<'p> {
                     ),
 
                     "[" => {
-                        self.in_sequence = true;
+                        self.enter_sequence();
 
                         let expr = Expression::new(
                             ExpressionNode::Array(
@@ -648,7 +680,7 @@ impl<'p> Parser<'p> {
                             self.span_from(position),
                         );
 
-                        self.in_sequence = false;
+                        self.exit_sequence();
 
                         expr
                     }
@@ -656,15 +688,14 @@ impl<'p> Parser<'p> {
                     "(" => {
                         let backup_index = self.index;
 
-                        self.in_sequence = true;
+                        self.enter_sequence();
 
                         let possible_content = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
 
-                        self.in_sequence = false;
-
+                        self.exit_sequence();
 
                         if possible_content.len() > 1 {
-                            self.in_sequence = true;
+                            self.enter_sequence();
 
                             let expr = Expression::new(
                                 ExpressionNode::Tuple(
@@ -673,7 +704,7 @@ impl<'p> Parser<'p> {
                                 self.span_from(position),
                             );
 
-                            self.in_sequence = false;
+                            self.exit_sequence();
 
                             expr
                         } else {
@@ -973,7 +1004,7 @@ impl<'p> Parser<'p> {
         match self.current_type() {
             TokenType::Symbol => match self.current_lexeme().as_str() {
                 "(" => {
-                    self.in_sequence = true;
+                    self.enter_sequence();
 
                     let args = self.parse_block_of(("(", ")"), &Self::_parse_expression_comma)?;
 
@@ -984,13 +1015,13 @@ impl<'p> Parser<'p> {
                         self.span_from(position),
                     );
 
-                    self.in_sequence = false;
+                    self.exit_sequence();
 
                     self.parse_postfix(call)
                 }
 
                 "[" => {
-                    self.in_sequence = true;
+                    self.enter_sequence();
 
                     self.next()?;
 
@@ -1005,9 +1036,34 @@ impl<'p> Parser<'p> {
                         self.span_from(position),
                     );
 
-                    self.in_sequence = false;
+                    self.exit_sequence();
 
                     self.parse_postfix(index)
+                }
+
+                "," => {
+                    if !self.in_sequence {
+                        let position = expression.pos.clone();
+                        let mut splats = vec![expression];
+    
+                        self.enter_sequence();
+    
+                        while self.current_lexeme() == "," {
+                            self.next()?;
+    
+                            let expr = self.parse_expression()?;
+                            splats.push(expr)
+                        }
+    
+                        self.exit_sequence();
+    
+                        Ok(Expression::new(
+                            ExpressionNode::Splat(splats),
+                            self.span_from(position),
+                        ))
+                    } else {
+                        Ok(expression)
+                    }
                 }
 
                 "!" => {
@@ -1021,31 +1077,6 @@ impl<'p> Parser<'p> {
                     );
 
                     self.parse_postfix(question)
-                }
-
-                "," => {
-                    if !self.in_sequence {
-                        let position = expression.pos.clone();
-                        let mut splats = vec![expression];
-
-                        self.in_sequence = true;
-
-                        while self.current_lexeme() == "," {
-                            self.next()?;
-
-                            let expr = self.parse_expression()?;
-                            splats.push(expr)
-                        }
-
-                        self.in_sequence = false;
-
-                        Ok(Expression::new(
-                            ExpressionNode::Splat(splats),
-                            self.span_from(position),
-                        ))
-                    } else {
-                        Ok(expression)
-                    }
                 }
 
                 _ => Ok(expression),
@@ -1132,11 +1163,11 @@ impl<'p> Parser<'p> {
 
                 _ => {
                     self.index -= 1; // lol
-                    self.in_sequence = true;
+                    self.enter_sequence();
                     
                     let a = Type::id(Rc::new(self.parse_expression()?));
                     
-                    self.in_sequence = false;
+                    self.exit_sequence();
                     
                     a
                 }
@@ -1314,14 +1345,16 @@ impl<'p> Parser<'p> {
         if self.remaining() > 0 {
             match self.current_lexeme().as_str() {
                 "\n" => self.next(),
-                _ => Err(response!(
-                    Wrong(format!(
-                        "expected new line found: `{}`",
-                        self.current_lexeme()
-                    )),
-                    self.source.file,
-                    self.current_position()
-                )),
+                _ => panic!(),
+                // _ => Err(response!(
+                    
+                //     Wrong(format!(
+                //         "expected new line found: `{}`",
+                //         self.current_lexeme()
+                //     )),
+                //     self.source.file,
+                //     self.current_position()
+                // )),
             }
         } else {
             Ok(())
@@ -1476,6 +1509,7 @@ impl<'p> Parser<'p> {
         delimeters: (&str, &str),
         parse_with: &dyn Fn(&mut Self) -> Result<Option<B>, ()>,
     ) -> Result<Vec<B>, ()> {
+        self.enter_sequence();
         self.eat_lexeme(delimeters.0)?;
 
         if self.current_lexeme() == delimeters.1 {
@@ -1507,6 +1541,7 @@ impl<'p> Parser<'p> {
 
         self.eat_lexeme(delimeters.1)?;
 
+
         if !block_tokens.is_empty() {
             let mut parser = Parser::new(block_tokens, self.source);
             parser.in_sequence = self.in_sequence;
@@ -1515,9 +1550,13 @@ impl<'p> Parser<'p> {
             while let Some(element) = parse_with(&mut parser)? {
                 block.push(element)
             }
+            
+            self.exit_sequence();
 
             Ok(block)
         } else {
+            self.exit_sequence();
+
             Ok(Vec::new())
         }
     }
@@ -1575,20 +1614,23 @@ impl<'p> Parser<'p> {
     // Static method for parsing sequence `expr* ,* \n*` - for things like [1, 2, 3, 4,]
     fn _parse_expression_comma(self: &mut Self) -> Result<Option<Expression>, ()> {
         if self.remaining() > 0 && self.current_lexeme() == "\n" {
-            self.next()?
+            self.next()?;
+            self.next_newline()?
         }
 
         let expression = Self::_parse_expression(self);
 
         if self.remaining() > 0 && self.current_lexeme() == "\n" {
-            self.next()?
+            self.next()?;
+            self.next_newline()?
         }
 
         if self.remaining() > 0 {
             self.eat_lexeme(",")?;
 
             if self.remaining() > 0 && self.current_lexeme() == "\n" {
-                self.next()?
+                self.next()?;
+                self.next_newline()?
             }
         }
 
@@ -1814,5 +1856,14 @@ impl<'p> Parser<'p> {
         };
 
         node
+    }
+
+    fn enter_sequence(&mut self) {
+        self.tmp_sequence = self.in_sequence;
+        self.in_sequence = true;
+    }
+
+    fn exit_sequence(&mut self) {
+        self.in_sequence = self.tmp_sequence;
     }
 }

@@ -1310,10 +1310,12 @@ impl<'v> Visitor<'v> {
                                     Pos(arg_pos.0, ((arg_pos.1).1, (arg_pos.1).1))
                                 }
                             };
+
                             return Err(response!(
                                 Wrong(format!(
-                                    "mismatched argument count, expected type `{}` got nothing",
-                                    param_type
+                                    "mismatched argument count, expected `{}` got {}",
+                                    i,
+                                    args.len()
                                 )),
                                 self.source.file,
                                 last_arg_pos
