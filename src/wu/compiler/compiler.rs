@@ -66,7 +66,7 @@ impl<'g> Generator<'g> {
 
             match statement.node {
                 Variable(_, ref name, ..) => names.push(name.to_owned()),
-                Import(ref name, ref imports) => {
+                Import(ref name, ref imports, _) => {
                     if imports.len() == 0 {
                         names.push(name.to_owned())
                     } else {
@@ -119,9 +119,9 @@ impl<'g> Generator<'g> {
 
         let result = match statement.node {
             Expression(ref expression) => self.generate_expression(expression),
-            Variable(_, ref left, ref right) => self.generate_local(left, right),
+            Variable(_, ref left, ref right, _) => self.generate_local(left, right),
             Assignment(ref left, ref right) => self.generate_assignment(left, right),
-            SplatVariable(_, ref splats, ref right) => {
+            SplatVariable(_, ref splats, ref right, _) => {
                 let mut left = String::new();
 
                 for (i, splat) in splats.iter().enumerate() {
@@ -182,7 +182,7 @@ impl<'g> Generator<'g> {
                 }
             }
 
-            Import(ref name, ref specifics) => {
+            Import(ref name, ref specifics, _) => {
                 let mut file_path = if let Some(new_path) = self.import_map.get(&statement.pos) {
                     format!(
                         "{}",
@@ -249,7 +249,7 @@ impl<'g> Generator<'g> {
                     let mut result = String::new();
 
                     for element in content {
-                        if let Variable(_, ref name, ref right) = element.node {
+                        if let Variable(_, ref name, ref right, _) = element.node {
                             if let ExpressionNode::Extern(_, ref lua) = right.clone().unwrap().node
                             {
                                 if let Some(ref lua) = lua {

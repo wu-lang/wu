@@ -422,10 +422,10 @@ impl<'v> Visitor<'v> {
         match statement.node {
             Expression(ref expr) => self.visit_expression(expr),
             Variable(..) => self.visit_variable(&statement.node, &statement.pos, false),
-            SplatVariable(ref t, ref splats, ref right) => {
+            SplatVariable(ref t, ref splats, ref right, ref public) => {
                 for splat in splats.iter() {
                     let fake_var =
-                        StatementNode::Variable(t.to_owned(), splat.to_owned(), right.to_owned());
+                        StatementNode::Variable(t.to_owned(), splat.to_owned(), right.to_owned(), *public);
 
                     self.visit_variable(&fake_var, &statement.pos, true)?
                 }
@@ -475,7 +475,7 @@ impl<'v> Visitor<'v> {
                 }
             }
 
-            Import(ref path, ref specifics) => {
+            Import(ref path, ref specifics, public) => {
                 let local_root = Path::new(&self.source.file.0)
                     .parent()
                     .unwrap()
@@ -1644,7 +1644,7 @@ impl<'v> Visitor<'v> {
     ) -> Result<(), ()> {
         use self::ExpressionNode::*;
 
-        if let &StatementNode::Variable(ref var_type, ref name, ref right) = variable {
+        if let &StatementNode::Variable(ref var_type, ref name, ref right, _) = variable {
             if name == "Self" {
                 return Err(response!(
                     Wrong(format!("it's illegal to shadow `Self`")),
@@ -2316,7 +2316,7 @@ impl<'v> Visitor<'v> {
             }
 
             // ommiting functions, for that extra user-feel
-            if let StatementNode::Variable(ref kind, ref name, ref value) = statement.node {
+            if let StatementNode::Variable(ref kind, ref name, ref value, _) = statement.node {
                 if let Some(ref right) = *value {
                     if let ExpressionNode::Function(ref params, ref retty, .., is_method) =
                         right.node
@@ -2366,14 +2366,14 @@ impl<'v> Visitor<'v> {
         }
 
         for statement in content.iter() {
-            if let StatementNode::Variable(ref t, ref name, ref right) = statement.node {
+            if let StatementNode::Variable(ref t, ref name, ref right, public) = statement.node {
                 if let Some(ref right) = *right {
                     if let ExpressionNode::Function(..) = right.node {
                         self.visit_statement(statement)?;
 
                         let t = self.type_expression(right)?;
 
-                        if module_level {
+                        if module_level && public {
                             self.module_content.insert(name.to_owned(), t.clone());
                         }
                     }
@@ -2487,7 +2487,7 @@ impl<'v> Visitor<'v> {
                 continue
             }
 
-            if let StatementNode::Variable(_, ref name, ref right) = statement.node {
+            if let StatementNode::Variable(_, ref name, ref right, _) = statement.node {
                 if let Some(ref right) = *right {
                     if let ExpressionNode::Function(ref params, ref retty, .., is_method) =
                         right.node
@@ -2648,7 +2648,7 @@ impl<'v> Visitor<'v> {
         }
 
         for statement in ast {
-            if let StatementNode::Variable(.., ref right) = statement.node {
+            if let StatementNode::Variable(.., ref right, _) = statement.node {
                 if let Some(ref right) = *right {
                     if let ExpressionNode::Function(..) = right.node {
                         self.visit_statement(statement)?

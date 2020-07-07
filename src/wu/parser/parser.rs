@@ -66,6 +66,7 @@ impl<'p> Parser<'p> {
                                         Type::from(TypeNode::Nil),
                                         name,
                                         Some(right),
+                                        false
                                     ),
                                     self.span_from(position),
                                 );
@@ -93,6 +94,7 @@ impl<'p> Parser<'p> {
                                         kind,
                                         splat_names,
                                         Some(self.parse_expression()?),
+                                        false
                                     ),
                                     self.span_from(position),
                                 )
@@ -102,6 +104,7 @@ impl<'p> Parser<'p> {
                                         kind,
                                         name,
                                         Some(self.parse_expression()?),
+                                        false
                                     ),
                                     self.span_from(position),
                                 )
@@ -109,12 +112,12 @@ impl<'p> Parser<'p> {
                         } else {
                             if splat_names.len() > 1 {
                                 Statement::new(
-                                    StatementNode::SplatVariable(kind, splat_names, None),
+                                    StatementNode::SplatVariable(kind, splat_names, None, false),
                                     self.span_from(position),
                                 )
                             } else {
                                 Statement::new(
-                                    StatementNode::Variable(kind, name, None),
+                                    StatementNode::Variable(kind, name, None, false),
                                     self.span_from(position),
                                 )
                             }
@@ -201,6 +204,28 @@ impl<'p> Parser<'p> {
             }
 
             Keyword => match self.current_lexeme().as_str() {
+                "pub" => {
+                    self.next()?;
+
+                    let mut thing = self.parse_statement()?;
+
+                    match thing.node {
+                        StatementNode::Variable(.., ref mut public) |
+                        StatementNode::Import(.., ref mut public) |
+                        StatementNode::SplatVariable(.., ref mut public) => {
+                            *public = true
+                        },
+
+                        _ => return Err(response!(
+                            Wrong("expected binding or import"),
+                            self.source.file,
+                            self.current_position()
+                        ))
+                    }
+
+                    return Ok(thing)
+                },
+
                 "return" => {
                     self.next()?;
 
@@ -238,7 +263,7 @@ impl<'p> Parser<'p> {
                     };
 
                     Statement::new(
-                        StatementNode::Import(path, specifics),
+                        StatementNode::Import(path, specifics, false),
                         self.span_from(position),
                     )
                 }
@@ -707,6 +732,7 @@ impl<'p> Parser<'p> {
                                     Type::from(TypeNode::Nil),
                                     name.clone(),
                                     Some(right_hand),
+                                    false
                                 ),
                                 position.clone(),
                             );

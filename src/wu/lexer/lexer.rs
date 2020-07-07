@@ -57,6 +57,7 @@ impl<'l> Lexer<'l> {
                 "switch",
                 "for",
                 "in",
+                "pub"
             ],
         )));
 

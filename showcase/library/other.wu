@@ -1,1 +1,9 @@
-lol := 100.0
+bar: module {
+    pub foo: fun() -> int { 42 }
+    oof: fun() -> int { 24 }
+}
+
+a := bar foo() # 42
+b := bar oof() # error: accessing private function <oof>
+
+lol := 100

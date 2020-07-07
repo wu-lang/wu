@@ -6,13 +6,13 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatementNode {
     Expression(Expression),
-    Variable(Type, String, Option<Expression>),
-    SplatVariable(Type, Vec<String>, Option<Expression>),
+    Variable(Type, String, Option<Expression>, bool), // pub: bool
+    SplatVariable(Type, Vec<String>, Option<Expression>, bool), // pub: u guessed it
     Assignment(Expression, Expression),
     SplatAssignment(Vec<Expression>, Expression),
     Return(Option<Rc<Expression>>),
     Implement(Expression, Expression, Option<Expression>),
-    Import(String, Vec<String>),
+    Import(String, Vec<String>, bool), // pub: bool
     ExternBlock(Rc<Statement>),
     Skip,
     Break,

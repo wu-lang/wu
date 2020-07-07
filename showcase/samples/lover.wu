@@ -1,5 +1,5 @@
 love: extern module {
-	conf: fun(t: any) {}
+	pub conf: fun(t: any) {}
 }
 
 love conf = fun(t: any) {
