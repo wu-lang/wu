@@ -90,6 +90,9 @@ impl TypeNode {
             (&Struct(ref name, _, ref content), &Struct(ref name_b, _, ref content_b)) => {
                 name == name_b && content == content_b
             }
+            (&Trait(ref name, ref content), &Trait(ref name_b, ref content_b)) => {
+                name == name_b && content == content_b
+            }
             _ => false,
         }
     }
@@ -601,7 +604,15 @@ impl<'v> Visitor<'v> {
                                     if let TypeNode::Struct(_, ref content, _) =
                                         self.fetch(&struct_name, &position)?.node
                                     {
-                                        if let TypeNode::Trait(_, ref content_b) = trait_ty.node {
+                                        if let TypeNode::Trait(ref n, ref content_b) = trait_ty.node {
+                                            if let TypeNode::Struct(_, _, _) = trait_ty.node {
+                                                return Err(response!(
+                                                    Wrong(format!("can't implement type `{}`", kind)),
+                                                    self.source.file,
+                                                    position
+                                                ))
+                                            }
+
                                             for (name, ty) in content_b.iter() {
                                                 if let Some(ty_b) = content.get(name) {
                                                     if ty.node != ty_b.node {
@@ -619,6 +630,12 @@ impl<'v> Visitor<'v> {
                                                     ));
                                                 }
                                             }
+                                        } else {
+                                            return Err(response!(
+                                                Wrong(format!("can't implement type `{}`", kind)),
+                                                self.source.file,
+                                                expr.pos
+                                            ))
                                         }
                                     }
                                 }
@@ -2455,6 +2472,11 @@ impl<'v> Visitor<'v> {
 
         for (i, statement) in ast.iter().enumerate() {
             // don't visit function bodies
+            
+            if let StatementNode::Expression(Expression { node: ExpressionNode::EOF, .. }) = statement.node {
+                continue
+            }
+
             if let StatementNode::Variable(_, ref name, ref right) = statement.node {
                 if let Some(ref right) = *right {
                     if let ExpressionNode::Function(ref params, ref retty, .., is_method) =

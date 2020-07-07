@@ -253,7 +253,7 @@ impl<'p> Parser<'p> {
 
                     let start = self.index;
 
-                    while !["{", ":"].contains(&self.current_lexeme().as_str())
+                    while self.current_type() == TokenType::Identifier
                         && self.remaining() > 1
                     {
                         self.next()?;
