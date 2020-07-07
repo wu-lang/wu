@@ -1,7 +1,8 @@
 use super::*;
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, Component};
+use std::ffi::OsStr;
 
 #[derive(Clone, PartialEq)]
 pub enum FlagImplicit {
@@ -182,7 +183,7 @@ impl<'g> Generator<'g> {
             }
 
             Import(ref name, ref specifics) => {
-                let file_path = if let Some(new_path) = self.import_map.get(&statement.pos) {
+                let mut file_path = if let Some(new_path) = self.import_map.get(&statement.pos) {
                     format!(
                         "{}",
                         new_path
@@ -197,6 +198,16 @@ impl<'g> Generator<'g> {
                     format!("{}/{}", my_folder.to_str().unwrap(), name)
                 };
 
+                if file_path.starts_with("./") {
+                    file_path = file_path[2..].to_string()
+                }
+
+                let real_path = &Path::new(&file_path)
+                    .iter()
+                    .map(|x: &OsStr| format!("{}", x.to_str().unwrap()))
+                    .collect::<Vec<String>>()
+                    .join(".");
+
                 let mut result = String::new();
 
                 if let Some(abs_path) = self.import_map.get(&statement.pos) {
@@ -207,7 +218,7 @@ impl<'g> Generator<'g> {
                     );
                     result.push_str(&format!("local {0} = require('{0}')\n", name))
                 } else {
-                    result = format!("local {} = require('{}')\n", name, file_path)
+                    result = format!("local {} = require('{}')\n", name, real_path)
                 }
 
                 for specific in specifics {
