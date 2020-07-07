@@ -4,3 +4,5 @@ import lover { graphics }
 graphics setColor(1, 1, 0)
 
 import library
+
+love: extern module {}

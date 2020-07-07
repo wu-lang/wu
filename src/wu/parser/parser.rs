@@ -1106,7 +1106,13 @@ impl<'p> Parser<'p> {
 
                 _ => {
                     self.index -= 1; // lol
-                    Type::id(Rc::new(self.parse_expression()?))
+                    self.in_sequence = true;
+                    
+                    let a = Type::id(Rc::new(self.parse_expression()?));
+                    
+                    self.in_sequence = false;
+                    
+                    a
                 }
             },
 

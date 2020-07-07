@@ -1418,14 +1418,17 @@ impl<'v> Visitor<'v> {
 
                     let ident_type = self.type_expression(&ident)?;
 
-                    if let TypeNode::Struct(..) = ident_type.node {
-                        return_type = Type::from(ident_type.node)
-                    } else {
-                        return Err(response!(
-                            Wrong(format!("can't use `{}` as type", ident_type)),
-                            self.source.file,
-                            ident.pos
-                        ));
+                    match ident_type.node {
+                        TypeNode::Struct(..) | TypeNode::Trait(..) => {
+                            return_type = Type::from(ident_type.node)
+                        }
+                        _ => {
+                            return Err(response!(
+                                Wrong(format!("can't use `{}` as type", ident_type)),
+                                self.source.file,
+                                ident.pos
+                            ));
+                        }
                     }
                 }
 
@@ -1567,6 +1570,10 @@ impl<'v> Visitor<'v> {
                                 index.pos
                             ));
                         }
+
+                        if is_foreign {
+                            self.inside.pop();
+                        }
                     }
 
                     TypeNode::Struct(_, ref content, ref id) => {
@@ -1671,6 +1678,9 @@ impl<'v> Visitor<'v> {
             if let &Some(ref right) = right {
                 match right.node {
                     Function(..) | Block(_) | If(..) | While(..) | For(..) => (),
+                    Struct(..) | Trait(..) => {
+                        self.assign(name.to_owned(), Type::from(TypeNode::Any)) // temp
+                    }
                     _ => self.visit_expression(right)?,
                 }
 
@@ -1702,7 +1712,7 @@ impl<'v> Visitor<'v> {
                 }
 
                 match right.node {
-                    Function(..) | Block(_) | If(..) | While(..) | For(..) => {
+                    Function(..) | Block(_) | If(..) | While(..) | For(..) | Struct(..) | Trait(..) => {
                         self.visit_expression(right)?
                     }
                     _ => (),

@@ -1003,8 +1003,8 @@ impl<'g> Generator<'g> {
                 let right_str = match right.node {
                     ExpressionNode::Struct(..) => "{}".to_string(),
                     ExpressionNode::Extern(_, ref lua) if lua.is_none() => return String::new(),
-                    ExpressionNode::Trait(..) => return String::new(),
-
+                    ExpressionNode::Trait(..) | ExpressionNode::ExternExpression(..) => return String::new(),
+                    
                     _ => self.generate_expression(right),
                 };
 
