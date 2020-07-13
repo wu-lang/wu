@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 pub struct Lexer<'l> {
     tokenizer: Tokenizer<'l>,
-    matchers: Vec<Rc<Matcher<'l>>>,
+    matchers: Vec<Rc<dyn Matcher<'l>>>,
     source: &'l Source,
 }
 
