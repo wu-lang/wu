@@ -38,7 +38,7 @@ impl<'t> Tokenizer<'t> {
     }
 
     pub fn advance(&mut self) {
-        if let Some(item) = self.items.get(self.index + 1) {
+        if self.items.get(self.index + 1).is_some() {
             self.pos.1 += 1
         }
 
@@ -89,7 +89,7 @@ impl<'t> Tokenizer<'t> {
             .pos
     }
 
-    pub fn try_match_token(&mut self, matcher: &Matcher<'t>) -> Result<Option<Token>, ()> {
+    pub fn try_match_token(&mut self, matcher: &dyn Matcher<'t>) -> Result<Option<Token>, ()> {
         if self.end() {
             return Ok(Some(Token::new(
                 TokenType::EOF,

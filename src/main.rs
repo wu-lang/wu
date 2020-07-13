@@ -1,12 +1,10 @@
+#![deny(mutable_borrow_reservation_conflict)]
 extern crate colored;
 extern crate dirs;
 extern crate fs_extra;
 extern crate git2;
 extern crate rustyline;
 extern crate toml;
-
-use fs_extra::copy_items;
-use fs_extra::dir::*;
 
 use self::colored::Colorize;
 
@@ -28,7 +26,7 @@ use std::env;
 
 use std::io::prelude::*;
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 const HELP: &'static str = "\
 The Wu Compiler
@@ -238,7 +236,6 @@ fn clean_path(path: &str) {
     }
 }
 
-#[inline]
 fn confirm_home() {
     if env::var("WU_HOME").is_err() {
         let dir = if let Some(dir) = dirs::home_dir() {
@@ -263,7 +260,6 @@ fn confirm_home() {
     }
 }
 
-#[inline]
 fn main() {
     confirm_home();
 

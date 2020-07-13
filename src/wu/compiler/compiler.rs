@@ -1,7 +1,7 @@
 use super::*;
 
 use std::collections::HashMap;
-use std::path::{Path, Component};
+use std::path::Path;
 use std::ffi::OsStr;
 
 #[derive(Clone, PartialEq)]
@@ -14,7 +14,7 @@ pub enum FlagImplicit {
 #[derive(Clone, PartialEq)]
 pub enum Inside {
     Loop,
-    Nothing,
+    //Nothing,
     Then,
 }
 
@@ -208,9 +208,9 @@ impl<'g> Generator<'g> {
                     .collect::<Vec<String>>()
                     .join(".");
 
-                let mut result = String::new();
+                let mut result:String;
 
-                if let Some(abs_path) = self.import_map.get(&statement.pos) {
+                if self.import_map.get(&statement.pos).is_some() {
                     let path = file_path[..file_path.len() - 1].to_string();
                     result = format!(
                         "package.path = package.path .. ';{0}?.lua;{0}?/init.lua'\n",
