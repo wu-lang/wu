@@ -4,6 +4,5 @@ bar: module {
 }
 
 a := bar foo() # 42
-b := bar oof() # error: accessing private function <oof>
 
-lol := 100
+pub lol := 100

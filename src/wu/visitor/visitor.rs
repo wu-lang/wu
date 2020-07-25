@@ -532,7 +532,12 @@ impl<'v> Visitor<'v> {
                         for name in specifics {
                             if let Some(kind) = content_type.get(name) {
                                 self.symtab.import(name.clone(), content_type.clone());
-                                self.assign(name.clone(), kind.clone())
+                                self.assign(name.clone(), kind.clone());
+
+                                if self.symtab.stack.len() == 1 {
+                                    self.module_content.insert(name.clone(), kind.clone());
+                                }
+
                             } else {
                                 return Err(response!(
                                     Wrong(format!("no such member `{}`", name)),
