@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::{self, Display, Formatter, Write};
+use std::fmt::{self, Display, Formatter};
 use std::rc::Rc;
 
 use super::super::error::Response::*;
@@ -158,7 +158,10 @@ impl PartialEq for TypeNode {
 #[derive(Debug, Clone)]
 pub enum TypeMode {
     Undeclared,
+    // TODO: Not fully implemented yet
+    #[allow(dead_code)]
     Immutable,
+    #[allow(dead_code)]
     Optional,
     Implemented,
     Regular,
@@ -198,27 +201,29 @@ impl Display for TypeNode {
             Any => write!(f, "any"),
 
             Tuple(ref content) => {
-                write!(f, "(");
+                write!(f, "(")?;
 
                 for (i, t) in content.iter().enumerate() {
-                    write!(f, "{}", t);
+                    write!(f, "{}", t)?;
 
                     if i != content.len() - 1 {
-                        write!(f, ", ");
+                        write!(f, ", ")?;
                     }
                 }
 
-                write!(f, ")")
+                write!(f, ")")?;
+                Ok(())
             }
 
             Trait(ref name, _) => write!(f, "{}", name),
 
             Array(ref n, l) => {
                 if let Some(len) = l {
-                    write!(f, "[{}; {}]", n, len)
+                    write!(f, "[{}; {}]", n, len)?;
                 } else {
-                    write!(f, "[{}]", n)
+                    write!(f, "[{}]", n)?;
                 }
+                return Ok(())
             }
 
             Id(ref n) => write!(f, "deid({})", n.pos.get_lexeme()),
@@ -231,13 +236,14 @@ impl Display for TypeNode {
 
                 for (index, element) in params.iter().enumerate() {
                     if index < params.len() - 1 {
-                        write!(f, "{}, ", element)?
+                        write!(f, "{}, ", element)?;
                     } else {
-                        write!(f, "{}", element)?
+                        write!(f, "{}", element)?;
                     }
                 }
 
-                write!(f, ") -> {}", return_type)
+                write!(f, ") -> {}", return_type)?;
+                return Ok(())
             }
 
             Optional(ref inner) => write!(f, "{}?", inner),
@@ -276,7 +282,7 @@ impl Display for TypeMode {
             Undeclared => write!(f, "undeclared "),
             Optional => write!(f, "optional? "),
             Implemented => Ok(()),
-            Splat(ref count) => write!(f, "..."),
+            Splat(_count) => write!(f, "..."),
             Unwrap(_) => write!(f, "*"),
         }
     }
@@ -475,7 +481,7 @@ impl<'v> Visitor<'v> {
                 }
             }
 
-            Import(ref path, ref specifics, public) => {
+            Import(ref path, ref specifics, _public) => {
                 let local_root = Path::new(&self.source.file.0)
                     .parent()
                     .unwrap()
@@ -609,8 +615,10 @@ impl<'v> Visitor<'v> {
                                     if let TypeNode::Struct(_, ref content, _) =
                                         self.fetch(&struct_name, &position)?.node
                                     {
-                                        if let TypeNode::Trait(ref n, ref content_b) = trait_ty.node {
+                                        if let TypeNode::Trait(ref _n, ref content_b) = trait_ty.node {
                                             if let TypeNode::Struct(_, _, _) = trait_ty.node {
+                                                //TODO: isn't this impossible? Should this be
+                                                //nested differently?
                                                 return Err(response!(
                                                     Wrong(format!("can't implement type `{}`", kind)),
                                                     self.source.file,
@@ -656,7 +664,7 @@ impl<'v> Visitor<'v> {
                         } else {
                             unreachable!()
                         }
-                    }
+                    },
 
                     Index(ref array, ref indexing, _) => {
                         if let Identifier(ref name) = array.node {
@@ -664,7 +672,7 @@ impl<'v> Visitor<'v> {
                             let array_type = self.type_expression(array)?;
 
                             match array_type.node {
-                                TypeNode::Module(ref module_content, ref is_foreign) => {
+                                TypeNode::Module(ref module_content, _is_foreign) => {
                                     if let Identifier(ref name) = indexing.node {
                                         if let Some(ref kind) = module_content.get(name) {
                                             if let TypeNode::Struct(name, content, id) =
@@ -770,7 +778,7 @@ impl<'v> Visitor<'v> {
                 self.assert_types(a, b, &left.pos)?;
 
                 Ok(())
-            }
+            },
 
             SplatAssignment(ref splats, ref right) => {
                 for splat in splats.iter() {
@@ -805,9 +813,7 @@ impl<'v> Visitor<'v> {
                 )?;
 
                 Ok(())
-            }
-
-            _ => Ok(()),
+            },
         }
     }
 
@@ -818,7 +824,7 @@ impl<'v> Visitor<'v> {
             Identifier(ref name) => {
                 if name == "Self" {
                     for inside in self.inside.iter() {
-                        if let Inside::Implement(ref s) = inside {
+                        if let Inside::Implement(_) = inside {
                             return Ok(());
                         }
                     }
@@ -871,7 +877,7 @@ impl<'v> Visitor<'v> {
                 }
             }
 
-            Binary(ref left, ref op, ref right) => {
+            Binary(ref left, ref _op, ref right) => {
                 self.visit_expression(left)?;
                 self.visit_expression(right)
             }
@@ -1282,7 +1288,7 @@ impl<'v> Visitor<'v> {
 
                 let expression_type = self.type_expression(expr)?;
 
-                if let TypeNode::Func(ref params, _, ref func, .., is_method) = expression_type.node
+                if let TypeNode::Func(ref params, _, ref _func, .., is_method) = expression_type.node
                 {
                     // // this is where we visit the func, nvm
                     // if let Some(func) = func {
@@ -1307,7 +1313,7 @@ impl<'v> Visitor<'v> {
                         if args.len() <= i {
                             let last_arg_pos = match args.last() {
                                 Some(arg) => {
-                                    let arg_pos = args.last().unwrap().pos.clone();
+                                    let arg_pos = arg.pos.clone();
                                     Pos(arg_pos.0, ((arg_pos.1).1 + 1, (arg_pos.1).1 + 1))
                                 }
                                 None => {
@@ -1758,10 +1764,15 @@ impl<'v> Visitor<'v> {
         let t = match expression.node {
             Identifier(ref name) => {
                 if name == "Self" {
+                    let mut maybe_res = None::<Type>;
                     for inside in self.inside.iter() {
                         if let Inside::Implement(ref s) = inside {
-                            return Ok(self.deid(s.clone())?);
+                            maybe_res = Some(s.clone());
+                            break;
                         }
+                    }
+                    if let Some(s) = maybe_res {
+                        return Ok(self.deid(s)?);
                     }
                 }
 
@@ -2247,14 +2258,6 @@ impl<'v> Visitor<'v> {
                                 ));
                             }
                         }
-
-                        _ => {
-                            return Err(response!(
-                                Wrong(format!("can't perform operation `{} {} {}`", a, op, b)),
-                                self.source.file,
-                                expression.pos
-                            ))
-                        }
                     },
                 }
             }
@@ -2373,7 +2376,7 @@ impl<'v> Visitor<'v> {
         }
 
         for statement in content.iter() {
-            if let StatementNode::Variable(ref t, ref name, ref right, public) = statement.node {
+            if let StatementNode::Variable(ref _t, ref name, ref right, public) = statement.node {
                 if let Some(ref right) = *right {
                     if let ExpressionNode::Function(..) = right.node {
                         self.visit_statement(statement)?;
@@ -2391,7 +2394,6 @@ impl<'v> Visitor<'v> {
         Ok(())
     }
 
-    #[inline]
     fn find_module(
         &mut self,
         path: &String,
@@ -2487,7 +2489,7 @@ impl<'v> Visitor<'v> {
 
         let original_kind = kind.clone();
 
-        for (i, statement) in ast.iter().enumerate() {
+        for statement in ast.iter() {
             // don't visit function bodies
             
             if let StatementNode::Expression(Expression { node: ExpressionNode::EOF, .. }) = statement.node {
@@ -2732,18 +2734,6 @@ impl<'v> Visitor<'v> {
 
     fn fetch(&self, name: &String, pos: &Pos) -> Result<Type, ()> {
         if let Some(t) = self.symtab.fetch(name) {
-            Ok(t)
-        } else {
-            Err(response!(
-                Wrong(format!("can't seem to find `{}`", name)),
-                self.source.file,
-                pos
-            ))
-        }
-    }
-
-    fn fetch_str(&self, name: &str, pos: &Pos) -> Result<Type, ()> {
-        if let Some(t) = self.symtab.fetch_str(name) {
             Ok(t)
         } else {
             Err(response!(

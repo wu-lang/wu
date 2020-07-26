@@ -1,14 +1,14 @@
 use git2::build::{CheckoutBuilder, RepoBuilder};
-use git2::{FetchOptions, Progress, RemoteCallbacks};
+use git2::{FetchOptions, RemoteCallbacks};
 
 use toml::Value;
 
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::{self, Write};
+use std::io::Write;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use colored::Colorize;
 

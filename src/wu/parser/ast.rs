@@ -13,6 +13,7 @@ pub enum StatementNode {
     Return(Option<Rc<Expression>>),
     Implement(Expression, Expression, Option<Expression>),
     Import(String, Vec<String>, bool), // pub: bool
+    //TODO: Never instantiated?
     ExternBlock(Rc<Statement>),
     Skip,
     Break,

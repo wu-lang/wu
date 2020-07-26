@@ -1,8 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use std::rc::Rc;
-
 use super::visitor::*;
 
 #[derive(Debug, Clone)]
@@ -35,6 +33,7 @@ impl Frame {
         self.table.borrow_mut().insert(name, t);
     }
 
+    #[allow(dead_code)]
     pub fn debug(&self) {
         println!("======= frame");
         for (name, t) in self.table.borrow().iter() {
@@ -97,14 +96,6 @@ impl SymTab {
                 offset -= 1;
             }
         }
-    }
-
-    pub fn fetch_str(&self, name: &str) -> Option<Type> {
-        self.fetch(&name.to_string())
-    }
-
-    pub fn current_frame(&self) -> &Frame {
-        self.stack.last().unwrap()
     }
 
     pub fn current_frame_mut(&mut self) -> &mut Frame {
