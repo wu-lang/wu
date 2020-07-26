@@ -202,11 +202,11 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
                 ));
             }
 
-            if raw_marker {
-                if tokenizer.peek().unwrap() == '"' {
-                    break;
-                }
+            if tokenizer.peek().unwrap() == '"' {
+                break
+            }
 
+            if raw_marker {
                 string.push(tokenizer.next().unwrap())
             } else if found_escape {
                 string.push(match tokenizer.next().unwrap() {
