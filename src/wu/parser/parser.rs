@@ -1324,16 +1324,15 @@ impl<'p> Parser<'p> {
         if self.remaining() > 0 {
             match self.current_lexeme().as_str() {
                 "\n" => self.next(),
-                _ => panic!(),
-                // _ => Err(response!(
+                _ => Err(response!(
                     
-                //     Wrong(format!(
-                //         "expected new line found: `{}`",
-                //         self.current_lexeme()
-                //     )),
-                //     self.source.file,
-                //     self.current_position()
-                // )),
+                    Wrong(format!(
+                        "expected new line found: `{}`",
+                        self.current_lexeme()
+                    )),
+                    self.source.file,
+                    self.current_position()
+                )),
             }
         } else {
             Ok(())
