@@ -583,7 +583,7 @@ impl<'g> Generator<'g> {
                 if self.flag == Some(FlagImplicit::Return) {
                     result
                 } else {
-                    format!("{{ {} }}", result)
+                    format!("{}", result)
                 }
             }
 

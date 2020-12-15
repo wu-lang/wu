@@ -1088,24 +1088,23 @@ impl<'v> Visitor<'v> {
 
                     // allowed: fun(...) -> ...
 
-                    if iterator_t != Type::function(vec![params_t.clone()], params_t.clone(), false)
-                        && iterator_t != Type::function(vec![], Type::from(TypeNode::Any), false)
-                    {
-                        return Err(response!(
+                    match iterator_t.node {
+                        TypeNode::Func(..) => (),
+                        _ => return Err(response!(
                             Wrong(format!(
                                 "mismatched type, expected iterator function found `{}`",
                                 iterator_t
                             )),
                             self.source.file,
                             iterator.pos
-                        ));
+                        )),
                     }
 
                     match expr.node {
                         ExpressionNode::Identifier(ref name) => self
                             .symtab
                             .assign((*name).clone(), Type::from(TypeNode::Any)),
-                        ExpressionNode::Splat(ref names) => {
+                        ExpressionNode::Tuple(ref names) => {
                             for name in names.iter() {
                                 if let ExpressionNode::Identifier(ref name) = name.node {
                                     self.symtab
@@ -1115,7 +1114,7 @@ impl<'v> Visitor<'v> {
                         }
                         _ => {
                             return Err(response!(
-                                Wrong("expected identifier as accumulator"),
+                                Wrong("expected identifier or tuple as accumulator"),
                                 self.source.file,
                                 expr.pos
                             ))

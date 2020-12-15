@@ -11,6 +11,23 @@ for 10 {
 
 list := [1, 2, 3, 3]
 
-for x, y in ipairs(list) {
+for (x, y) in ipairs(list) {
     print(x, y)
+}
+
+# hackerman
+range: fun(a: int, b: int) -> ...any { 
+    i := 0
+
+    funky: fun(_: any, last: int) -> int? {
+        if last + 1 <= b {
+            return last + 1
+        }
+    }
+
+    (funky, nil, a - 1)
+}
+
+for x in range(0, 100) {
+    print("going to 100 !!", x)
 }
