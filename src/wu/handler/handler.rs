@@ -58,13 +58,14 @@ pub fn get() {
                             }
                         }
 
+
                         for member in t {
                             if !Path::new(&dep_path).exists() {
                                 fs::create_dir_all(&dep_path).unwrap();
                             }
 
                             if let Value::String(ref url) = *member.1 {
-                                let path = &format!("{}/{}", dep_path, member.0);
+                                let path = &format!("{}{}", dep_path, member.0);
 
                                 if Path::new(path).exists() {
                                     fs::remove_dir_all(path).unwrap()
