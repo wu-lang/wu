@@ -584,7 +584,7 @@ impl<'p> Parser<'p> {
 
             let expression = match token_type {
                 Int => Expression::new(
-                    ExpressionNode::Int(self.eat()?.parse::<u64>().unwrap()),
+                    ExpressionNode::Int(self.eat()?.parse::<i64>().unwrap()),
                     position,
                 ),
 

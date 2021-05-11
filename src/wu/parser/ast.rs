@@ -33,7 +33,7 @@ impl Statement {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionNode {
-    Int(u64),
+    Int(i64),
     Float(f64),
     Str(String),
     Char(char),
