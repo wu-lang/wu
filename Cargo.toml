@@ -7,8 +7,8 @@ license = "MIT"
 description = "A practical game and data language."
 
 [dependencies]
-colored     = "*"
-rustyline   = "*"
+colored     = "2.0.0"
+rustyline   = "9.0.0"
 backtrace   = "0.3"
 toml        = "0.4"
 git2        = "0.6"
