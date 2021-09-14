@@ -3,6 +3,8 @@ name    = "wu"
 version = "0.1.0"
 authors = ["nilq <i.am@nilq.dk>"]
 edition = "2018"
+license = "MIT"
+description = "A practical game and data language."
 
 [dependencies]
 colored     = "*"
