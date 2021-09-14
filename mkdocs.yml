@@ -1,0 +1,5 @@
+site_name: The Wu Language
+theme:
+  name: material
+  palette:
+    accent: purple
