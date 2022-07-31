@@ -202,11 +202,10 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
                 ));
             }
 
-            if tokenizer.peek().unwrap() == '"' {
-                break
-            }
-
             if raw_marker {
+                if tokenizer.peek().unwrap() == '"' {
+                    break;
+                }
                 string.push(tokenizer.next().unwrap())
             } else if found_escape {
                 string.push(match tokenizer.next().unwrap() {
@@ -235,9 +234,12 @@ impl<'t> Matcher<'t> for StringLiteralMatcher {
                 });
 
                 found_escape = false
+            } else if tokenizer.peek().unwrap() == '"' {
+                break;
             } else {
                 match tokenizer.peek().unwrap() {
                     '\\' => {
+                        string.push('\\');
                         tokenizer.next();
                         found_escape = true
                     }
