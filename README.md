@@ -37,7 +37,7 @@ Wu strives to be a decently useful language with focus on control, readability a
 
 ## Disclaimer
 
-Wu is built and maintained by a minimal team of people and was primarily developed during boring primary school classes, to help make time pass faster. Currently being maintained by an 18-year-old.
+Wu is built and maintained by a minimal team of people and was primarily developed during boring primary school classes, to help make time pass faster. At the current point in time it is not actively maintained due to work and studies all of us are occupied with, this may change in the future. However, you can still make suggestions, report bugs and open pull requests, one of us will definitely review them.
 
 ## Contributors
 
